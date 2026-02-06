@@ -126,7 +126,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(STR_KEY_DICT_FLAG)
             encode_number(buffer, len(obj))
             for k, v in obj.items():
-                if k is not str:
+                if type(k) is not str:
                     raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
                 serialize_object_without_type(buffer, k, settings)
                 serialize_object_with_type(buffer, v, settings)
@@ -223,7 +223,7 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
             buffer.append(STR_KEY_DICT_FLAG)
             encode_number(buffer, len(obj))
             for k, v in obj.items():
-                if k is not str:
+                if type(k) is not str:
                     raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
                 serialize_object_without_type(buffer, k, settings)
                 serialize_object_with_type(buffer, v, settings)
