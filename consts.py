@@ -1,6 +1,6 @@
 from typing import Union
 
-ObjType = Union[int, float, str, bool, bytes, list, dict, None]
+ObjType = Union[int, float, str, bool, bytes, list, tuple, dict, None]
 ByteLike = Union[bytes, bytearray]
 NUMBER_BASE = 255
 ENDING_FLAG = 255
