@@ -10,11 +10,16 @@ import pickle
 import time
 import tracemalloc
 
+from deserialize import load_bytes, decode_number
+
+from deserialize import Settings as LoadSettings
+
 os.environ["MSGPACK_PUREPYTHON"] = "True"
 import msgpack
 
 from benchmark_displayer import display_benchmark
-from serialize import dump_bytes, Settings
+from serialize import dump_bytes, Settings, encode_number
+
 
 objects = [
     1231,
@@ -45,19 +50,19 @@ objects = [
     "😎",
     "לא",
     "",
-    #
-    # b"1234",
-    # b"abcdefghijklmnopqrstuvwxyz",
-    # b"",
-    #
-    # None,
-    # True,
-    # False,
-    #
-    # [1, 2, 3],
-    # list(range(50, 1000)),
-    # [1, "asdg", b"234sa", 4.5, [1, 2, 3, 4, 5], False, [], None],
-    #
+
+    b"1234",
+    b"abcdefghijklmnopqrstuvwxyz",
+    b"",
+
+    None,
+    True,
+    False,
+
+    [-1, 0, 1, 2, 3],
+    list(range(50, 1000)),
+    [1, "asdg", b"234sa", 4.5, [1, 2, 3, 4, 5], False, [], None],
+
     {"a": "sdgaeiogn", "waegw": 123, "sdagweg": list(range(10)), "aegsag": {"asdg": 235, "Asg": b"asg"}},
     {1: "afdbda", "ar": "23wesd", False: 23453, 1234: 12324356, "": {"sgdfn32rwefsdvre": 34}},
 
@@ -89,11 +94,19 @@ def profile(name: str, func: callable):
 from pympler import asizeof
 
 for obj in objects:
+    serialized = dump_bytes(obj)
+    unserialized = load_bytes(serialized, settings=LoadSettings(modify_input=True))
+    assert (isinstance(obj, float) and math.isnan(obj) and math.isnan(unserialized)) or unserialized == obj
+
+
+for obj in objects:
     print(str(obj)[:120])
     print(asizeof.asizeof(obj))
     results = []
     results.append(profile("mine", lambda: dump_bytes(obj)))
+    # results.append(profile("str keys", lambda: dump_bytes(obj, settings=Settings(allow_non_string_keys=False))))
     results.append(profile("mine w pointer", lambda: dump_bytes(obj, settings=Settings(use_pointers=True))))
+    results.append(profile("mine w pointer & str keys", lambda: dump_bytes(obj, settings=Settings(use_pointers=True, allow_non_string_keys=False))))
     results.append(profile("json", lambda: json.dumps(obj).encode()))
     results.append(profile("orjson", lambda: orjson.dumps(obj)))
     results.append(profile("pickle", lambda: pickle.dumps(obj)))

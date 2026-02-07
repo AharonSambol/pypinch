@@ -4,13 +4,13 @@ ObjType = Union[int, float, str, bool, bytes, list, dict, None]
 ByteLike = Union[bytes, bytearray]
 NUMBER_BASE = 255
 ENDING_FLAG = 255
+HEADER = b"<o>"
 
 nums = iter(range(255))
 POSITIVE_INT_FLAG = bytes([next(nums)])[0]
 NEGATIVE_INT_FLAG = bytes([next(nums)])[0]
 INT_FLAG = bytes([next(nums)])[0]
 FLOAT_FLAG = bytes([next(nums)])[0]
-NEGATIVE_FLOAT_FLAG = bytes([next(nums)])[0]
 STR_FLAG = bytes([next(nums)])[0]
 EMPTY_STR_FLAG = bytes([next(nums)])[0]
 BYTES_FLAG = bytes([next(nums)])[0]
@@ -29,3 +29,4 @@ CONSISTENT_TYPE_DICT_FLAG = bytes([next(nums)])[0]
 POINTER_FLAG = bytes([next(nums)])[0]
 
 SMALL_INTS = {i: bytes([x])[0] for i, x in enumerate(nums)}
+REVERSE_SMALL_INTS = {v: k for k, v in SMALL_INTS.items()}

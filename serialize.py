@@ -8,7 +8,7 @@ from typing import Dict
 from consts import NUMBER_BASE, ObjType, ENDING_FLAG, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
-    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, SMALL_INTS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG
+    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, SMALL_INTS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, HEADER
 from exceptions import EncodingError
 
 
@@ -24,13 +24,13 @@ class Settings:
 DEFAULT_SETTINGS = Settings()
 
 
-def encode_number(buffer: bytearray, num: int) -> None:
-    if num < NUMBER_BASE:
+def encode_number(buffer: bytearray, num: int, base: int = NUMBER_BASE) -> None:
+    if num < base:
         buffer.append(num)
     else:
         buffer.append(ENDING_FLAG)
         while num:
-            num, remainder = divmod(num, NUMBER_BASE)
+            num, remainder = divmod(num, base)
             buffer.append(remainder)
         buffer.append(ENDING_FLAG)
 
@@ -38,13 +38,14 @@ def encode_number(buffer: bytearray, num: int) -> None:
 def dump_bytes(obj: ObjType, settings: Settings = DEFAULT_SETTINGS) -> bytearray:
     if settings.use_pointers:
         settings._pointers = {}
-    buffer = bytearray(b"<o>")
+    buffer = bytearray(HEADER)
     serialize_object_with_type(buffer, obj, settings)
     return buffer
 
 
 def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settings) -> None:
-    if type(obj) is int:
+    typ = type(obj)
+    if typ is int:
         if num_byte := SMALL_INTS.get(obj):
             buffer.append(num_byte)
         elif obj > 0:
@@ -53,21 +54,21 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
         else:
             buffer.append(NEGATIVE_INT_FLAG)
             encode_number(buffer, -obj)
-    elif type(obj) is bool:
+    elif typ is bool:
         buffer.append(TRUE_FLAG if obj else FALSE_FLAG)
     elif obj is None:
         buffer.append(NULL_FLAG)
-    elif type(obj) is bytes:
+    elif typ is bytes:
         if len(obj) == 0:
             buffer.append(EMPTY_BYTES_FLAG)
         else:
             buffer.append(BYTES_FLAG)
             encode_number(buffer, len(obj))
             buffer.extend(obj)
-    elif type(obj) is list:
+    elif typ is list or typ is tuple:
         if len(obj) > 1:
             first_type = type(obj[0])
-            if first_type is not list and first_type is not dict and all(type(x) is first_type for x in obj):
+            if first_type is not list and first_type is not dict and first_type is not tuple and all(type(x) is first_type for x in obj):
                 if first_type is NoneType:
                     buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                     buffer.append(NULL_FLAG)
@@ -78,11 +79,11 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
                     buffer.append(INT_FLAG)
                     encode_number(buffer, len(obj))
                     for item in obj:
-                        if item < 0:
-                            buffer.append(ENDING_FLAG)
-                            encode_number(buffer, -item)
+                        if item <= 0:
+                            buffer.append(NUMBER_BASE-1)
+                            encode_number(buffer, -item, base=NUMBER_BASE-1)
                         else:
-                            encode_number(buffer, item)
+                            encode_number(buffer, item, base=NUMBER_BASE-1)
                 elif first_type is bool:
                     buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                     buffer.append(BOOL_FLAG)
@@ -110,7 +111,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             encode_number(buffer, len(obj))
             for item in obj:
                 serialize_object_with_type(buffer, item, settings)
-    elif type(obj) is dict:
+    elif typ is dict:
         # if len(obj) > 1:
         #     k, v = next(iter(obj.items()))
         #     first_key_type = type(k)
@@ -142,10 +143,10 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             for k, v in obj.items():
                 serialize_object_with_type(buffer, k, settings)
                 serialize_object_with_type(buffer, v, settings)
-    elif type(obj) is float:
+    elif typ is float:
         buffer.append(FLOAT_FLAG)
         buffer.extend(struct.pack("!d", obj))
-    elif type(obj) is str:
+    elif typ is str:
         if len(obj) == 0:
             buffer.append(EMPTY_STR_FLAG)
         elif settings.use_pointers and (prev_pos := settings._pointers.get(obj)):
@@ -159,7 +160,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             encode_number(buffer, len(encoded_str))
             buffer.extend(encoded_str)
     else:
-        raise EncodingError(f"Unexpected type: {type(obj)}")
+        raise EncodingError(f"Unexpected type: {typ}")
 
 
 def type_to_flag(typ) -> int:
@@ -185,19 +186,20 @@ def type_to_flag(typ) -> int:
 
 
 def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Settings) -> None:
-    if type(obj) is int:
+    typ = type(obj)
+    if typ is int:
         if obj > 0:
             encode_number(buffer, obj)
         else:
             encode_number(buffer, -obj)
-    elif type(obj) is bool:
+    elif typ is bool:
         buffer.append(TRUE_FLAG if obj else FALSE_FLAG)
     elif obj is None:
         buffer.append(NULL_FLAG)
-    elif type(obj) is bytes:
+    elif typ is bytes:
         encode_number(buffer, len(obj))
         buffer.extend(obj)
-    elif type(obj) is list:
+    elif typ is list or typ is tuple:
         # if len(obj) > 1:
         #     first_type = type(obj[0])
         #     if all(type(x) is first_type for x in obj):
@@ -207,7 +209,7 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
         encode_number(buffer, len(obj))
         for item in obj:
             serialize_object_with_type(buffer, item, settings)
-    elif type(obj) is dict:
+    elif typ is dict:
         # if len(obj) > 1:
         #     k, v = next(iter(obj.items()))
         #     first_key_type = type(k)
@@ -239,9 +241,9 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
             for k, v in obj.items():
                 serialize_object_with_type(buffer, k, settings)
                 serialize_object_with_type(buffer, v, settings)
-    elif type(obj) is float:
+    elif typ is float:
         buffer.extend(struct.pack("!d", obj))
-    elif type(obj) is str:
+    elif typ is str:
 
         if settings.use_pointers and (prev_pos := settings._pointers.get(obj)):
             buffer.append(POINTER_FLAG)
@@ -253,4 +255,4 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
             encode_number(buffer, len(encoded_str))
             buffer.extend(encoded_str)
     else:
-        raise EncodingError(f"Unexpected type: {type(obj)}")
+        raise EncodingError(f"Unexpected type: {typ}")
