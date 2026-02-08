@@ -186,7 +186,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
     elif flag == INT_FLAG:
         raise DecodingError("unexpected flag")
     elif flag == FLOAT_FLAG:
-        num = struct.unpack("!d", buffer[pointer:pointer + BYTES_IN_DOUBLE])[0]
+        num = struct.unpack(BIG_ENDIAN_DOUBLE_FORMAT, buffer[pointer:pointer + BYTES_IN_DOUBLE])[0]
         return num, pointer + BYTES_IN_DOUBLE
     elif flag == STR_FLAG:
         return deserialize_str(buffer, pointer, settings)
@@ -230,12 +230,12 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
             return res_list, pointer
         elif typ_flag == BOOL_FLAG:
             res_list = typing.cast(List[bool], [None] * length)
-            length_in_bytes = math.ceil(length / 8)
+            length_in_bytes = math.ceil(length / NUMBER_OF_BITS_IN_BYTE)
             try:
                 for i in range(length_in_bytes):
                     byte = buffer[pointer + i]
-                    for j in range(8):
-                        res_list[i * 8 + j] = (byte & 128) == 128
+                    for j in range(NUMBER_OF_BITS_IN_BYTE):
+                        res_list[i * NUMBER_OF_BITS_IN_BYTE + j] = (byte & LEFTMOST_BIT_MASK) == LEFTMOST_BIT_MASK
                         byte <<= 1
             except IndexError:
                 pass
@@ -255,8 +255,8 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         elif typ_flag == FLOAT_FLAG:
             res_list = typing.cast(List[float], [None] * length)
             for i in range(length):
-                res_list[i] = struct.unpack("!d", buffer[pointer:pointer + 8])[0]
-                pointer += 8
+                res_list[i] = struct.unpack(BIG_ENDIAN_DOUBLE_FORMAT, buffer[pointer:pointer + BYTES_IN_DOUBLE])[0]
+                pointer += BYTES_IN_DOUBLE
             return res_list, pointer
         else:
             raise DecodingError(f"Unexpected type flag: {typ_flag}")
