@@ -5,6 +5,11 @@ ByteLike = Union[bytes, bytearray]
 NUMBER_BASE = 255
 ENDING_FLAG = 255
 HEADER = b"<o>"
+BIG_ENDIAN_DOUBLE_FORMAT = "!d"
+BYTES_IN_DOUBLE = 8
+NUMBER_OF_BITS_IN_BYTE = 8
+LEFTMOST_BIT_MASK = 128
+
 
 nums = iter(range(255))
 POSITIVE_INT_FLAG = bytes([next(nums)])[0]

@@ -1,68 +1,50 @@
 import gc
+import math
+import struct
 import typing
 from typing import Tuple, Optional, List
 
-import math
-import struct
-import tracemalloc
-from dataclasses import dataclass
-from typing import Dict
-
-from consts import NUMBER_BASE, ObjType, ENDING_FLAG, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
+from consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
-    ByteLike, HEADER, CONSISTENT_TYPE_DICT_FLAG, REVERSE_SMALL_INTS
+    ByteLike, HEADER, CONSISTENT_TYPE_DICT_FLAG, REVERSE_SMALL_INTS, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
+    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE
 from exceptions import DecodingError
+from pinch_python.deserialize.settings import Settings
+from pinch_python.deserialize.utils import decode_number
 
 
-@dataclass
-class Settings:
-    modify_input: bool = False
-    encoding: Optional[str] = None
-    use_tuples: bool = False    # TODO
-    use_pointers: bool = True
-    stop_gc: bool = False
-    _pointers: Dict = None
 
-
-DEFAULT_SETTINGS = Settings()
-
-
-def decode_number(num: ByteLike, pointer: int, base: int = NUMBER_BASE) -> Tuple[int, int]:
-    if num[pointer] != ENDING_FLAG:
-        return num[pointer], pointer + 1
-    power = res = 0
-    pointer += 1
-    while num[pointer] != ENDING_FLAG:
-        res += num[pointer] * base ** power
-        power += 1
-        pointer += 1
-    return res, pointer + 1
-
-
-def load_bytes(buffer: ByteLike, settings: Settings = DEFAULT_SETTINGS) -> ObjType:
-    if settings.stop_gc:
-        try:
+def load_bytes(
+    buffer: ByteLike,
+    *,
+    modify_input: bool = False,
+    encoding: Optional[str] = None,
+    use_tuples: bool = False,
+    use_pointers: bool = True,
+    stop_gc: bool = False,
+) -> ObjType:
+    try:
+        if stop_gc:
             gc.freeze()
-            settings.stop_gc = False
-            return load_bytes(buffer, settings)
-        finally:
-            settings.stop_gc = True
+
+        settings = Settings(
+            encoding=encoding,
+            use_tuples=use_tuples,  # TODO
+            use_pointers=use_pointers,
+            pointers={} if use_pointers else None
+        )
+        if modify_input and type(buffer) is bytearray:
+            original_buffer_len = len(buffer)
+            del buffer[:len(HEADER)]
+            return deserialize_object_from_bytearray(buffer, original_buffer_len, settings)
+        else:
+            return deserialize_object(buffer, len(HEADER), settings)[0]
+    finally:
+        if stop_gc:
             gc.unfreeze()
-    if settings.use_pointers:
-        settings._pointers = {}
-    if settings.modify_input and type(buffer) is bytearray:
-        return load_bytes_from_bytearray(buffer, settings)
-    else:
-        return load_bytes_from_bytes(buffer, settings)
 
-
-def load_bytes_from_bytearray(buffer: bytearray, settings: Settings) -> ObjType:
-    original_buffer_len = len(buffer)
-    del buffer[:len(HEADER)]
-    return deserialize_object_from_bytearray(buffer, original_buffer_len, settings)
-    
 
 def deserialize_object_from_bytearray(buffer: bytearray, original_buffer_len: int, settings: Settings) -> ObjType:
     flag = buffer[0]
@@ -75,11 +57,9 @@ def deserialize_object_from_bytearray(buffer: bytearray, original_buffer_len: in
         num, end = decode_number(buffer, 0)
         del buffer[:end]
         return -num
-    elif flag == INT_FLAG:
-        raise DecodingError("unexpected flag")
     elif flag == FLOAT_FLAG:
-        num = struct.unpack("!d", buffer[:8])[0]
-        del buffer[:8]
+        num = struct.unpack(BIG_ENDIAN_DOUBLE_FORMAT, buffer[:BYTES_IN_DOUBLE])[0]
+        del buffer[:BYTES_IN_DOUBLE]
         return num
     elif flag == STR_FLAG:
         return deserialize_str_from_bytearray(buffer, original_buffer_len, settings)
@@ -92,8 +72,6 @@ def deserialize_object_from_bytearray(buffer: bytearray, original_buffer_len: in
         return bytes(byts)
     elif flag == EMPTY_BYTES_FLAG:
         return b""
-    elif flag == BOOL_FLAG:
-        raise DecodingError("unexpected flag")
     elif flag == TRUE_FLAG:
         return True
     elif flag == FALSE_FLAG:
@@ -128,12 +106,11 @@ def deserialize_object_from_bytearray(buffer: bytearray, original_buffer_len: in
             return res_list
         elif typ_flag == BOOL_FLAG:
             res_list = typing.cast(List[bool], [None] * length)
-            length_in_bytes = math.ceil(length / 8)
-
+            length_in_bytes = math.ceil(length / NUMBER_OF_BITS_IN_BYTE)
             try:
                 for i, byte in enumerate(buffer[:length_in_bytes]):
-                    for j in range(8):
-                        res_list[i * 8 + j] = (byte & 128) == 128
+                    for j in range(NUMBER_OF_BITS_IN_BYTE):
+                        res_list[i * NUMBER_OF_BITS_IN_BYTE + j] = (byte & LEFTMOST_BIT_MASK) == LEFTMOST_BIT_MASK
                         byte <<= 1
             except IndexError:
                 pass
@@ -152,8 +129,8 @@ def deserialize_object_from_bytearray(buffer: bytearray, original_buffer_len: in
         elif typ_flag == FLOAT_FLAG:
             res_list = typing.cast(List[float], [None] * length)
             for i in range(length):
-                res_list[i] = struct.unpack("!d", buffer[:8])[0]
-                del buffer[:8]
+                res_list[i] = struct.unpack(BIG_ENDIAN_DOUBLE_FORMAT, buffer[:BYTES_IN_DOUBLE])[0]
+                del buffer[:BYTES_IN_DOUBLE]
             return res_list
         else:
             raise DecodingError(f"Unexpected type flag: {typ_flag}")
@@ -178,7 +155,11 @@ def deserialize_object_from_bytearray(buffer: bytearray, original_buffer_len: in
     elif flag == POINTER_FLAG:
         position, pointer = decode_number(buffer, 0)
         del buffer[:pointer]
-        return settings._pointers[position]
+        return settings.pointers[position]
+    elif flag == BOOL_FLAG:
+        raise DecodingError("unexpected flag: BOOL")
+    elif flag == INT_FLAG:
+        raise DecodingError("unexpected flag: INT")
     else:
         return REVERSE_SMALL_INTS[flag]
 
@@ -190,12 +171,8 @@ def deserialize_str_from_bytearray(buffer: bytearray, original_buffer_len: int, 
     del buffer[:pointer + length]
     string = encoded_str.decode(encoding=settings.encoding) if settings.encoding else encoded_str.decode()
     if settings.use_pointers:
-        settings._pointers[position] = string
+        settings.pointers[position] = string
     return string
-
-
-def load_bytes_from_bytes(buffer: bytes, settings: Settings) -> ObjType:
-    return deserialize_object(buffer, len(HEADER), settings)[0]
 
 
 def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjType, int):
@@ -209,8 +186,8 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
     elif flag == INT_FLAG:
         raise DecodingError("unexpected flag")
     elif flag == FLOAT_FLAG:
-        num = struct.unpack("!d", buffer[pointer:pointer + 8])[0]
-        return num, pointer + 8
+        num = struct.unpack("!d", buffer[pointer:pointer + BYTES_IN_DOUBLE])[0]
+        return num, pointer + BYTES_IN_DOUBLE
     elif flag == STR_FLAG:
         return deserialize_str(buffer, pointer, settings)
     elif flag == EMPTY_STR_FLAG:
@@ -306,7 +283,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         raise Exception("not implemented yet")  # todo
     elif flag == POINTER_FLAG:
         position, pointer = decode_number(buffer, pointer)
-        return settings._pointers[position], pointer
+        return settings.pointers[position], pointer
     else:
         return REVERSE_SMALL_INTS[flag], pointer
 
@@ -317,5 +294,5 @@ def deserialize_str(buffer: bytes, pointer: int, settings: Settings) -> Tuple[st
     encoded_str = buffer[pointer:pointer + length]
     string = encoded_str.decode(encoding=settings.encoding) if settings.encoding else encoded_str.decode()
     if settings.use_pointers:
-        settings._pointers[start] = string
+        settings.pointers[start] = string
     return string, pointer + length
