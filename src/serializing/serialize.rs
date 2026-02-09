@@ -1,4 +1,4 @@
-use std::ffi::{c_char, c_int};
+use std::ffi::{c_char};
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
 use std::ptr;
@@ -88,12 +88,12 @@ pub unsafe fn serialize(
             return;
         }
         unsafe fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssize_t) -> bool {
-            let first_type = (*if is_list { PyList_GET_ITEM(obj, 0) } else { PyTuple_GET_ITEM(obj, 0) }).ob_type;
+            let first_type = (*if is_list { PyList_GetItem(obj, 0) } else { PyTuple_GetItem(obj, 0) }).ob_type;
             for i in 1..len {
                 let item = if is_list {
-                    PyList_GET_ITEM(obj, i)
+                    PyList_GetItem(obj, i)
                 } else {
-                    PyTuple_GET_ITEM(obj, i)
+                    PyTuple_GetItem(obj, i)
                 };
                 if (*item).ob_type != first_type {
                     return false
@@ -102,7 +102,7 @@ pub unsafe fn serialize(
             true
         }
         if is_consistent_type_list(obj, is_list, len) {
-            let first_item = if is_list { PyList_GET_ITEM(obj, 0) } else { PyTuple_GET_ITEM(obj, 0) };
+            let first_item = if is_list { PyList_GetItem(obj, 0) } else { PyTuple_GetItem(obj, 0) };
             if first_item == Py_None() {
                 buffer.push(CONSISTENT_TYPE_LIST_FLAG);
                 buffer.push(NULL_FLAG);
@@ -125,9 +125,9 @@ pub unsafe fn serialize(
 
                 for i in 0..len {
                     let item = if is_list {
-                        PyList_GET_ITEM(obj, i)
+                        PyList_GetItem(obj, i)
                     } else {
-                        PyTuple_GET_ITEM(obj, i)
+                        PyTuple_GetItem(obj, i)
                     };
                     byte = (byte << 1) | ((item == Py_True()) as u8);
                     n += 1;
@@ -150,9 +150,9 @@ pub unsafe fn serialize(
             //     encode_number(buffer, len as u128, NUMBER_BASE);
             //     for i in 0..len {
             //         let item = if is_list {
-            //             PyList_GET_ITEM(obj, i)
+            //             PyList_GetItem(obj, i)
             //         } else {
-            //             PyTuple_GET_ITEM(obj, i)
+            //             PyTuple_GetItem(obj, i)
             //         };
             //         serialize(item, buf, pointers);
             //         if item <= 0 {
@@ -287,9 +287,9 @@ unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers:
     encode_number(buf, len as u128, NUMBER_BASE);
     for i in 0..len {
         let item = if is_list {
-            PyList_GET_ITEM(obj, i)
+            PyList_GetItem(obj, i)
         } else {
-            PyTuple_GET_ITEM(obj, i)
+            PyTuple_GetItem(obj, i)
         };
         serialize(item, buf, pointers);
     }

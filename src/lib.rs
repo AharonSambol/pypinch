@@ -1,6 +1,6 @@
 use std::os::raw::c_char;
 use std::ptr;
-use pyo3_ffi::{METH_FASTCALL, METH_KEYWORDS, Py_ssize_t, PyBytes_FromString, PyBytes_FromStringAndSize, PyErr_SetString, PyExc_OverflowError, PyExc_TypeError, PyMethodDef, PyMethodDefPointer, PyModule_Create, PyModuleDef, PyModuleDef_HEAD_INIT, PyObject, PyObject_IsTrue, PyTuple_GET_ITEM, PyTuple_GET_SIZE, PyUnicode_CompareWithASCIIString, PyUnicode_FromStringAndSize, PyVectorcall_NARGS};
+use pyo3_ffi::{METH_FASTCALL, METH_KEYWORDS, Py_ssize_t, PyBytes_FromString, PyBytes_FromStringAndSize, PyErr_SetString, PyExc_OverflowError, PyExc_TypeError, PyMethodDef, PyMethodDefPointer, PyModule_Create, PyModuleDef, PyModuleDef_HEAD_INIT, PyObject, PyObject_IsTrue, PyTuple_GET_ITEM, PyTuple_GET_SIZE, PyTuple_GetItem, PyTuple_Size, PyUnicode_CompareWithASCIIString, PyUnicode_FromStringAndSize, PyVectorcall_NARGS};
 use rustc_hash::FxHashMap;
 use crate::serializing::serialize::serialize;
 use crate::utils::consts::FALSE_FLAG;
@@ -64,10 +64,10 @@ pub unsafe extern "C" fn dumps(
 
     let mut use_pointers = false;
     if !kwnames.is_null() {
-        let nkw = PyTuple_GET_SIZE(kwnames);
+        let nkw = PyTuple_Size(kwnames);
 
         for i in 0..nkw {
-            let key = PyTuple_GET_ITEM(kwnames, i);
+            let key = PyTuple_GetItem(kwnames, i);
             // key is guaranteed to be str
             if PyUnicode_CompareWithASCIIString(
                 key,
