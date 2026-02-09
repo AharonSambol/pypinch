@@ -9,6 +9,8 @@ import tracemalloc
 import pypinch
 from pypinch._pypinch import dump_bytes as pinch_rust_dump
 from pypinch.serialize.serialize import dump_bytes as pinch_py_dump
+from pypinch._pypinch import load_bytes as pinch_rust_loads
+from pypinch.deserialize.deserialize import load_bytes as pinch_py_loads
 
 # os.environ["MSGPACK_PUREPYTHON"] = "True"
 import msgpack
@@ -28,12 +30,12 @@ objects = [
     {"a": "sdgaeiogn", "content": b"1243567" * 1024 * 1024 * 50, "sdagweg": list(range(10)), "aegsag": {"asdg": 235, "Asg": b"asg"}},
     [True, False, False] * 1000,
 ]
-# objects.clear()
+objects.clear()
 
-recursive_obj = {"a": "sdgaeiogn", "waegw": 123, "sdagweg": list(range(10)), "aegsag": {"asdg": 235, "Asg": "asg"}, "asgdagwe": "asgdouvjknmwefasdvsaivdljnm,efsdvlnk", "saegas": "asrgiufhkjnaseodigfun", "sargasdba": {"Asdg": "segaserhbaewh", "segaseh": "aehsarjt"}}
-for i in range(17):
-    recursive_obj[f"self{i}"] = copy.deepcopy(recursive_obj)
-objects.append(recursive_obj)
+# recursive_obj = {"a": "sdgaeiogn", "waegw": 123, "sdagweg": list(range(10)), "aegsag": {"asdg": 235, "Asg": "asg"}, "asgdagwe": "asgdouvjknmwefasdvsaivdljnm,efsdvlnk", "saegas": "asrgiufhkjnaseodigfun", "sargasdba": {"Asdg": "segaserhbaewh", "segaseh": "aehsarjt"}}
+# for i in range(17):
+#     recursive_obj[f"self{i}"] = copy.deepcopy(recursive_obj)
+# objects.append(recursive_obj)
 
 
 # objects.clear()
@@ -121,13 +123,15 @@ for obj in objects:
         },
     )
     # profile("msgpack", lambda: msgpack.dumps(obj))
-
-exit()
+print("""
+#################################################################################3
+                                        LOADS
+#################################################################################3
+""")
 for obj in objects:
     print(str(obj)[:120])
-    mine = dump_bytes(obj)
-    mine2 = copy.deepcopy(mine)
-    mine_w_pointer = dump_bytes(obj, settings=Settings(use_pointers=True, allow_non_string_keys=False))
+    mine = pinch_py_dump(obj)
+    mine_w_pointer = pinch_py_dump(obj, use_pointers=True)
     try:
         json_serialized = orjson.dumps(obj)
     except:
@@ -138,9 +142,10 @@ for obj in objects:
     except:
         msgpack_serialized = None
     results = [
-        profile("mine", lambda: load_bytes(mine, settings=LoadSettings(modify_input=True, use_tuples=True))),
-        profile("mine from bytes", lambda: load_bytes(bytes(mine2), settings=LoadSettings(modify_input=False, use_tuples=True))),
-        profile("mine w pointer & str keys", lambda: load_bytes(mine_w_pointer, settings=LoadSettings(modify_input=True, use_tuples=True))),
+        profile("mine (py)", lambda: pinch_py_loads(copy.deepcopy(mine), modify_input=True, use_tuples=True)),
+        profile("mine (rst)", lambda: pinch_rust_loads(copy.deepcopy(mine), modify_input=True, use_tuples=True)),
+        profile("mine from bytes (py)", lambda: pinch_py_loads(bytes(mine), modify_input=False, use_tuples=True)),
+        # profile("mine from bytes (rust)", lambda: pinch_rust_loads(bytes(mine), modify_input=False, use_tuples=True)),
         *([profile("json", lambda: json.loads(json_serialized))] if json_serialized else []),
         *([profile("orjson", lambda: orjson.loads(json_serialized))] if json_serialized else []),
         profile("pickle", lambda: pickle.loads(pickle_serialized)),

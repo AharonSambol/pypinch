@@ -120,7 +120,7 @@ pub unsafe extern "C" fn load_bytes(
 
     let arg1 = *args;
 
-    let mut use_pointers = false;
+    let mut use_pointers = true;
     if !kwnames.is_null() {
         let nkw = PyTuple_Size(kwnames);
 

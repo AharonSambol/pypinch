@@ -1,7 +1,8 @@
-use std::ffi::{c_char, c_long, c_ulonglong};
-use pyo3_ffi::{Py_False, Py_INCREF, Py_None, Py_ssize_t, Py_True, PyBytes_FromStringAndSize, PyDict_New, PyDict_SetItem, PyErr_SetString, PyExc_TypeError, PyFloat_FromDouble, PyList_New, PyList_SET_ITEM, PyLong_FromLong, PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyObject, PyTuple_New, PyTuple_SET_ITEM, PyUnicode_FromStringAndSize, PyUnicode_New};
+use std::ffi::{c_char, c_long, c_longlong, c_ulonglong};
+use std::slice;
+use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_ssize_t, Py_True, PyBytes_FromStringAndSize, PyDict_New, PyDict_SetItem, PyErr_SetString, PyExc_TypeError, PyFloat_FromDouble, PyList_New, PyList_SET_ITEM, PyLong_FromLong, PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyLong_Type, PyNumber_Negative, PyObject, PyTuple_New, PyTuple_SET_ITEM, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, PyUnicode_New, PyUnicode_Type};
 use rustc_hash::FxHashMap;
-use crate::deserializing::utils::decode_number;
+use crate::deserializing::utils::{decode_large_number, decode_number};
 use crate::py_string;
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, INT_FLAG, LEFTMOST_BIT_MASK, LIST_FLAG, NEGATIVE_INT_FLAG, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
@@ -16,14 +17,13 @@ pub unsafe fn deserialize_object(
     *ptr += 1;
     match flag {
         POSITIVE_INT_FLAG => {
-            // todo support larger numbers
-            let n= decode_number::<NUMBER_BASE>(buf, ptr);
-            PyLong_FromUnsignedLongLong(n as c_ulonglong)
+            decode_large_number::<NUMBER_BASE>(buf, ptr)
         }
         NEGATIVE_INT_FLAG => {
-            // todo support larger numbers
-            let n= decode_number::<NUMBER_BASE>(buf, ptr);
-            PyLong_FromLongLong(-(n as i64))
+            let num = decode_large_number::<NUMBER_BASE>(buf, ptr);
+            let res = PyNumber_Negative(num);
+            Py_DECREF(num);
+            res
         }
         FLOAT_FLAG => {
             PyFloat_FromDouble(decode_f64(buf, ptr))
@@ -51,7 +51,9 @@ pub unsafe fn deserialize_object(
         POINTER_FLAG => {
             let pos = decode_number::<NUMBER_BASE>(buf, ptr);
             if let Some(pointers) = pointers {
-                pointers[&(pos as usize)]
+                let res = pointers[&(pos as usize)];
+                Py_INCREF(res);
+                res
             } else {
                 // todo not type error, encoding\decoding error
                 PyErr_SetString(PyExc_TypeError, py_string!("unexpected flag pointer, when use_pointers is disabled"));
@@ -68,7 +70,6 @@ pub unsafe fn deserialize_object(
             bytes
         },
         CONSISTENT_TYPE_LIST_FLAG => {
-            
             let typ = *buf.get_unchecked(*ptr);
             *ptr += 1;
             let len= decode_number::<NUMBER_BASE>(buf, ptr) as Py_ssize_t;
@@ -99,13 +100,14 @@ pub unsafe fn deserialize_object(
                     let list = PyList_New(len);
                     for i in 0..len {
                         let is_negative_number = *buf.get_unchecked(*ptr) == NEGATIVE_NUMBER_SIGN as u8;
-                        *ptr += 1;
                         if is_negative_number {
-                            let num= decode_number::<{ NUMBER_BASE - 1 }>(buf, ptr);
-                            list_set_item(list, i, PyLong_FromLongLong(-(num as i64)));   // todo support larger numbers
+                            *ptr += 1;
+                            let num= decode_large_number::<{ NUMBER_BASE - 1 }>(buf, ptr);
+                            list_set_item(list, i, PyNumber_Negative(num));   // todo support larger numbers
+                            Py_DECREF(num);
                         } else {
-                            let num= decode_number::<{ NUMBER_BASE - 1 }>(buf, ptr);
-                            list_set_item(list, i, PyLong_FromUnsignedLongLong(num as c_ulonglong));
+                            let num= decode_large_number::<{ NUMBER_BASE - 1 }>(buf, ptr);
+                            list_set_item(list, i, num);
                         }
                     }
                     list
@@ -126,12 +128,12 @@ pub unsafe fn deserialize_object(
                 STR_FLAG => {
                     let list = PyList_New(len);
                     for i in 0..len {
-                        let s = decode_string(
+                        let str = decode_string(
                             buf,
                             ptr,
                             pointers,
                         );
-                        list_set_item(list, i, s);
+                        list_set_item(list, i, str);
                     }
                     list
                 }
@@ -197,7 +199,6 @@ pub unsafe fn deserialize_object(
             }
         },
         _ => {
-            // small int
             PyLong_FromLong((flag - AMOUNT_OF_USED_FLAGS) as c_long)
         }
     }
