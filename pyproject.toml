@@ -11,7 +11,7 @@ include = [
 
 [project]
 name = "pypinch"
-version = "0.0.2"
+version = "0.0.3"
 authors = [
     { name="Aharon Sambol", email="aharon.sambol@gmail.com" },
 ]

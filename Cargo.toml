@@ -16,7 +16,7 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies.pyo3-ffi]
-version = "*"
+version = "0.28.0"
 features = ["extension-module"]
 
 [profile.release]
