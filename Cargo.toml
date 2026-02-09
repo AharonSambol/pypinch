@@ -1,6 +1,6 @@
 [package]
 name = "pinch"
-version = "0.0.1"
+version = "0.0.10"
 edition = "2021"
 authors = ["Aharon Sambol <aharon.sambol@gmail.com>"]
 
