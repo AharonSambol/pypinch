@@ -87,6 +87,5 @@ pub unsafe extern "C" fn dump_bytes(
     serialize(arg1, &mut buf, &mut pointers);
     let ptr = buf.as_ptr() as *const c_char;
     let len = buf.len() as Py_ssize_t;
-
-    PyBytes_FromStringAndSize(ptr, len)
+    PyByteArray_FromStringAndSize(ptr, len)
 }

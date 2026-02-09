@@ -2,24 +2,10 @@ use std::ffi::{c_char};
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
 use std::ptr;
+use crate::serializing::number_encoding::encode_python_int;
+use crate::serializing::utils::{all_dick_keys_are_str, encode_number};
 use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, small_int, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
 
-
-// todo const base (its usually NUMBER_BASE)
-#[inline(always)]
-unsafe fn encode_number(buf: &mut Vec<u8>, mut number: u128, base: u8) {
-    if number < base as u128 {
-        buf.push(number as u8);
-    } else {
-        buf.push(NUMBER_BASE);
-        while number != 0 {
-            let remainder = number % (base as u128);
-            number /= base as u128;
-            buf.push(remainder as u8);
-        }
-        buf.push(NUMBER_BASE);
-    }
-}
 
 #[inline(always)]
 pub unsafe fn serialize(
@@ -249,38 +235,7 @@ pub unsafe fn serialize(
     // PyErr_SetString(PyExc_TypeError, format!("Unsupported type::{}\0", ).as_bytes().as_ptr() as _);
 }
 
-unsafe fn all_dick_keys_are_str(obj: *mut PyObject) -> bool {
-    let mut pos = 0;
-    let mut key: *mut PyObject = ptr::null_mut();
-    let mut val: *mut PyObject = ptr::null_mut();
-    while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
-        if (*val).ob_type != &mut PyUnicode_Type {
-            return false
-        }
-    }
-    true
-}
 
-unsafe fn encode_python_int(obj: *mut PyObject, buffer: &mut Vec<u8>, base: u8) {
-    let mut overflow = 0;
-    let longlong = PyLong_AsLongLongAndOverflow(obj, &mut overflow);
-
-    if overflow == 0 {
-        if let Some(byte) = small_int(longlong) {
-            buffer.push(byte);
-        } else if longlong >= 0 {
-            buffer.push(POSITIVE_INT_FLAG);
-            encode_number(buffer, longlong as u128, base);
-        } else {
-            buffer.push(NEGATIVE_INT_FLAG);
-            encode_number(buffer, (-longlong) as u128, base);
-        }
-        return;
-    }
-
-    // Huge integer path
-    encode_pylong_big(buffer, obj, base as u32);
-}
 
 unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Option<&mut FxHashMap<*mut PyObject, usize>>, is_list: bool, len: Py_ssize_t) {
     buf.push(LIST_FLAG);
@@ -293,94 +248,4 @@ unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers:
         };
         serialize(item, buf, pointers);
     }
-}
-
-#[inline(always)]
-unsafe fn encode_pylong_big(
-    buf: &mut Vec<u8>,
-    obj: *mut PyObject,
-    base: u32
-) {
-    let nbits = _PyLong_NumBits(obj);
-    let nbytes = (nbits + 7) / 8 + 1; // +1 to preserve sign bit
-
-    let mut bytes = Vec::<u8>::with_capacity(nbytes);
-    bytes.set_len(nbytes);
-
-    // signed = 1 → two's complement
-    let rc = _PyLong_AsByteArray(
-        obj as *mut PyLongObject,
-            bytes.as_mut_ptr(),
-        nbytes,
-        0, // big-endian
-        1, // signed
-    );
-    if rc != 0 {
-        PyErr_SetString(
-            PyExc_RuntimeError,
-            b"Failed to extract PyLong bytes\0".as_ptr() as _,
-        );
-        return;
-    }
-
-    // Determine sign from MSB
-    let is_negative = (bytes[0] & 0x80) != 0;
-
-    buf.push(if is_negative {
-        NEGATIVE_INT_FLAG
-    } else {
-        POSITIVE_INT_FLAG
-    });
-
-    // If negative, convert from two's complement to magnitude
-    if is_negative {
-        twos_complement_inplace(&mut bytes);
-    }
-
-    encode_base_from_bytes(buf, &bytes, base);
-}
-
-#[inline(always)]
-fn twos_complement_inplace(bytes: &mut [u8]) {
-    // invert
-    for b in bytes.iter_mut() {
-        *b = !*b;
-    }
-
-    // add 1
-    for b in bytes.iter_mut().rev() {
-        let (v, carry) = b.overflowing_add(1);
-        *b = v;
-        if !carry {
-            break;
-        }
-    }
-}
-
-#[inline(always)]
-fn encode_base_from_bytes(buf: &mut Vec<u8>, bytes: &[u8], base: u32) {
-    // Working copy (big-endian base-256 number)
-    let mut work = bytes.to_vec();
-
-    buf.push(ENDING_FLAG);
-
-    while !work.is_empty() {
-        let mut carry: u32 = 0;
-
-        for b in work.iter_mut() {
-            let v = (carry << 8) | (*b as u32);
-            *b = (v / base) as u8;
-            carry = v % base;
-        }
-
-        // carry is the remainder
-        buf.push(carry as u8);
-
-        // Trim leading zero bytes
-        while !work.is_empty() && work[0] == 0 {
-            work.remove(0);
-        }
-    }
-
-    buf.push(ENDING_FLAG);
 }
