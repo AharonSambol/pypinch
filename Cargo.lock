@@ -10,7 +10,7 @@ checksum = "bcc35a38544a891a5f7c865aca548a982ccb3b8650a5b06d0fd33a10283c56fc"
 
 [[package]]
 name = "pinch"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "pyo3-ffi",
  "rustc-hash",
