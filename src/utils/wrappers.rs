@@ -56,12 +56,12 @@ pub unsafe fn tuple_get_item(obj: *mut PyObject, i: Py_ssize_t) -> *mut PyObject
 pub unsafe fn tuple_set_item(tuple: *mut PyObject, i: Py_ssize_t, obj: *mut PyObject) {
     #[cfg(PyPy)]
     {
-        PyTuple_SetItem(tuple, i, obj)
+        PyTuple_SetItem(tuple, i, obj);
     }
 
     #[cfg(not(PyPy))]
     {
-        PyTuple_SET_ITEM(tuple, i, obj)
+        PyTuple_SET_ITEM(tuple, i, obj);
     }
 }
 
@@ -69,11 +69,11 @@ pub unsafe fn tuple_set_item(tuple: *mut PyObject, i: Py_ssize_t, obj: *mut PyOb
 pub unsafe fn list_set_item(list: *mut PyObject, i: Py_ssize_t, obj: *mut PyObject) {
     #[cfg(PyPy)]
     {
-        PyList_SetItem(list, i, obj)
+        PyList_SetItem(list, i, obj);
     }
 
     #[cfg(not(PyPy))]
     {
-        PyList_SET_ITEM(list, i, obj)
+        PyList_SET_ITEM(list, i, obj);
     }
 }
