@@ -1,7 +1,12 @@
 import copy
 import datetime
 import math
-from zoneinfo import ZoneInfo
+import sys
+
+if sys.version_info.major == 3 and sys.version_info.minor < 9:
+    from backports.zoneinfo import ZoneInfo
+else:
+    from zoneinfo import ZoneInfo
 
 import pytest
 
