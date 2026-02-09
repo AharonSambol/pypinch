@@ -7,10 +7,11 @@ use crate::utils::consts::FALSE_FLAG;
 
 mod utils;
 mod serializing;
+mod deserializing;
 
 static mut MODULE_DEF: PyModuleDef = PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
-    m_name: "pinch\0".as_ptr().cast::<c_char>(),
+    m_name: "_pypinch\0".as_ptr().cast::<c_char>(),
     m_doc: "A Python module written in Rust.\0"
         .as_ptr()
         .cast::<c_char>(),
@@ -40,7 +41,7 @@ static mut METHODS: [PyMethodDef; 2] = [
 // The module initialization function
 #[allow(non_snake_case)]
 #[no_mangle]
-pub unsafe extern "C" fn PyInit_pinch() -> *mut PyObject {
+pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
     PyModule_Create(ptr::addr_of_mut!(MODULE_DEF))
 }
 

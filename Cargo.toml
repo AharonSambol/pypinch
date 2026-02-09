@@ -6,7 +6,7 @@ authors = ["Aharon Sambol <aharon.sambol@gmail.com>"]
 
 
 [lib]
-name = "pypinch"
+name = "_pypinch"
 crate-type = ["cdylib"]
 path = "src/lib.rs"
 
