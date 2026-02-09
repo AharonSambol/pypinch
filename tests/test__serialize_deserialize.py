@@ -10,7 +10,7 @@ else:
 
 import pytest
 
-from pysrc import pypinch
+import pypinch
 
 ALL_TYPES_OF_OBJECTS = [
     (1231,),
