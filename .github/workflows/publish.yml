@@ -1,8 +1,14 @@
 name: Upload Python Package
 
 on:
+  workflow_run:
+    workflows: [ "test" ] # Must match the 'name' in test.yaml
+    types:
+      - completed
+    branches:
+      - master
   release:
-    types: [created]
+    types: [published]
 
 permissions:
   contents: read
