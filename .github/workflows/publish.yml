@@ -13,7 +13,10 @@ jobs:
     uses: ./.github/workflows/test.yml
 
   release-build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
     needs: run-tests
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +29,7 @@ jobs:
         with:
           command: build
           args: --release --out dist --find-interpreter
-          manylinux: auto
+          manylinux: ${{ matrix.os == 'ubuntu-latest' && 'auto' || '' }}
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
@@ -49,7 +52,8 @@ jobs:
       - name: Retrieve release distributions
         uses: actions/download-artifact@v4
         with:
-          name: release-dists
+          name: release-dists-*
+          merge-multiple: true
           path: dist/
 
       - name: Publish release distributions to PyPI
