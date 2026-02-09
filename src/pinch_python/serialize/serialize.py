@@ -1,6 +1,5 @@
 import struct
 from datetime import datetime
-from types import NoneType
 from typing import Union, List, Tuple
 
 from consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
@@ -72,7 +71,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             first_type = type(obj[0])
             if first_type is str and settings.use_pointers:
                 serialize_normal_list(buffer, obj, settings)
-            elif first_type is NoneType:
+            elif obj[0] is None:
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 buffer.append(NULL_FLAG)
                 encode_number(buffer, len(obj))
