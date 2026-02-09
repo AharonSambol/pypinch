@@ -12,7 +12,7 @@ from pinch_python.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_F
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, NEGATIVE_NUMBER_SIGN
 
 
-from exceptions import DecodingError
+from pinch_python.exceptions import DecodingError
 from pinch_python.deserialize.settings import Settings
 from pinch_python.deserialize.utils import decode_number
 
