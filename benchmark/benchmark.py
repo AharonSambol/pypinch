@@ -8,12 +8,10 @@ import time
 import tracemalloc
 import pypinch
 
-from pysrc import pypinch
-
 # os.environ["MSGPACK_PUREPYTHON"] = "True"
 import msgpack
 
-from benchmark_displayer import display_benchmark
+from benchmark.benchmark_displayer import display_benchmark
 
 # a = 1
 # print(load_bytes(pypinch.dump_bytes(a)))
@@ -22,51 +20,6 @@ from benchmark_displayer import display_benchmark
 # print(bytes(dump_bytes(a)))
 # exit()
 objects = [
-    1231,
-    1,
-    332634,
-    5437890568343289547384,
-    0,
-    -1231,
-    -1,
-    -332634,
-    -5437890568343289547384,
-
-    1.000000000001,
-    100000000000000000000000000000000000000000.1,
-    23423523.543262346234,
-    4.4,
-    -1.000000000001,
-    -100000000000000000000000000000000000000000.1,
-    -23423523.543262346234,
-    -4.4,
-
-    math.nan,
-    math.inf,
-    -math.inf,
-
-    "afsag",
-    "092u384oiwjrklsgmfoisgjldkxfmoweij;lksgzwaoi;elgjskznwoi;jetlaksfdnv" * 1_000_000,
-    "😎",
-    "לא",
-    "",
-
-    b"1234",
-    b"abcdefghijklmnopqrstuvwxyz",
-    b"",
-
-    None,
-    True,
-    False,
-
-    [None] * 10,
-    [b"1234", b"asgsa", b"sgaeg4we"],
-    [0.1, 0.2, 0.3, 0.4],
-    [-91, 0, 1, 2, 3, 4, 5, 6, 7, 8],
-    list(range(50, 1000)),
-    ["aaaa", "aaaa", "aaaa"],
-    [1, "asdg", b"234sa", 4.5, [1, 2, 3, 4, 5], False, [], None],
-
     {"a": "sdgaeiogn", "waegw": 123, "sdagweg": list(range(10)), "aegsag": {"asdg": 235, "Asg": b"asg"}},
     {1: "afdbda", "ar": "23wesd", False: 23453, 1234: 12324356, "": {"sgdfn32rwefsdvre": 34}},
 

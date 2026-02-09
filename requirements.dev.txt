@@ -1,2 +1,4 @@
 -r requirements.txt
 backports.zoneinfo; python_version <= '3.8'
+maturin
+pytest

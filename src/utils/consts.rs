@@ -1,4 +1,3 @@
-
 pub const NUMBER_BASE: u8 = 255;
 pub const ENDING_FLAG: u8 = 255;
 pub const HEADER: &[u8] = b"<o>";

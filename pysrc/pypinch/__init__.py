@@ -5,7 +5,7 @@ FORCE_PYTHON = os.environ.get("PYPINCH_FORCE_PYTHON")
 _pypinch = None
 if not FORCE_PYTHON:
     try:
-        from . import _pypinch
+        from ._pypinch import *
     except ImportError:
         _pypinch = None
 
