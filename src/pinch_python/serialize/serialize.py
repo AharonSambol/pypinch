@@ -9,8 +9,8 @@ from consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLA
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, SMALL_INTS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, HEADER, \
     BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE
 from exceptions import EncodingError
-from pinch_python.serialize.settings import Settings
-from pinch_python.serialize.utils import encode_number
+from src.pinch_python.serialize.settings import Settings
+from src.pinch_python.serialize.utils import encode_number
 
 _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 

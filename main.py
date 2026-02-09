@@ -1,6 +1,5 @@
 import copy
 import json
-import os
 
 import orjson
 import math
@@ -9,7 +8,7 @@ import time
 import tracemalloc
 import pinch
 
-import pinch_python
+from src import pinch_python
 
 # os.environ["MSGPACK_PUREPYTHON"] = "True"
 import msgpack

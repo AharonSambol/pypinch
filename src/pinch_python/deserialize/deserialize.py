@@ -13,8 +13,8 @@ from consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLA
 
 
 from exceptions import DecodingError
-from pinch_python.deserialize.settings import Settings
-from pinch_python.deserialize.utils import decode_number
+from src.pinch_python.deserialize.settings import Settings
+from src.pinch_python.deserialize.utils import decode_number
 
 
 

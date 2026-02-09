@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-import pinch_python
+from src import pinch_python
 
 ALL_TYPES_OF_OBJECTS = [
     (1231,),
