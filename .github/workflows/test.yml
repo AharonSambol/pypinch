@@ -32,9 +32,9 @@ jobs:
 
     - name: Run Tests (Rust Backend)
       run: |
-        pytest tests/ -c pytest-ci.ini
+        pytest -c ../tests/pytest-ci.ini --rootdir ../tests/
 
     - name: Run Tests (Python Fallback)
       run: |
         export PYPINCH_FORCE_PYTHON=1
-        pytest tests/ -c pytest-ci.ini
+        pytest -c ../tests/pytest-ci.ini --rootdir ../tests/
