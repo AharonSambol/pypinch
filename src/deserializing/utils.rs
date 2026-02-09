@@ -1,4 +1,4 @@
-use std::ffi::c_ulonglong;
+use std::ffi::{c_long, c_ulonglong};
 use pyo3_ffi::{Py_DECREF, PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject};
 use crate::utils::consts::ENDING_FLAG;
 
@@ -12,7 +12,6 @@ pub unsafe fn decode_number<const BASE: u128>(
     if b != ENDING_FLAG {
         return b as u128;
     }
-
 
     let mut res: u128 = 0;
     let mut mul: u128 = 1;
@@ -36,7 +35,7 @@ pub unsafe fn decode_large_number<const BASE: u128>(
     let b = *buf.get_unchecked(*ptr);
     *ptr += 1;
     if b != ENDING_FLAG {
-        return PyLong_FromLong(b as i64);
+        return PyLong_FromLong(b as c_long);
     }
 
     let mut num_length = 1;
@@ -65,9 +64,9 @@ pub unsafe fn decode_large_number<const BASE: u128>(
     }
 
 
-    let mut result = PyLong_FromUnsignedLongLong(res as u64);
-    let mut mul = PyLong_FromUnsignedLongLong(mul as u64);
-    let base_as_long = PyLong_FromLong(BASE as i64);
+    let mut result = PyLong_FromUnsignedLongLong(res as c_ulonglong);
+    let mut mul = PyLong_FromUnsignedLongLong(mul as c_ulonglong);
+    let base_as_long = PyLong_FromLong(BASE as c_long);
     
     loop {
         let v = *buf.get_unchecked(*ptr);
@@ -78,7 +77,7 @@ pub unsafe fn decode_large_number<const BASE: u128>(
 
             return result;
         }
-        let cur_byte_as_long = PyLong_FromLong(v as i64);
+        let cur_byte_as_long = PyLong_FromLong(v as c_long);
         let tmp = PyNumber_Multiply(cur_byte_as_long, mul);
         Py_DECREF(cur_byte_as_long);
         let new_result = PyNumber_Add(result, tmp);

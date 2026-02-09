@@ -149,7 +149,6 @@ pub unsafe fn serialize(
             //             encode_python_int(obj, buffer, NUMBER_BASE-1);
             //         }
             //     }
-            //
             // }
         }
 
@@ -185,7 +184,6 @@ pub unsafe fn serialize(
             }
             return;
         }
-
 
         buffer.push(DICT_FLAG);
         encode_number::<NUMBER_BASE>(buffer, size as u128);
