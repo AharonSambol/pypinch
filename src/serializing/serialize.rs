@@ -79,9 +79,9 @@ pub unsafe fn serialize(
     if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
         let is_list = typ == &mut PyList_Type;
         let len = if is_list {
-            PyList_GET_SIZE(obj)
+            PyList_Size(obj)
         } else {
-            PyTuple_GET_SIZE(obj)
+            PyTuple_Size(obj)
         };
         if len == 0 {
             buffer.push(EMPTY_LIST_FLAG);
