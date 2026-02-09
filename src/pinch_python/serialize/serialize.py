@@ -2,14 +2,14 @@ import struct
 from datetime import datetime
 from typing import Union, List, Tuple
 
-from consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
+from pinch_python.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, SMALL_INTS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, HEADER, \
     BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE
-from exceptions import EncodingError
-from src.pinch_python.serialize.settings import Settings
-from src.pinch_python.serialize.utils import encode_number
+from pinch_python.exceptions import EncodingError
+from pinch_python.serialize.settings import Settings
+from pinch_python.serialize.utils import encode_number
 
 _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
