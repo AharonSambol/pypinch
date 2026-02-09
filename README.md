@@ -1,0 +1,1 @@
+# Schemaless binary serialization format without limitations
