@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pinch"
+version = "0.0.1"
+authors = [
+  { name="Aharon Sambol", email="aharon.sambol@gmail.com" },
+]
+description = "Schemaless binary serialization format without limitations"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Utilities",
+    "Topic :: File Formats",
+    "Typing :: Typed",
+    "Intended Audience :: Developers",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/AharonSambol/pinch"
+Issues = "https://github.com/AharonSambol/pinch/issues"
