@@ -131,6 +131,8 @@ print("""
 for obj in objects:
     print(str(obj)[:120])
     mine = pinch_py_dump(obj)
+    mine2 = copy.deepcopy(mine)
+    mine_bytes = bytes(mine)
     mine_w_pointer = pinch_py_dump(obj, use_pointers=True)
     try:
         json_serialized = orjson.dumps(obj)
@@ -142,10 +144,10 @@ for obj in objects:
     except:
         msgpack_serialized = None
     results = [
-        profile("mine (py)", lambda: pinch_py_loads(copy.deepcopy(mine), modify_input=True, use_tuples=True)),
-        profile("mine (rst)", lambda: pinch_rust_loads(copy.deepcopy(mine), modify_input=True, use_tuples=True)),
-        profile("mine from bytes (py)", lambda: pinch_py_loads(bytes(mine), modify_input=False, use_tuples=True)),
-        # profile("mine from bytes (rust)", lambda: pinch_rust_loads(bytes(mine), modify_input=False, use_tuples=True)),
+        profile("mine (py)", lambda: pinch_py_loads(mine, modify_input=True, use_tuples=True)),
+        profile("mine (rst)", lambda: pinch_rust_loads(mine2, modify_input=True, use_tuples=True)),
+        profile("mine from bytes (py)", lambda: pinch_py_loads(mine_bytes, modify_input=False, use_tuples=True)),
+        profile("mine from bytes (rust)", lambda: pinch_rust_loads(mine_bytes, modify_input=False, use_tuples=True)),
         *([profile("json", lambda: json.loads(json_serialized))] if json_serialized else []),
         *([profile("orjson", lambda: orjson.loads(json_serialized))] if json_serialized else []),
         profile("pickle", lambda: pickle.loads(pickle_serialized)),
