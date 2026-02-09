@@ -27,7 +27,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: --release --out dist --find-interpreter ${{ matrix.os == 'ubuntu-latest' && '--sdist' || '--only-wheels' }}
+          args: --release --out dist --find-interpreter ${{ matrix.os == 'ubuntu-latest' && '--sdist' || '' }}
           manylinux: ${{ matrix.os == 'ubuntu-latest' && 'auto' || '' }}
 
       - name: Upload distributions
