@@ -4,8 +4,9 @@ from typing import Dict
 
 @dataclass
 class Settings:
-    allow_non_string_keys: bool = True
-    modify_input: bool = False  # TODO
-    encoding: str = None
-    use_pointers: bool = False
-    pointers: Dict = None
+    allow_non_string_keys: bool
+    modify_input: bool
+    encoding: str
+    use_pointers: bool
+    pointers: Dict
+    serialize_dates: bool

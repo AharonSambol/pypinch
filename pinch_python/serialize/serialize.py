@@ -1,4 +1,5 @@
 import struct
+from datetime import datetime
 from types import NoneType
 from typing import Union, List, Tuple
 
@@ -11,15 +12,18 @@ from exceptions import EncodingError
 from pinch_python.serialize.settings import Settings
 from pinch_python.serialize.utils import encode_number
 
+_pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
+
 
 def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, modify_input: bool = False, encoding: str = None,
-               use_pointers: bool = False) -> bytearray:
+               use_pointers: bool = False, serialize_dates: bool = True) -> bytearray:
     settings = Settings(
         allow_non_string_keys=allow_non_string_keys,
-        modify_input=modify_input,
+        modify_input=modify_input,  # TODO
         encoding=encoding,
         use_pointers=False,
-        pointers={} if use_pointers else None
+        pointers={} if use_pointers else None,
+        serialize_dates=serialize_dates,
     )
     buffer = bytearray(HEADER)
     serialize_object_with_type(buffer, obj, settings)
@@ -33,6 +37,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
         if len(obj) == 0:
             buffer.append(EMPTY_STR_FLAG)
             encode_normally = False
+            # todo                          python 3.9
         elif settings.use_pointers and (prev_pos := settings.pointers.get(obj)):
             temp_buffer = bytearray()
             temp_buffer.append(POINTER_FLAG)
@@ -98,7 +103,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             else:
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 try:
-                    buffer.append({str: STR_FLAG, bytes: BYTES_FLAG, float: FLOAT_FLAG}[first_type])
+                    buffer.append({str: STR_FLAG, bytes: BYTES_FLAG, float: FLOAT_FLAG, datetime: STR_FLAG}[first_type])
                 except KeyError:
                     raise EncodingError(f"Unexpected type: {first_type}")
 
@@ -132,7 +137,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
                 serialize_object_with_type(buffer, v, settings)
     elif typ is float:
         buffer.append(FLOAT_FLAG)
-        buffer.extend(struct.pack(BIG_ENDIAN_DOUBLE_FORMAT, obj))
+        buffer.extend(_pack_double(obj))
     elif typ is bytes:
         if len(obj) == 0:
             buffer.append(EMPTY_BYTES_FLAG)
@@ -140,7 +145,11 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(BYTES_FLAG)
             encode_number(buffer, len(obj))
             buffer.extend(obj)
+    elif typ is datetime and settings.serialize_dates:
+        return serialize_object_with_type(buffer, obj.isoformat(), settings)
     else:
+        if typ is datetime and not settings.serialize_dates:
+            raise EncodingError(f"Unexpected type: datetime, with flag serialize_dates disabled")
         raise EncodingError(f"Unexpected type: {typ}")
 
 
@@ -201,12 +210,14 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
                 serialize_object_with_type(buffer, k, settings)
                 serialize_object_with_type(buffer, v, settings)
     elif typ is float:
-        buffer.extend(struct.pack(BIG_ENDIAN_DOUBLE_FORMAT, obj))
+        buffer.extend(_pack_double(obj))
     elif typ is str:
         encoded_str = obj.encode(encoding=settings.encoding) if settings.encoding else obj.encode()
         if settings.use_pointers:
             settings.pointers[obj] = len(buffer)
         encode_number(buffer, len(encoded_str))
         buffer.extend(encoded_str)
+    elif typ is datetime and settings.serialize_dates:
+        return serialize_object_without_type(buffer, obj.isoformat(), settings)
     else:
         raise EncodingError(f"Unexpected type: {typ}")

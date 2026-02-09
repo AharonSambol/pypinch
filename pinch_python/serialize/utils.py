@@ -1,7 +1,4 @@
-from types import NoneType
-
-from consts import NUMBER_BASE, ENDING_FLAG, INT_FLAG, STR_FLAG, BOOL_FLAG, NULL_FLAG, BYTES_FLAG, FLOAT_FLAG
-from exceptions import EncodingError
+from consts import NUMBER_BASE, ENDING_FLAG
 
 
 def encode_number(buffer: bytearray, num: int, base: int = NUMBER_BASE) -> None:

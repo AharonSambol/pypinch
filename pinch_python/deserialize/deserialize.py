@@ -9,7 +9,9 @@ from consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLA
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, CONSISTENT_TYPE_DICT_FLAG, REVERSE_SMALL_INTS, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
-    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE
+    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, NEGATIVE_NUMBER_SIGN
+
+
 from exceptions import DecodingError
 from pinch_python.deserialize.settings import Settings
 from pinch_python.deserialize.utils import decode_number
@@ -93,17 +95,18 @@ def deserialize_object_from_bytearray(buffer: bytearray, original_buffer_len: in
         if typ_flag == NULL_FLAG:
             return ((None,) if settings.use_tuples else [None]) * length
         elif typ_flag == INT_FLAG:
-            res_list = typing.cast(List[int], [None] * length)
-            for i in range(length):
-                if buffer[0] == NUMBER_BASE-1:
-                    num, pointer = decode_number(buffer, 1, base=NUMBER_BASE-1)
-                    res_list[i] = -num
-                    del buffer[:pointer]
+            def extract_number(_buffer: bytearray) -> int:
+                if _buffer[0] == NEGATIVE_NUMBER_SIGN:
+                    _num, _pointer = decode_number(_buffer, 1, base=NUMBER_BASE - 1)
+                    del _buffer[:_pointer]
+                    return -_num
                 else:
-                    num, pointer = decode_number(buffer, 0, base=NUMBER_BASE-1)
-                    res_list[i] = num
-                    del buffer[:pointer]
-            return res_list
+                    _num, _pointer = decode_number(_buffer, 0, base=NUMBER_BASE - 1)
+                    del _buffer[:_pointer]
+                    return _num
+            if settings.use_tuples:
+                return tuple(extract_number(buffer) for _ in range(length))
+            return [extract_number(buffer) for _ in range(length)]
         elif typ_flag == BOOL_FLAG:
             res_list = typing.cast(List[bool], [None] * length)
             length_in_bytes = math.ceil(length / NUMBER_OF_BITS_IN_BYTE)
