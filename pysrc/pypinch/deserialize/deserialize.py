@@ -22,7 +22,6 @@ def load_bytes(
     buffer: ByteLike,
     *,
     modify_input: bool = False,
-    encoding: Optional[str] = None,
     use_tuples: bool = False,
     use_pointers: bool = True,
     stop_gc: bool = False,
@@ -32,7 +31,6 @@ def load_bytes(
             gc.freeze()
 
         settings = Settings(
-            encoding=encoding,
             use_tuples=use_tuples,  # TODO
             use_pointers=use_pointers,
             pointers={} if use_pointers else None
@@ -172,7 +170,7 @@ def deserialize_str_from_bytearray(buffer: bytearray, original_buffer_len: int, 
     length, pointer = decode_number(buffer, 0)
     encoded_str = buffer[pointer:pointer + length]
     del buffer[:pointer + length]
-    string = encoded_str.decode(encoding=settings.encoding) if settings.encoding else encoded_str.decode()
+    string = encoded_str.decode()
     if settings.use_pointers:
         settings.pointers[position] = string
     return string
@@ -294,8 +292,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
 def deserialize_str(buffer: bytes, pointer: int, settings: Settings) -> Tuple[str, int]:
     start = pointer
     length, pointer = decode_number(buffer, pointer)
-    encoded_str = buffer[pointer:pointer + length]
-    string = encoded_str.decode(encoding=settings.encoding) if settings.encoding else encoded_str.decode()
+    string = buffer[pointer:pointer + length].decode()
     if settings.use_pointers:
         settings.pointers[start] = string
     return string, pointer + length

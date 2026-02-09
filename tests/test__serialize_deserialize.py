@@ -231,25 +231,3 @@ def test__serialize_deserialize__use_tuples(obj, expected):
 
     # Assert
     assert unserialized == expected
-
-
-@pytest.mark.parametrize(
-    ["obj", "encoding"],
-    [
-        ("abcdef", "utf-16"),
-        ("abcdef", "utf-32-le"),
-        ("abcdef", "ascii"),
-        ("abcdef", "cp775"),
-        ("abcdef", "windows-1256"),
-    ]
-)
-def test__serialize_deserialize__with_encoding(obj, encoding):
-    # Arrange
-    original_object = copy.deepcopy(obj)
-
-    # Act
-    serialized = pypinch.dump_bytes(obj, encoding=encoding)
-    unserialized = pypinch.load_bytes(serialized, modify_input=True, encoding=encoding)
-
-    # Assert
-    assert unserialized == original_object

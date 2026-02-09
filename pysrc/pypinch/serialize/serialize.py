@@ -14,12 +14,11 @@ from pypinch.serialize.utils import encode_number
 _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
 
-def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, modify_input: bool = False, encoding: str = None,
+def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, modify_input: bool = False,
                use_pointers: bool = False, serialize_dates: bool = True) -> bytearray:
     settings = Settings(
         allow_non_string_keys=allow_non_string_keys,
         modify_input=modify_input,  # TODO
-        encoding=encoding,
         use_pointers=False,
         pointers={} if use_pointers else None,
         serialize_dates=serialize_dates,
@@ -48,7 +47,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(STR_FLAG)
             if settings.use_pointers:
                 settings.pointers[obj] = len(buffer)
-            encoded_str = obj.encode(encoding=settings.encoding) if settings.encoding else obj.encode()
+            encoded_str = obj.encode()
             encode_number(buffer, len(encoded_str))
             buffer.extend(encoded_str)
     elif typ is int:
@@ -211,7 +210,7 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
     elif typ is float:
         buffer.extend(_pack_double(obj))
     elif typ is str:
-        encoded_str = obj.encode(encoding=settings.encoding) if settings.encoding else obj.encode()
+        encoded_str = obj.encode()
         if settings.use_pointers:
             settings.pointers[obj] = len(buffer)
         encode_number(buffer, len(encoded_str))
