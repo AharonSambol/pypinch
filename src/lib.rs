@@ -30,7 +30,7 @@ static mut METHODS: [PyMethodDef; 2] = [
             _PyCFunctionFastWithKeywords: dumps,
         },
         ml_flags: METH_FASTCALL | METH_KEYWORDS,
-        ml_doc: "serializes pinch\0"
+        ml_doc: "serializes pypinch\0"
             .as_ptr()
             .cast::<c_char>(),
     },

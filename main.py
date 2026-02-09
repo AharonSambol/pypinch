@@ -6,9 +6,9 @@ import math
 import pickle
 import time
 import tracemalloc
-import pinch
+import pypinch
 
-from pysrc import pinch
+from pysrc import pypinch
 
 # os.environ["MSGPACK_PUREPYTHON"] = "True"
 import msgpack
@@ -16,9 +16,9 @@ import msgpack
 from benchmark_displayer import display_benchmark
 
 # a = 1
-# print(load_bytes(pinch.dump_bytes(a)))
-# print(load_bytes(pinch.dump_bytes(a)) == a)
-# print(pinch.dump_bytes(a))
+# print(load_bytes(pypinch.dump_bytes(a)))
+# print(load_bytes(pypinch.dump_bytes(a)) == a)
+# print(pypinch.dump_bytes(a))
 # print(bytes(dump_bytes(a)))
 # exit()
 objects = [
@@ -115,10 +115,10 @@ def profile(name: str, func: callable):
 
 for obj in objects:
     print()
-    serialized = pinch.dump_bytes(obj, use_pointers=True)
+    serialized = pypinch.dump_bytes(obj, use_pointers=True)
     # print(serialized)
     # print(dump_bytes(obj))
-    unserialized = pinch.load_bytes(serialized, modify_input=False)
+    unserialized = pypinch.load_bytes(serialized, modify_input=False)
     print()
     print(str(obj)[:120])
     print(str(unserialized)[:120])
@@ -132,11 +132,11 @@ for obj in objects:
 for obj in objects:
     print(str(obj)[:120])
     results = [
-        profile("pinch (python)", lambda: pinch.dump_bytes(obj)),
-        profile("pinch (rust)", lambda: pinch.dump_bytes(obj)),
+        profile("pypinch (python)", lambda: pypinch.dump_bytes(obj)),
+        profile("pypinch (rust)", lambda: pypinch.dump_bytes(obj)),
         profile("mine w pointer & str keys (python)",
-                lambda: pinch.dump_bytes(obj, use_pointers=True, allow_non_string_keys=False)),
-        profile("pinch w pointers (rust)", lambda: pinch.dump_bytes(obj, use_pointers=True)),
+                lambda: pypinch.dump_bytes(obj, use_pointers=True, allow_non_string_keys=False)),
+        profile("pypinch w pointers (rust)", lambda: pypinch.dump_bytes(obj, use_pointers=True)),
         profile("json", lambda: json.dumps(obj).encode()),
         profile("orjson", lambda: orjson.dumps(obj)),
         profile("pickle", lambda: pickle.dumps(obj)),

@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from pinch.consts import ByteLike, NUMBER_BASE, ENDING_FLAG
+from pypinch.consts import ByteLike, NUMBER_BASE, ENDING_FLAG
 
 
 def decode_number(num: ByteLike, pointer: int, base: int = NUMBER_BASE) -> Tuple[int, int]:

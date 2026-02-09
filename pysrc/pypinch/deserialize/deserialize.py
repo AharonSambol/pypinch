@@ -4,7 +4,7 @@ import struct
 import typing
 from typing import Tuple, Optional, List
 
-from pinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
+from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
@@ -12,9 +12,9 @@ from pinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TR
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, NEGATIVE_NUMBER_SIGN
 
 
-from pinch.exceptions import DecodingError
-from pinch.deserialize.settings import Settings
-from pinch.deserialize.utils import decode_number
+from pypinch.exceptions import DecodingError
+from pypinch.deserialize.settings import Settings
+from pypinch.deserialize.utils import decode_number
 
 
 

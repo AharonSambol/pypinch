@@ -2,8 +2,7 @@ name: Upload Python Package
 
 on:
   release:
-    types: [published] # This is now the ONLY trigger
-
+    types: [published]
 
 permissions:
   contents: read
@@ -28,7 +27,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --find-interpreter ${{ matrix.os == 'ubuntu-latest' && '--sdist' || '--only-wheels' }}
           manylinux: ${{ matrix.os == 'ubuntu-latest' && 'auto' || '' }}
 
       - name: Upload distributions
