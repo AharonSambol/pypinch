@@ -2,7 +2,7 @@ import gc
 import math
 import struct
 import typing
-from typing import Tuple, Optional, List
+from typing import Tuple, List
 
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
@@ -231,7 +231,10 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
             return res_list, pointer
         elif typ_flag == BOOL_FLAG:
             res_list = typing.cast(List[bool], [None] * length)
-            length_in_bytes = math.ceil(length / NUMBER_OF_BITS_IN_BYTE)
+            # same as: math.ceil(length / NUMBER_OF_BITS_IN_BYTE)
+            # the `>> 3` is like dividing by 8 (8 is `1000` in binary)
+            # the + 7 is like rounding up
+            length_in_bytes = (length + 7) >> 3
             try:
                 for i in range(length_in_bytes):
                     byte = buffer[pointer + i]

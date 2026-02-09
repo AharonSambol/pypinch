@@ -1,5 +1,7 @@
-pub const NUMBER_BASE: u8 = 255;
+pub const NUMBER_BASE: u128 = 255;
 pub const ENDING_FLAG: u8 = 255;
+pub const NEGATIVE_NUMBER_SIGN: u128 = NUMBER_BASE - 1;
+pub const LEFTMOST_BIT_MASK: u8 = 128;
 pub const HEADER: &[u8] = b"<o>";
 
 pub const POSITIVE_INT_FLAG: u8 = 0;
@@ -23,11 +25,4 @@ pub const STR_KEY_DICT_FLAG: u8 = 17;
 pub const CONSISTENT_TYPE_DICT_FLAG: u8 = 18;
 pub const POINTER_FLAG: u8 = 19;
 
-/// SMALL_INTS: Python {i: byte}
-pub const fn small_int(n: i64) -> Option<u8> {
-    if n >= 0 && n < 235 {
-        Some((20 + n) as u8)
-    } else {
-        None
-    }
-}
+pub const AMOUNT_OF_USED_FLAGS: u8 = 20;

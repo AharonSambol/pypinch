@@ -75,6 +75,7 @@ def test__serialize_deserialize__modify_input(obj):
     original_obj = copy.deepcopy(obj)
 
     # Act
+    # print("!")
     serialized = pypinch.dump_bytes(obj, modify_input=True)
     unserialized = pypinch.load_bytes(serialized)
 

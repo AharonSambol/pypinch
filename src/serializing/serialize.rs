@@ -3,9 +3,9 @@ use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
 use std::ptr;
 use crate::serializing::number_encoding::encode_python_int;
-use crate::serializing::utils::{all_dick_keys_are_str, encode_number};
-use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, small_int, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
-
+use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
+use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
+use crate::utils::wrappers::{get_list_size, get_tuple_size, list_get_item, tuple_get_item};
 
 #[inline(always)]
 pub unsafe fn serialize(
@@ -23,7 +23,7 @@ pub unsafe fn serialize(
             if let Some(&pos) = pmap.get(&obj) {
                 let mut temp_buf = Vec::new();
                 temp_buf.push(POINTER_FLAG);
-                encode_number(&mut temp_buf, pos as u128, NUMBER_BASE);
+                encode_number::<NUMBER_BASE>(&mut temp_buf, pos as u128);
                 if temp_buf.len() <= (len + 1) as usize {
                     buffer.extend(temp_buf);
                     return;
@@ -37,7 +37,7 @@ pub unsafe fn serialize(
             buffer.push(EMPTY_STR_FLAG);
         } else {
             buffer.push(STR_FLAG);
-            encode_number(buffer, len as u128, NUMBER_BASE);
+            encode_number::<NUMBER_BASE>(buffer, len as u128);
             buffer.extend_from_slice(std::slice::from_raw_parts(
                 data as *const u8,
                 len as usize,
@@ -52,7 +52,7 @@ pub unsafe fn serialize(
     }
 
     if typ == &mut PyLong_Type {
-        encode_python_int(obj, buffer, NUMBER_BASE);
+        encode_python_int::<NUMBER_BASE>(obj, buffer);
         return;
     }
 
@@ -65,21 +65,21 @@ pub unsafe fn serialize(
     if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
         let is_list = typ == &mut PyList_Type;
         let len = if is_list {
-            PyList_Size(obj)
+            get_list_size(obj)
         } else {
-            PyTuple_Size(obj)
+            get_tuple_size(obj)
         };
         if len == 0 {
             buffer.push(EMPTY_LIST_FLAG);
             return;
         }
         unsafe fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssize_t) -> bool {
-            let first_type = (*if is_list { PyList_GetItem(obj, 0) } else { PyTuple_GetItem(obj, 0) }).ob_type;
+            let first_type = (*if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) }).ob_type;
             for i in 1..len {
                 let item = if is_list {
-                    PyList_GetItem(obj, i)
+                    list_get_item(obj, i)
                 } else {
-                    PyTuple_GetItem(obj, i)
+                    tuple_get_item(obj, i)
                 };
                 if (*item).ob_type != first_type {
                     return false
@@ -88,11 +88,11 @@ pub unsafe fn serialize(
             true
         }
         if is_consistent_type_list(obj, is_list, len) {
-            let first_item = if is_list { PyList_GetItem(obj, 0) } else { PyTuple_GetItem(obj, 0) };
+            let first_item = if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) };
             if first_item == Py_None() {
                 buffer.push(CONSISTENT_TYPE_LIST_FLAG);
                 buffer.push(NULL_FLAG);
-                encode_number(buffer, len as u128, NUMBER_BASE);
+                encode_number::<NUMBER_BASE>(buffer, len as u128);
                 return;
             }
             let first_type = (*first_item).ob_type;
@@ -104,16 +104,16 @@ pub unsafe fn serialize(
             else if first_type == &mut PyBool_Type {
                 buffer.push(CONSISTENT_TYPE_LIST_FLAG);
                 buffer.push(BOOL_FLAG);
-                encode_number(buffer, len as u128, NUMBER_BASE);
+                encode_number::<NUMBER_BASE>(buffer, len as u128);
 
                 let mut byte: u8 = 0;
                 let mut n: u8 = 0;
 
                 for i in 0..len {
                     let item = if is_list {
-                        PyList_GetItem(obj, i)
+                        list_get_item(obj, i)
                     } else {
-                        PyTuple_GetItem(obj, i)
+                        tuple_get_item(obj, i)
                     };
                     byte = (byte << 1) | ((item == Py_True()) as u8);
                     n += 1;
@@ -164,9 +164,9 @@ pub unsafe fn serialize(
             buffer.push(EMPTY_DICT_FLAG);
             return;
         }
-        if pointers.is_none() && all_dick_keys_are_str(obj) {
+        if pointers.is_none() && all_dict_keys_are_str(obj) {
             buffer.push(STR_KEY_DICT_FLAG);
-            encode_number(buffer, size as u128, NUMBER_BASE);
+            encode_number::<NUMBER_BASE>(buffer, size as u128);
 
             let mut pos = 0;
             let mut key: *mut PyObject = ptr::null_mut();
@@ -175,7 +175,7 @@ pub unsafe fn serialize(
                 // key
                 let mut len: isize = 0;
                 let data = PyUnicode_AsUTF8AndSize(key, &mut len);
-                encode_number(buffer, len as u128, NUMBER_BASE);
+                encode_number::<NUMBER_BASE>(buffer, len as u128);
                 buffer.extend_from_slice(std::slice::from_raw_parts(
                     data as *const u8,
                     len as usize,
@@ -188,7 +188,7 @@ pub unsafe fn serialize(
 
 
         buffer.push(DICT_FLAG);
-        encode_number(buffer, size as u128, NUMBER_BASE);
+        encode_number::<NUMBER_BASE>(buffer, size as u128);
 
         let mut pos = 0;
         let mut key: *mut PyObject = ptr::null_mut();
@@ -216,7 +216,7 @@ pub unsafe fn serialize(
             buffer.push(EMPTY_BYTES_FLAG);
         } else {
             buffer.push(BYTES_FLAG);
-            encode_number(buffer, size as u128, 255);
+            encode_number::<NUMBER_BASE>(buffer, size as u128);
             buffer.extend_from_slice(std::slice::from_raw_parts(
                 data as *const u8,
                 size as usize,
@@ -239,12 +239,12 @@ pub unsafe fn serialize(
 
 unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Option<&mut FxHashMap<*mut PyObject, usize>>, is_list: bool, len: Py_ssize_t) {
     buf.push(LIST_FLAG);
-    encode_number(buf, len as u128, NUMBER_BASE);
+    encode_number::<NUMBER_BASE>(buf, len as u128);
     for i in 0..len {
         let item = if is_list {
-            PyList_GetItem(obj, i)
+            list_get_item(obj, i)
         } else {
-            PyTuple_GetItem(obj, i)
+            tuple_get_item(obj, i)
         };
         serialize(item, buf, pointers);
     }

@@ -7,11 +7,13 @@ import pickle
 import time
 import tracemalloc
 import pypinch
+from pypinch._pypinch import dump_bytes as pinch_rust_dump
+from pypinch.serialize.serialize import dump_bytes as pinch_py_dump
 
 # os.environ["MSGPACK_PUREPYTHON"] = "True"
 import msgpack
 
-from benchmark.benchmark_displayer import display_benchmark
+from benchmark_displayer import display_benchmark
 
 # a = 1
 # print(load_bytes(pypinch.dump_bytes(a)))
@@ -85,11 +87,11 @@ for obj in objects:
 for obj in objects:
     print(str(obj)[:120])
     results = [
-        profile("pypinch (python)", lambda: pypinch.dump_bytes(obj)),
-        profile("pypinch (rust)", lambda: pypinch.dump_bytes(obj)),
+        profile("pypinch (python)", lambda: pinch_py_dump(obj)),
+        profile("pypinch (rust)", lambda: pinch_rust_dump(obj)),
         profile("mine w pointer & str keys (python)",
-                lambda: pypinch.dump_bytes(obj, use_pointers=True, allow_non_string_keys=False)),
-        profile("pypinch w pointers (rust)", lambda: pypinch.dump_bytes(obj, use_pointers=True)),
+                lambda: pinch_py_dump(obj, use_pointers=True, allow_non_string_keys=False)),
+        profile("pypinch w pointers (rust)", lambda: pinch_rust_dump(obj, use_pointers=True)),
         profile("json", lambda: json.dumps(obj).encode()),
         profile("orjson", lambda: orjson.dumps(obj)),
         profile("pickle", lambda: pickle.dumps(obj)),

@@ -1,28 +1,52 @@
 use crate::utils::consts::ENDING_FLAG;
 
 #[inline(always)]
-unsafe fn decode_number(
+pub unsafe fn decode_number<const BASE: u128>(
     buf: &[u8],
-    mut ptr: usize,
-    base: u64,
-) -> (u64, usize) {
-    let b = *buf.get_unchecked(ptr);
+    ptr: &mut usize,
+) -> u128 {
+    let b = *buf.get_unchecked(*ptr);
+    *ptr += 1;
     if b != ENDING_FLAG {
-        return (b as u64, ptr + 1);
+        return b as u128;
     }
 
-    ptr += 1;
 
-    let mut res: u64 = 0;
-    let mut mul: u64 = 1;
+    let mut res: u128 = 0;
+    let mut mul: u128 = 1;
 
     loop {
-        let v = *buf.get_unchecked(ptr);
+        let v = *buf.get_unchecked(*ptr);
+        *ptr += 1;
         if v == ENDING_FLAG {
-            return (res, ptr + 1);
+            return res;
         }
-        res += (v as u64) * mul;
-        mul *= base;
-        ptr += 1;
+        res += (v as u128) * mul;
+        mul *= BASE;
     }
 }
+
+// #[inline(always)]
+// unsafe fn decode_number<const BASE: u128>(
+//     buf: &mut *const [u8],
+// ) -> u128 {
+//     let b = buf[0];
+//     *buf = buf.add(1);
+//     if b != ENDING_FLAG {
+//         return b as u128;
+//     }
+//
+//
+//     let mut res: u128 = 0;
+//     let mut mul: u128 = 1;
+//
+//     loop {
+//         let v = buf[0];
+//         *buf = buf.add(1);
+//         if v == ENDING_FLAG {
+//             return res;
+//         }
+//         res += (v as u128) * mul;
+//         mul *= BASE;
+//     }
+// }

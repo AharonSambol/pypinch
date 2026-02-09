@@ -1,34 +1,34 @@
 use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, PyErr_SetString, PyExc_RuntimeError, PyLong_AsLongLongAndOverflow, PyLongObject, PyObject};
 use crate::serializing::utils::encode_number;
-use crate::utils::consts::{ENDING_FLAG, NEGATIVE_INT_FLAG, POSITIVE_INT_FLAG, small_int};
+use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ENDING_FLAG, NEGATIVE_INT_FLAG, NUMBER_BASE, POSITIVE_INT_FLAG};
 
-pub unsafe fn encode_python_int(obj: *mut PyObject, buffer: &mut Vec<u8>, base: u8) {
+pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &mut Vec<u8>) {
     let mut overflow = 0;
     let longlong = PyLong_AsLongLongAndOverflow(obj, &mut overflow);
 
     if overflow == 0 {
-        if let Some(byte) = small_int(longlong) {
-            buffer.push(byte);
-        } else if longlong >= 0 {
-            buffer.push(POSITIVE_INT_FLAG);
-            encode_number(buffer, longlong as u128, base);
+        if longlong >= 0 {
+            if longlong < ((NUMBER_BASE as u8) - AMOUNT_OF_USED_FLAGS) as i64 {
+                buffer.push(AMOUNT_OF_USED_FLAGS + longlong as u8);
+            } else {
+                buffer.push(POSITIVE_INT_FLAG);
+                encode_number::<BASE>(buffer, longlong as u128);
+            }
         } else {
             buffer.push(NEGATIVE_INT_FLAG);
-            encode_number(buffer, (-longlong) as u128, base);
+            encode_number::<BASE>(buffer, (-longlong) as u128);
         }
         return;
     }
 
-    // Huge integer path
-    encode_pylong_big(buffer, obj, base as u32);
+    encode_pylong_big::<BASE>(buffer, obj);
 }
 
 
 #[inline(always)]
-unsafe fn encode_pylong_big(
+unsafe fn encode_pylong_big<const BASE: u128>(
     buf: &mut Vec<u8>,
     obj: *mut PyObject,
-    base: u32
 ) {
     let nbits = _PyLong_NumBits(obj);
     let nbytes = (nbits + 7) / 8 + 1; // +1 to preserve sign bit
@@ -61,12 +61,11 @@ unsafe fn encode_pylong_big(
         POSITIVE_INT_FLAG
     });
 
-    // If negative, convert from two's complement to magnitude
     if is_negative {
         twos_complement_inplace(&mut bytes);
     }
 
-    encode_base_from_bytes(buf, &bytes, base);
+    encode_base_from_bytes::<BASE>(buf, &bytes);
 }
 
 #[inline(always)]
@@ -87,7 +86,7 @@ fn twos_complement_inplace(bytes: &mut [u8]) {
 }
 
 #[inline(always)]
-fn encode_base_from_bytes(buf: &mut Vec<u8>, bytes: &[u8], base: u32) {
+fn encode_base_from_bytes<const BASE: u128>(buf: &mut Vec<u8>, bytes: &[u8]) {
     // Working copy (big-endian base-256 number)
     let mut work = bytes.to_vec();
 
@@ -98,8 +97,8 @@ fn encode_base_from_bytes(buf: &mut Vec<u8>, bytes: &[u8], base: u32) {
 
         for b in work.iter_mut() {
             let v = (carry << 8) | (*b as u32);
-            *b = (v / base) as u8;
-            carry = v % base;
+            *b = (v / (BASE as u32)) as u8;
+            carry = v % (BASE as u32);
         }
 
         // carry is the remainder
