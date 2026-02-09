@@ -1,6 +1,13 @@
 [build-system]
-requires = ["setuptools >= 77.0.3"]
-build-backend = "setuptools.build_meta"
+build-backend = "maturin"
+requires = ["maturin>=1,<2"]
+
+[tool.maturin]
+python-source = "pysrc"
+include = [
+    { format = "sdist", path = ".cargo/*" },
+    { format = "sdist", path = "Cargo.lock" },
+]
 
 [project]
 name = "pypinch"
@@ -21,7 +28,6 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 license = "MIT"
-license-files = ["LICEN[CS]E*"]
 
 [project.urls]
 Homepage = "https://github.com/AharonSambol/pypinch"
@@ -31,4 +37,4 @@ Issues = "https://github.com/AharonSambol/pypinch/issues"
 dependencies = {file = ["requirements.txt"]}
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["pysrc"]

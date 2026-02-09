@@ -8,7 +8,7 @@ import time
 import tracemalloc
 import pinch
 
-from src import pinch_python
+from pysrc import pinch
 
 # os.environ["MSGPACK_PUREPYTHON"] = "True"
 import msgpack
@@ -16,9 +16,9 @@ import msgpack
 from benchmark_displayer import display_benchmark
 
 # a = 1
-# print(load_bytes(pinch_python.dump_bytes(a)))
-# print(load_bytes(pinch_python.dump_bytes(a)) == a)
-# print(pinch_python.dump_bytes(a))
+# print(load_bytes(pinch.dump_bytes(a)))
+# print(load_bytes(pinch.dump_bytes(a)) == a)
+# print(pinch.dump_bytes(a))
 # print(bytes(dump_bytes(a)))
 # exit()
 objects = [
@@ -115,10 +115,10 @@ def profile(name: str, func: callable):
 
 for obj in objects:
     print()
-    serialized = pinch_python.dump_bytes(obj, use_pointers=True)
+    serialized = pinch.dump_bytes(obj, use_pointers=True)
     # print(serialized)
     # print(dump_bytes(obj))
-    unserialized = pinch_python.load_bytes(serialized, modify_input=False)
+    unserialized = pinch.load_bytes(serialized, modify_input=False)
     print()
     print(str(obj)[:120])
     print(str(unserialized)[:120])
@@ -132,10 +132,10 @@ for obj in objects:
 for obj in objects:
     print(str(obj)[:120])
     results = [
-        profile("pinch (python)", lambda: pinch_python.dump_bytes(obj)),
+        profile("pinch (python)", lambda: pinch.dump_bytes(obj)),
         profile("pinch (rust)", lambda: pinch.dump_bytes(obj)),
         profile("mine w pointer & str keys (python)",
-                lambda: pinch_python.dump_bytes(obj, use_pointers=True, allow_non_string_keys=False)),
+                lambda: pinch.dump_bytes(obj, use_pointers=True, allow_non_string_keys=False)),
         profile("pinch w pointers (rust)", lambda: pinch.dump_bytes(obj, use_pointers=True)),
         profile("json", lambda: json.dumps(obj).encode()),
         profile("orjson", lambda: orjson.dumps(obj)),

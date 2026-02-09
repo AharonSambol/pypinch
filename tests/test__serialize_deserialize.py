@@ -10,7 +10,7 @@ else:
 
 import pytest
 
-from src import pinch_python
+from pysrc import pinch
 
 ALL_TYPES_OF_OBJECTS = [
     (1231,),
@@ -75,8 +75,8 @@ def test__serialize_deserialize__modify_input(obj):
     original_obj = copy.deepcopy(obj)
 
     # Act
-    serialized = pinch_python.dump_bytes(obj, modify_input=True)
-    unserialized = pinch_python.load_bytes(serialized)
+    serialized = pinch.dump_bytes(obj, modify_input=True)
+    unserialized = pinch.load_bytes(serialized)
 
     # Assert
     assert unserialized == original_obj
@@ -84,8 +84,8 @@ def test__serialize_deserialize__modify_input(obj):
 
 def test__serialize_deserialize__nan():
     # Act
-    serialized = pinch_python.dump_bytes(float("nan"))
-    unserialized = pinch_python.load_bytes(serialized)
+    serialized = pinch.dump_bytes(float("nan"))
+    unserialized = pinch.load_bytes(serialized)
 
     # Assert
     assert math.isnan(unserialized)
@@ -101,8 +101,8 @@ def test__serialize_deserialize__nan():
 )
 def test__tuples_serialize_deserialize__into_list(input_tuple, expected):
     # Act
-    serialized = pinch_python.dump_bytes(float("nan"))
-    unserialized = pinch_python.load_bytes(serialized)
+    serialized = pinch.dump_bytes(float("nan"))
+    unserialized = pinch.load_bytes(serialized)
 
     # Assert
     assert math.isnan(unserialized)
@@ -127,8 +127,8 @@ def test__tuples_serialize_deserialize__into_list(input_tuple, expected):
 )
 def test__serialize_unknown_types(obj, expected):
     # Act
-    serialized = pinch_python.dump_bytes(obj)
-    unserialized = pinch_python.load_bytes(serialized)
+    serialized = pinch.dump_bytes(obj)
+    unserialized = pinch.load_bytes(serialized)
 
     # Assert
     assert unserialized == expected
@@ -143,8 +143,8 @@ def test__serialize_deserialize__with_pointers(obj):
     original_obj = copy.deepcopy(obj)
 
     # Act
-    serialized = pinch_python.dump_bytes(obj, use_pointers=True)
-    unserialized = pinch_python.load_bytes(serialized)
+    serialized = pinch.dump_bytes(obj, use_pointers=True)
+    unserialized = pinch.load_bytes(serialized)
 
     # Assert
     assert unserialized == original_obj
@@ -159,8 +159,8 @@ def test__serialize_deserialize__dont_modify_input(obj):
     original_obj = copy.deepcopy(obj)
 
     # Act
-    serialized = pinch_python.dump_bytes(obj, modify_input=False)
-    unserialized = pinch_python.load_bytes(serialized)
+    serialized = pinch.dump_bytes(obj, modify_input=False)
+    unserialized = pinch.load_bytes(serialized)
 
     # Assert
     assert unserialized == original_obj
@@ -174,11 +174,11 @@ def test__serialize_deserialize__dont_modify_input(obj):
 def test__serialize_deserialize__dont_modify_serialized_data(obj):
     # Arrange
     original_obj = copy.deepcopy(obj)
-    serialized = pinch_python.dump_bytes(obj)
+    serialized = pinch.dump_bytes(obj)
     original_serialized = copy.deepcopy(serialized)
 
     # Act
-    unserialized = pinch_python.load_bytes(serialized, modify_input=False)
+    unserialized = pinch.load_bytes(serialized, modify_input=False)
 
     # Assert
     assert unserialized == original_obj
@@ -192,10 +192,10 @@ def test__serialize_deserialize__dont_modify_serialized_data(obj):
 def test__serialize_deserialize__modify_serialized_data(obj):
     # Arrange
     original_obj = copy.deepcopy(obj)
-    serialized = pinch_python.dump_bytes(obj)
+    serialized = pinch.dump_bytes(obj)
 
     # Act
-    unserialized = pinch_python.load_bytes(serialized, modify_input=True)
+    unserialized = pinch.load_bytes(serialized, modify_input=True)
 
     # Assert
     assert unserialized == original_obj
@@ -208,10 +208,10 @@ def test__serialize_deserialize__modify_serialized_data(obj):
 def test__serialize_deserialize__bytes_serialized_data(obj):
     # Arrange
     original_obj = copy.deepcopy(obj)
-    serialized = bytes(pinch_python.dump_bytes(obj))
+    serialized = bytes(pinch.dump_bytes(obj))
 
     # Act
-    unserialized = pinch_python.load_bytes(serialized, modify_input=True)
+    unserialized = pinch.load_bytes(serialized, modify_input=True)
 
     # Assert
     assert unserialized == original_obj
@@ -226,8 +226,8 @@ def test__serialize_deserialize__bytes_serialized_data(obj):
 )
 def test__serialize_deserialize__use_tuples(obj, expected):
     # Act
-    serialized = pinch_python.dump_bytes(obj)
-    unserialized = pinch_python.load_bytes(serialized, use_tuples=True, modify_input=True)
+    serialized = pinch.dump_bytes(obj)
+    unserialized = pinch.load_bytes(serialized, use_tuples=True, modify_input=True)
 
     # Assert
     assert unserialized == expected
@@ -248,8 +248,8 @@ def test__serialize_deserialize__with_encoding(obj, encoding):
     original_object = copy.deepcopy(obj)
 
     # Act
-    serialized = pinch_python.dump_bytes(obj, encoding=encoding)
-    unserialized = pinch_python.load_bytes(serialized, modify_input=True, encoding=encoding)
+    serialized = pinch.dump_bytes(obj, encoding=encoding)
+    unserialized = pinch.load_bytes(serialized, modify_input=True, encoding=encoding)
 
     # Assert
     assert unserialized == original_object

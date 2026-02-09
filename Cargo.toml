@@ -1,0 +1,28 @@
+[package]
+name = "pinch"
+version = "0.1.0"
+edition = "2021"
+authors = ["Aharon Sambol <aharon.sambol@gmail.com>"]
+
+
+[lib]
+name = "pinch"
+# "cdylib" is necessary to produce a shared library for Python to import from.
+#
+# Downstream Rust code (including code in `bin/`, `examples/`, and `tests/`) will not be able
+# to `use jsoon;` unless the "rlib" or "lib" crate type is also included, e.g.:
+# crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies.pyo3-ffi]
+version = "*"
+features = ["extension-module"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[dependencies]
+rustc-hash = "2.1.1"
