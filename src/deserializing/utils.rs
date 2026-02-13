@@ -13,7 +13,7 @@ pub unsafe fn decode_number<const BASE: u128>(
         return b as u128;
     }
 
-    let mut res: u128 = 0;
+    let mut res: u128 = BASE;
     let mut mul: u128 = 1;
 
     loop {
@@ -54,7 +54,7 @@ pub unsafe fn decode_large_number<const BASE: u128>(
     }
 
 
-    let mut res: u128 = 0;
+    let mut res: u128 = BASE;
     let mut mul: u128 = 1;
     for _ in 0..8 {
         let byte = *buf.get_unchecked(*ptr);

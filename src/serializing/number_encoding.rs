@@ -1,4 +1,5 @@
-use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, PyErr_SetString, PyExc_RuntimeError, PyLong_AsLongLongAndOverflow, PyLongObject, PyObject};
+use std::ffi::c_long;
+use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, Py_DECREF, PyErr_SetString, PyExc_RuntimeError, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyLongObject, PyNumber_Add, PyNumber_Subtract, PyObject, PyObject_RichCompareBool};
 use crate::serializing::utils::encode_number;
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ENDING_FLAG, NEGATIVE_INT_FLAG, NUMBER_BASE, POSITIVE_INT_FLAG};
 
@@ -16,7 +17,7 @@ pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &m
             }
         } else {
             buffer.push(NEGATIVE_INT_FLAG);
-            encode_number::<BASE>(buffer, (-longlong) as u128);
+            encode_number::<BASE>(buffer, -longlong as u128);
         }
         return;
     }
@@ -30,6 +31,16 @@ unsafe fn encode_pylong_big<const BASE: u128>(
     buf: &mut Vec<u8>,
     obj: *mut PyObject,
 ) {
+    let is_negative = PyObject_RichCompareBool(obj, PyLong_FromLong(0), pyo3_ffi::Py_LT) == 1;
+
+    let python_base_num = PyLong_FromLong(BASE as c_long);
+    let obj = if is_negative {
+        PyNumber_Add(obj, python_base_num)
+    } else {
+        PyNumber_Subtract(obj, python_base_num)
+    };
+    Py_DECREF(python_base_num);
+
     let nbits = _PyLong_NumBits(obj);
     let nbytes = (nbits + 7) / 8 + 1; // +1 to preserve sign bit
 
@@ -53,7 +64,7 @@ unsafe fn encode_pylong_big<const BASE: u128>(
     }
 
     // Determine sign from MSB
-    let is_negative = (bytes[0] & 0x80) != 0;
+    // let is_negative = (bytes[0] & 0x80) != 0;
 
     buf.push(if is_negative {
         NEGATIVE_INT_FLAG

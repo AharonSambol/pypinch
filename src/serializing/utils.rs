@@ -11,6 +11,7 @@ pub unsafe fn encode_number<const BASE: u128>(buf: &mut Vec<u8>, mut number: u12
         buf.push(number as u8);
     } else {
         buf.push(NUMBER_BASE as u8);
+        number -= BASE;
         while number != 0 {
             let remainder = number % BASE;
             number /= BASE;
