@@ -1,14 +1,14 @@
-use std::collections::HashMap;
 use std::ffi::c_char;
 use pyo3_ffi::{Py_INCREF, PyObject, PyUnicode_FromStringAndSize};
+use rustc_hash::FxHashMap;
 
 pub struct StringCache<'a> {
-    cache: HashMap<&'a [u8], *mut PyObject>,
+    cache: FxHashMap<&'a [u8], *mut PyObject>,
 }
 
 impl<'a> StringCache<'a> {
     pub fn new() -> Self {
-        Self { cache: HashMap::new() }
+        Self { cache: FxHashMap::default() }
     }
 
     pub unsafe fn get_or_create(&mut self, buf_slice: &'a [u8]) -> *mut PyObject {
