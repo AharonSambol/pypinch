@@ -2,6 +2,7 @@ use std::ffi::{c_char, c_long, c_longlong, c_ulonglong};
 use std::slice;
 use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_ssize_t, Py_True, PyBytes_FromStringAndSize, PyDict_New, PyDict_SetItem, PyErr_SetString, PyExc_TypeError, PyFloat_FromDouble, PyList_New, PyLong_FromLong, PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyLong_Type, PyNumber_Negative, PyObject, PyTuple_New, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, PyUnicode_New, PyUnicode_Type};
 use rustc_hash::FxHashMap;
+use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number};
 use crate::py_string;
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, INT_FLAG, LEFTMOST_BIT_MASK, LIST_FLAG, NEGATIVE_INT_FLAG, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
@@ -13,6 +14,7 @@ pub unsafe fn deserialize_object(
     ptr: &mut usize,
     pointers: &mut Option<&mut FxHashMap<usize, *mut PyObject>>,
     use_tuples: bool,
+    string_cache: &mut StringCache
 ) -> *mut PyObject {
     let flag = *buf.get_unchecked(*ptr);
     *ptr += 1;
@@ -33,6 +35,7 @@ pub unsafe fn deserialize_object(
             buf,
             ptr,
             pointers,
+            string_cache
         ),
         TRUE_FLAG => {
             let t = Py_True();
@@ -133,6 +136,7 @@ pub unsafe fn deserialize_object(
                             buf,
                             ptr,
                             pointers,
+                            string_cache,
                         );
                         list_set_item(list, i, str);
                     }
@@ -156,8 +160,8 @@ pub unsafe fn deserialize_object(
             let len = decode_number::<NUMBER_BASE>(buf, ptr);
             let dict = PyDict_New();
             for _ in 0..len {
-                let k = deserialize_object(buf, ptr, pointers, use_tuples);
-                let v = deserialize_object(buf, ptr, pointers, use_tuples);
+                let k = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
+                let v = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
                 PyDict_SetItem(dict, k, v);
             }
             dict
@@ -170,8 +174,9 @@ pub unsafe fn deserialize_object(
                     buf,
                     ptr,
                     pointers,
+                    string_cache,
                 );
-                let v = deserialize_object(buf, ptr, pointers, use_tuples);
+                let v = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
                 PyDict_SetItem(dict, k, v);
             }
             dict
@@ -186,14 +191,14 @@ pub unsafe fn deserialize_object(
             if use_tuples {
                 let tup = PyTuple_New(len);
                 for i in 0..len {
-                    let obj = deserialize_object(buf, ptr, pointers, use_tuples);
+                    let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
                     tuple_set_item(tup, i, obj);
                 }
                 tup
             } else {
                 let list = PyList_New(len);
                 for i in 0..len {
-                    let obj = deserialize_object(buf, ptr, pointers, use_tuples);
+                    let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
                     list_set_item(list, i, obj);
                 }
                 list
@@ -210,14 +215,16 @@ unsafe fn decode_string(
     buf: &[u8],
     ptr: &mut usize,
     pointers: &mut Option<&mut FxHashMap<usize, *mut PyObject>>,
+    string_cache: &mut StringCache
 ) -> *mut PyObject {
     let start = *ptr;
     let len = decode_number::<NUMBER_BASE>(buf, ptr);
 
-    let string = PyUnicode_FromStringAndSize(
-        buf.as_ptr().add(*ptr) as *const c_char,
-        len as Py_ssize_t,
-    );
+    let string = string_cache.get_or_create(&buf[*ptr..*ptr + len as usize]);
+    // let string = PyUnicode_FromStringAndSize(
+    //     buf.as_ptr().add(*ptr) as *const c_char,
+    //     len as Py_ssize_t,
+    // );
     *ptr += len as usize;
 
     if let Some(map) = pointers {

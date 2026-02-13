@@ -3,6 +3,7 @@ use std::{ptr, slice};
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
 use crate::deserializing::deserialize::deserialize_object;
+use crate::deserializing::string_cache::StringCache;
 use crate::serializing::serialize::serialize;
 use crate::utils::consts::{FALSE_FLAG, HEADER};
 use crate::utils::wrappers::tuple_get_item;
@@ -121,6 +122,7 @@ pub unsafe extern "C" fn load_bytes(
     let arg1 = *args;
 
     let mut use_pointers = true;
+    let mut use_tuples = false;
     if !kwnames.is_null() {
         let nkw = PyTuple_Size(kwnames);
 
@@ -135,6 +137,14 @@ pub unsafe extern "C" fn load_bytes(
                 let value = *args.offset(nargs + i);
                 use_pointers = PyObject_IsTrue(value) == 1;
             }
+            if PyUnicode_CompareWithASCIIString(
+                key,
+                b"use_tuples\0".as_ptr() as *const _,
+            ) == 0
+            {
+                let value = *args.offset(nargs + i);
+                use_tuples = PyObject_IsTrue(value) == 1;
+            }
         }
     }
 
@@ -144,13 +154,13 @@ pub unsafe extern "C" fn load_bytes(
         let len = PyByteArray_Size(arg1) as usize;
         let data_ptr = PyByteArray_AsString(arg1) as *const u8;
         slice::from_raw_parts(data_ptr, len)
-        // None
     } else {
         let len = PyBytes_Size(arg1) as usize;
         let data_ptr = PyBytes_AsString(arg1) as *const u8;
         slice::from_raw_parts(data_ptr, len)
-    };  
-    // arg1
-    deserialize_object(slice, &mut (HEADER.len()), &mut pointers, false /* todo */)
+    };
+
+    let mut string_cache = StringCache::new();
+    deserialize_object(slice, &mut (HEADER.len()), &mut pointers, use_tuples, &mut string_cache)
     
 }

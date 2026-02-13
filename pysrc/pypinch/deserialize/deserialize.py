@@ -4,12 +4,12 @@ import struct
 import typing
 from typing import Tuple, List
 
-from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
+from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
-    DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
+    DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, CONSISTENT_TYPE_DICT_FLAG, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
-    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, NEGATIVE_NUMBER_SIGN, FIRST_FLAGS_LIST, FIRST_SMALL_INT
+    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, NEGATIVE_NUMBER_SIGN, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS
 
 from pypinch.exceptions import DecodingError
 from pypinch.deserialize.settings import Settings
@@ -155,7 +155,7 @@ def deserialize_object_from_bytearray(buffer: bytearray, original_buffer_len: in
     elif flag == INT_FLAG:
         raise DecodingError("unexpected flag: INT")
     else:
-        return flag - FIRST_SMALL_INT
+        return flag - AMOUNT_OF_USED_FLAGS
 
 
 def deserialize_str_from_bytearray(buffer: bytearray, original_buffer_len: int, settings: Settings) -> str:
@@ -273,7 +273,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
     elif flag == CONSISTENT_TYPE_DICT_FLAG:
         raise Exception("not implemented yet")  # todo
     else:
-        return flag - FIRST_SMALL_INT, pointer
+        return flag - AMOUNT_OF_USED_FLAGS, pointer
 
 
 def deserialize_str(buffer: bytes, pointer: int, settings: Settings) -> Tuple[str, int]:

@@ -5,7 +5,7 @@ from typing import Union, List, Tuple
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
-    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, SMALL_INTS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, HEADER, \
+    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, HEADER, \
     BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE
 from pypinch.exceptions import EncodingError
 from pypinch.serialize.settings import Settings
@@ -52,8 +52,8 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.extend(encoded_str)
     elif typ is int:
         if obj >= 0:
-            if obj < len(SMALL_INTS):
-                buffer.append(SMALL_INTS[obj])
+            if obj < NUMBER_BASE - AMOUNT_OF_USED_FLAGS:
+                buffer.append(AMOUNT_OF_USED_FLAGS + obj)
             else:
                 buffer.append(POSITIVE_INT_FLAG)
                 encode_number(buffer, obj)
