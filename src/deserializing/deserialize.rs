@@ -9,12 +9,12 @@ use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTE
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 // todo add necessary checks so it never crashes completely
-pub unsafe fn deserialize_object(
-    buf: &[u8],
+pub unsafe fn deserialize_object<'a>(
+    buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut Option<&mut FxHashMap<usize, *mut PyObject>>,
     use_tuples: bool,
-    string_cache: &mut StringCache
+    string_cache: &mut StringCache<'a>
 ) -> *mut PyObject {
     let flag = *buf.get_unchecked(*ptr);
     *ptr += 1;
@@ -211,20 +211,16 @@ pub unsafe fn deserialize_object(
 }
 
 #[inline(always)]
-unsafe fn decode_string(
-    buf: &[u8],
+unsafe fn decode_string<'a>(
+    buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut Option<&mut FxHashMap<usize, *mut PyObject>>,
-    string_cache: &mut StringCache
+    string_cache: &mut StringCache<'a>
 ) -> *mut PyObject {
     let start = *ptr;
     let len = decode_number::<NUMBER_BASE>(buf, ptr);
 
     let string = string_cache.get_or_create(&buf[*ptr..*ptr + len as usize]);
-    // let string = PyUnicode_FromStringAndSize(
-    //     buf.as_ptr().add(*ptr) as *const c_char,
-    //     len as Py_ssize_t,
-    // );
     *ptr += len as usize;
 
     if let Some(map) = pointers {
@@ -236,14 +232,9 @@ unsafe fn decode_string(
 
 #[inline(always)]
 unsafe fn decode_f64(buf: &[u8], ptr: &mut usize) -> f64 {
-    let mut bytes = [0u8; 8];
-    std::ptr::copy_nonoverlapping(
-        buf.as_ptr().add(*ptr),
-        bytes.as_mut_ptr(),
-        8,
-    );
+    let p = buf.as_ptr().add(*ptr) as *const u64;
     *ptr += 8;
-    f64::from_be_bytes(bytes)
+    f64::from_bits(u64::from_be(std::ptr::read_unaligned(p)))
 }
 
 #[inline(always)]
@@ -261,10 +252,11 @@ unsafe fn decode_bool_list(
     let list = PyList_New(length);
 
     let mut pos = 0;
+    let table = [Py_True(), Py_False()];
     for i in 0..amount_of_bytes {
         let mut byte = buf[*ptr + i];
         for _ in 0..8 {
-            let obj = if (byte & LEFTMOST_BIT_MASK) == 0 { Py_False() } else { Py_True() };
+            let obj = table[((byte & LEFTMOST_BIT_MASK) == 0) as usize];
             Py_INCREF(obj);
             list_set_item(list, pos, obj);
             pos += 1;

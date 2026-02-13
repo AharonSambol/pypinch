@@ -2,16 +2,16 @@ use std::collections::HashMap;
 use std::ffi::c_char;
 use pyo3_ffi::{Py_INCREF, PyObject, PyUnicode_FromStringAndSize};
 
-pub struct StringCache {
-    cache: HashMap<Vec<u8>, *mut PyObject>,
+pub struct StringCache<'a> {
+    cache: HashMap<&'a [u8], *mut PyObject>,
 }
 
-impl StringCache {
+impl<'a> StringCache<'a> {
     pub fn new() -> Self {
         Self { cache: HashMap::new() }
     }
 
-    pub unsafe fn get_or_create(&mut self, buf_slice: &[u8]) -> *mut PyObject {
+    pub unsafe fn get_or_create(&mut self, buf_slice: &'a [u8]) -> *mut PyObject {
         if let Some(&py_str) = self.cache.get(buf_slice) {
             Py_INCREF(py_str);
             return py_str;
@@ -22,7 +22,7 @@ impl StringCache {
             buf_slice.len() as isize,
         );
 
-        self.cache.insert(buf_slice.to_vec(), py_str);
+        self.cache.insert(buf_slice, py_str);
         py_str
     }
 }

@@ -17,7 +17,6 @@ features = ["extension-module"]
 [profile.release]
 lto = "fat"
 codegen-units = 1
-panic = "abort"
 
 [dependencies]
 rustc-hash = "2.1.1"
