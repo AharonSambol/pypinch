@@ -51,11 +51,12 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             encode_number(buffer, len(encoded_str))
             buffer.extend(encoded_str)
     elif typ is int:
-        if num_byte := SMALL_INTS.get(obj):
-            buffer.append(num_byte)
-        elif obj > 0:
-            buffer.append(POSITIVE_INT_FLAG)
-            encode_number(buffer, obj)
+        if obj >= 0:
+            if obj < len(SMALL_INTS):
+                buffer.append(SMALL_INTS[obj])
+            else:
+                buffer.append(POSITIVE_INT_FLAG)
+                encode_number(buffer, obj)
         else:
             buffer.append(NEGATIVE_INT_FLAG)
             encode_number(buffer, -obj)
