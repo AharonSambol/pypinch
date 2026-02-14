@@ -15,41 +15,40 @@ _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
 
 def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, modify_input: bool = False,
-               use_pointers: bool = False, serialize_dates: bool = True) -> bytearray:
+               use_pointers: bool = False, serialize_dates: bool = True) -> bytes:
     settings = Settings(
         allow_non_string_keys=allow_non_string_keys,
         modify_input=modify_input,  # TODO
-        use_pointers=False,
+        use_pointers=use_pointers,
         pointers={} if use_pointers else None,
         serialize_dates=serialize_dates,
     )
     buffer = bytearray(HEADER)
     serialize_object_with_type(buffer, obj, settings)
-    return buffer
+    return bytes(buffer)
 
 
 def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settings) -> None:
     typ = type(obj)
     if typ is str:
-        encode_normally = True
         if len(obj) == 0:
             buffer.append(EMPTY_STR_FLAG)
-            encode_normally = False
-            # todo                          python 3.9
-        elif settings.use_pointers and (prev_pos := settings.pointers.get(obj)):
-            temp_buffer = bytearray()
-            temp_buffer.append(POINTER_FLAG)
-            encode_number(temp_buffer, prev_pos)
-            if len(temp_buffer) <= len(obj) + 1:
-                buffer.extend(temp_buffer)
-                encode_normally = False
-        if encode_normally:
-            buffer.append(STR_FLAG)
-            if settings.use_pointers:
-                settings.pointers[obj] = len(buffer)
-            encoded_str = obj.encode()
-            encode_number(buffer, len(encoded_str))
-            buffer.extend(encoded_str)
+            return
+        elif settings.use_pointers:
+            if prev_pos := settings.pointers.get(obj):
+                temp_buffer = bytearray()
+                # TODO: estimate length without encoding
+                encode_number(temp_buffer, prev_pos)
+                if len(temp_buffer) <= len(obj):
+                    buffer.append(POINTER_FLAG)
+                    buffer.extend(temp_buffer)
+                    return
+            else:
+                settings.pointers[obj] = len(buffer) + 1    # +1 for str_flag
+        buffer.append(STR_FLAG)
+        encoded_str = obj.encode()
+        encode_number(buffer, len(encoded_str))
+        buffer.extend(encoded_str)
     elif typ is int:
         if obj >= 0:
             if obj < NUMBER_BASE - AMOUNT_OF_USED_FLAGS:

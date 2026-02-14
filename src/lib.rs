@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::string_cache::StringCache;
 use crate::serializing::serialize::serialize;
-use crate::utils::consts::{FALSE_FLAG, HEADER};
+use crate::utils::consts::{HEADER};
 use crate::utils::wrappers::tuple_get_item;
 
 mod utils;
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn dump_bytes(
 
     let arg1 = *args;
 
-    let mut use_pointers = false;
+    let mut use_pointers = true;
     if !kwnames.is_null() {
         let nkw = PyTuple_Size(kwnames);
 
@@ -100,7 +100,7 @@ pub unsafe extern "C" fn dump_bytes(
     serialize(arg1, &mut buf, &mut pointers);
     let ptr = buf.as_ptr() as *const c_char;
     let len = buf.len() as Py_ssize_t;
-    PyByteArray_FromStringAndSize(ptr, len)
+    PyBytes_FromStringAndSize(ptr, len)
 }
 
 pub unsafe extern "C" fn load_bytes(
