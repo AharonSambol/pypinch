@@ -14,7 +14,8 @@ pub unsafe fn deserialize_object<'a>(
     ptr: &mut usize,
     pointers: &mut Option<&mut FxHashMap<usize, *mut PyObject>>,
     use_tuples: bool,
-    string_cache: &mut StringCache<'a>
+    string_cache: &mut StringCache<'a>,
+    str_count: &mut usize,
 ) -> *mut PyObject {
     let flag = *buf.get_unchecked(*ptr);
     *ptr += 1;
@@ -35,7 +36,8 @@ pub unsafe fn deserialize_object<'a>(
             buf,
             ptr,
             pointers,
-            string_cache
+            string_cache,
+            str_count
         ),
         TRUE_FLAG => {
             let t = Py_True();
@@ -137,6 +139,7 @@ pub unsafe fn deserialize_object<'a>(
                             ptr,
                             pointers,
                             string_cache,
+                            str_count,
                         );
                         list_set_item(list, i, str);
                     }
@@ -160,8 +163,8 @@ pub unsafe fn deserialize_object<'a>(
             let len = decode_number::<NUMBER_BASE>(buf, ptr);
             let dict = PyDict_New();
             for _ in 0..len {
-                let k = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
-                let v = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
+                let k = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count);
+                let v = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count);
                 PyDict_SetItem(dict, k, v);
             }
             dict
@@ -175,8 +178,9 @@ pub unsafe fn deserialize_object<'a>(
                     ptr,
                     pointers,
                     string_cache,
+                    str_count,
                 );
-                let v = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
+                let v = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count);
                 PyDict_SetItem(dict, k, v);
             }
             dict
@@ -191,14 +195,14 @@ pub unsafe fn deserialize_object<'a>(
             if use_tuples {
                 let tup = PyTuple_New(len);
                 for i in 0..len {
-                    let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
+                    let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count);
                     tuple_set_item(tup, i, obj);
                 }
                 tup
             } else {
                 let list = PyList_New(len);
                 for i in 0..len {
-                    let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache);
+                    let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count);
                     list_set_item(list, i, obj);
                 }
                 list
@@ -215,18 +219,19 @@ unsafe fn decode_string<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut Option<&mut FxHashMap<usize, *mut PyObject>>,
-    string_cache: &mut StringCache<'a>
+    string_cache: &mut StringCache<'a>,
+    str_count: &mut usize,
 ) -> *mut PyObject {
-    let start = *ptr;
+
     let len = decode_number::<NUMBER_BASE>(buf, ptr);
 
     let string = string_cache.get_or_create(&buf[*ptr..*ptr + len as usize]);
     *ptr += len as usize;
 
     if let Some(map) = pointers {
-        map.insert(start, string);
+        map.insert(*str_count, string);
     }
-
+    *str_count += 1;
     string
 }
 

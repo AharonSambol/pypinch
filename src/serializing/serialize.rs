@@ -30,11 +30,13 @@ const ENCODED_NUMBER_LIMITS: [u128; 18] = [
     255*255*255*255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
 ];
 
+// todo: all_str_keys=False
 #[inline(always)]
 pub unsafe fn serialize(
     obj: *mut PyObject,
     buffer: &mut Vec<u8>,
     pointers: &mut Option<Pointers>,
+    str_count: &mut usize,
 ) {
     let typ = (*obj).ob_type;
 
@@ -64,10 +66,11 @@ pub unsafe fn serialize(
                     }
                 },
                 Entry::Vacant(entry) => {
-                    entry.insert(buffer.len() + 1);
+                    entry.insert(*str_count);
                 }
             }
         }
+        *str_count += 1;
         buffer.push(STR_FLAG);
         encode_number::<NUMBER_BASE>(buffer, len as u128);
         buffer.extend_from_slice(std::slice::from_raw_parts(
@@ -128,10 +131,9 @@ pub unsafe fn serialize(
             }
             let first_type = (*first_item).ob_type;
             if first_type == &mut PyUnicode_Type && pointers.is_some() {
-                serialize_normal_list(obj, buffer, pointers, is_list, len);
+                serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
                 return;
             }
-            // else if first_type == &mut PyLong_Type {}
             else if first_type == &mut PyBool_Type {
                 buffer.push(CONSISTENT_TYPE_LIST_FLAG);
                 buffer.push(BOOL_FLAG);
@@ -183,7 +185,7 @@ pub unsafe fn serialize(
             // }
         }
 
-        serialize_normal_list(obj, buffer, pointers, is_list, len);
+        serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
         return;
     }
 
@@ -203,6 +205,7 @@ pub unsafe fn serialize(
             let mut val: *mut PyObject = ptr::null_mut();
             while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
                 // key
+                *str_count += 1;
                 let mut len: isize = 0;
                 let data = PyUnicode_AsUTF8AndSize(key, &mut len);
                 encode_number::<NUMBER_BASE>(buffer, len as u128);
@@ -211,7 +214,7 @@ pub unsafe fn serialize(
                     len as usize,
                 ));
                 // value
-                serialize(val, buffer, pointers);
+                serialize(val, buffer, pointers, str_count);
             }
             return;
         }
@@ -223,8 +226,8 @@ pub unsafe fn serialize(
         let mut key: *mut PyObject = ptr::null_mut();
         let mut val: *mut PyObject = ptr::null_mut();
         while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
-            serialize(key, buffer, pointers);
-            serialize(val, buffer, pointers);
+            serialize(key, buffer, pointers, str_count);
+            serialize(val, buffer, pointers, str_count);
         }
         return;
     }
@@ -266,7 +269,7 @@ pub unsafe fn serialize(
 
 
 
-unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Option<Pointers>, is_list: bool, len: Py_ssize_t) {
+unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Option<Pointers>, is_list: bool, len: Py_ssize_t, str_count: &mut usize) {
     buf.push(LIST_FLAG);
     encode_number::<NUMBER_BASE>(buf, len as u128);
     for i in 0..len {
@@ -275,6 +278,6 @@ unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers:
         } else {
             tuple_get_item(obj, i)
         };
-        serialize(item, buf, pointers);
+        serialize(item, buf, pointers, str_count);
     }
 }

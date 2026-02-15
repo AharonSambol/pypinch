@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import List
 
 
 @dataclass
 class Settings:
     use_tuples: bool
-    use_pointers: bool
-    pointers: Dict
+    pointers: List[str]     # TODO: for small strings, will they be saved in her multiple times?

@@ -1,7 +1,22 @@
 use std::ffi::{c_long, c_ulonglong};
 use pyo3_ffi::{Py_DECREF, PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject};
 use crate::utils::consts::ENDING_FLAG;
-
+// use lazy_static::lazy_static;
+//
+// lazy_static! {
+// 	static ref CACHED_INTS: [*mut PyObject; 10] = [
+//         PyLong_FromLong(0 as c_long),
+//         PyLong_FromLong(1 as c_long),
+//         PyLong_FromLong(2 as c_long),
+//         PyLong_FromLong(3 as c_long),
+//         PyLong_FromLong(4 as c_long),
+//         PyLong_FromLong(5 as c_long),
+//         PyLong_FromLong(6 as c_long),
+//         PyLong_FromLong(7 as c_long),
+//         PyLong_FromLong(8 as c_long),
+//         PyLong_FromLong(9 as c_long),
+//     ]
+// }
 #[inline(always)]
 pub unsafe fn decode_number<const BASE: u128>(
     buf: &[u8],

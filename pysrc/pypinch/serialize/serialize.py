@@ -14,14 +14,13 @@ from pypinch.serialize.utils import encode_number
 _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
 
-def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, modify_input: bool = False,
-               use_pointers: bool = False, serialize_dates: bool = True) -> bytes:
+def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, modify_input: bool = False, serialize_dates: bool = True) -> bytes:
     settings = Settings(
         allow_non_string_keys=allow_non_string_keys,
         modify_input=modify_input,  # TODO
-        use_pointers=use_pointers,
-        pointers={} if use_pointers else None,
+        pointers={},
         serialize_dates=serialize_dates,
+        str_count=0
     )
     buffer = bytearray(HEADER)
     serialize_object_with_type(buffer, obj, settings)
@@ -34,17 +33,17 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
         if len(obj) == 0:
             buffer.append(EMPTY_STR_FLAG)
             return
-        elif settings.use_pointers:
-            if prev_pos := settings.pointers.get(obj):
-                temp_buffer = bytearray()
-                # TODO: estimate length without encoding
-                encode_number(temp_buffer, prev_pos)
-                if len(temp_buffer) <= len(obj):
-                    buffer.append(POINTER_FLAG)
-                    buffer.extend(temp_buffer)
-                    return
-            else:
-                settings.pointers[obj] = len(buffer) + 1    # +1 for str_flag
+        if prev_pos := settings.pointers.get(obj):
+            temp_buffer = bytearray()
+            # TODO: estimate length without encoding
+            encode_number(temp_buffer, prev_pos)
+            if len(temp_buffer) <= len(obj):
+                buffer.append(POINTER_FLAG)
+                buffer.extend(temp_buffer)
+                return
+        else:
+            settings.pointers[obj] = settings.str_count
+        settings.str_count += 1
         buffer.append(STR_FLAG)
         encoded_str = obj.encode()
         encode_number(buffer, len(encoded_str))
@@ -66,11 +65,11 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
     elif typ is list or typ is tuple:
         if len(obj) == 0:
             buffer.append(EMPTY_LIST_FLAG)
-        elif is_consistent_type_list(obj, settings):
+        elif is_consistent_type_list(obj):
             first_type = type(obj[0])
-            if first_type is str and settings.use_pointers:
-                serialize_normal_list(buffer, obj, settings)
-            elif obj[0] is None:
+            # if first_type is str:
+            #     serialize_normal_list(buffer, obj, settings)
+            if obj[0] is None:
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 buffer.append(NULL_FLAG)
                 encode_number(buffer, len(obj))
@@ -113,20 +112,20 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
     elif typ is dict:
         if len(obj) == 0:
             buffer.append(EMPTY_DICT_FLAG)
-        elif not settings.use_pointers and not settings.allow_non_string_keys:
-            buffer.append(STR_KEY_DICT_FLAG)
-            encode_number(buffer, len(obj))
-            for k, v in obj.items():
-                if type(k) is not str:
-                    raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
-                serialize_object_without_type(buffer, k, settings)
-                serialize_object_with_type(buffer, v, settings)
-        elif not settings.use_pointers and all(type(x) is str for x in obj.keys()):
-            buffer.append(STR_KEY_DICT_FLAG)
-            encode_number(buffer, len(obj))
-            for k, v in obj.items():
-                serialize_object_without_type(buffer, k, settings)
-                serialize_object_with_type(buffer, v, settings)
+        # elif not settings.use_pointers and not settings.allow_non_string_keys:
+        #     buffer.append(STR_KEY_DICT_FLAG)
+        #     encode_number(buffer, len(obj))
+        #     for k, v in obj.items():
+        #         if type(k) is not str:
+        #             raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
+        #         serialize_object_without_type(buffer, k, settings)
+        #         serialize_object_with_type(buffer, v, settings)
+        # elif not settings.use_pointers and all(type(x) is str for x in obj.keys()):
+        #     buffer.append(STR_KEY_DICT_FLAG)
+        #     encode_number(buffer, len(obj))
+        #     for k, v in obj.items():
+        #         serialize_object_without_type(buffer, k, settings)
+        #         serialize_object_with_type(buffer, v, settings)
         else:
             buffer.append(DICT_FLAG)
             encode_number(buffer, len(obj))
@@ -158,14 +157,14 @@ def serialize_normal_list(buffer: bytearray, obj: Union[List, Tuple], settings: 
         serialize_object_with_type(buffer, item, settings)
 
 
-def is_consistent_type_list(obj: Union[List, Tuple], settings: Settings) -> bool:
+def is_consistent_type_list(obj: Union[List, Tuple]) -> bool:
     if len(obj) <= 1:
         return False
     first_type = type(obj[0])
-    if first_type in [list, dict, tuple]:
+    if first_type in [list, dict, tuple, str]:
         return False
-    if first_type is str and settings.use_pointers:
-        return all(type(x) is str and x not in settings.pointers for x in obj)
+    # if first_type is str and settings.use_pointers:
+    #     return all(type(x) is str and x not in settings.pointers for x in obj)
     return all(type(x) is first_type for x in obj)
 
 
@@ -187,20 +186,20 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
     elif typ is dict:
         if len(obj) == 0:
             buffer.append(EMPTY_DICT_FLAG)
-        elif not settings.use_pointers and not settings.allow_non_string_keys:
-            buffer.append(STR_KEY_DICT_FLAG)
-            encode_number(buffer, len(obj))
-            for k, v in obj.items():
-                if type(k) is not str:
-                    raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
-                serialize_object_without_type(buffer, k, settings)
-                serialize_object_with_type(buffer, v, settings)
-        elif not settings.use_pointers and all(type(x) is str for x in obj.keys()):
-            buffer.append(STR_KEY_DICT_FLAG)
-            encode_number(buffer, len(obj))
-            for k, v in obj.items():
-                serialize_object_without_type(buffer, k, settings)
-                serialize_object_with_type(buffer, v, settings)
+        # elif not settings.use_pointers and not settings.allow_non_string_keys:
+        #     buffer.append(STR_KEY_DICT_FLAG)
+        #     encode_number(buffer, len(obj))
+        #     for k, v in obj.items():
+        #         if type(k) is not str:
+        #             raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
+        #         serialize_object_without_type(buffer, k, settings)
+        #         serialize_object_with_type(buffer, v, settings)
+        # elif not settings.use_pointers and all(type(x) is str for x in obj.keys()):
+        # TODO:    buffer.append(STR_KEY_DICT_FLAG)
+        #     encode_number(buffer, len(obj))
+        #     for k, v in obj.items():
+        #         serialize_object_without_type(buffer, k, settings)
+        #         serialize_object_with_type(buffer, v, settings)
         else:
             buffer.append(DICT_FLAG)
             encode_number(buffer, len(obj))
@@ -211,8 +210,8 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
         buffer.extend(_pack_double(obj))
     elif typ is str:
         encoded_str = obj.encode()
-        if settings.use_pointers:
-            settings.pointers[obj] = len(buffer)
+        settings.pointers[obj] = settings.str_count
+        settings.str_count += 1
         encode_number(buffer, len(encoded_str))
         buffer.extend(encoded_str)
     elif typ is datetime and settings.serialize_dates:

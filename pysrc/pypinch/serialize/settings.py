@@ -6,6 +6,6 @@ from typing import Dict
 class Settings:
     allow_non_string_keys: bool
     modify_input: bool
-    use_pointers: bool
-    pointers: Dict
+    pointers: Dict[str, int]
     serialize_dates: bool
+    str_count: int

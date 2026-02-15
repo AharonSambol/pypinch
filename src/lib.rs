@@ -97,7 +97,7 @@ pub unsafe extern "C" fn dump_bytes(
     let mut buf = Vec::from(b"<o>");
     let mut map = FxHashMap::default();
     let mut pointers = if use_pointers { Some(&mut map) } else { None };
-    serialize(arg1, &mut buf, &mut pointers);
+    serialize(arg1, &mut buf, &mut pointers, &mut 0);
     let ptr = buf.as_ptr() as *const c_char;
     let len = buf.len() as Py_ssize_t;
     PyBytes_FromStringAndSize(ptr, len)
@@ -161,6 +161,6 @@ pub unsafe extern "C" fn load_bytes(
     };
 
     let mut string_cache = StringCache::new();
-    deserialize_object(slice, &mut (HEADER.len()), &mut pointers, use_tuples, &mut string_cache)
+    deserialize_object(slice, &mut (HEADER.len()), &mut pointers, use_tuples, &mut string_cache, &mut 0)
     
 }

@@ -8,7 +8,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, CONSISTENT_TYPE_DICT_FLAG, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
-    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, NEGATIVE_NUMBER_SIGN, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS
+    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS
 
 from pypinch.exceptions import DecodingError
 from pypinch.deserialize.settings import Settings
@@ -19,7 +19,6 @@ def load_bytes(
     buffer: ByteLike,
     *,
     use_tuples: bool = False,
-    use_pointers: bool = True,
     stop_gc: bool = False,
 ) -> ObjType:
 
@@ -29,8 +28,7 @@ def load_bytes(
 
         settings = Settings(
             use_tuples=use_tuples,  # TODO
-            use_pointers=use_pointers,
-            pointers={} if use_pointers else None
+            pointers=[],
         )
         return deserialize_object(buffer, len(HEADER), settings)[0]
     finally:
@@ -146,9 +144,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
 
 
 def deserialize_str(buffer: bytes, pointer: int, settings: Settings) -> Tuple[str, int]:
-    start = pointer
     length, pointer = decode_number(buffer, pointer)
     string = buffer[pointer:pointer + length].decode()
-    if settings.use_pointers:
-        settings.pointers[start] = string
+    settings.pointers.append(string)
     return string, pointer + length
