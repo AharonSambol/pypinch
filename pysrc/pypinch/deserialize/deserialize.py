@@ -57,7 +57,11 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         length, pointer = decode_number(buffer, pointer)
         res_dict = {}
         for i in range(length):
-            k, pointer = deserialize_object(buffer, pointer, settings)
+            if buffer[pointer] == STR_FLAG:
+                # fast path
+                k, pointer = deserialize_str(buffer, pointer + 1, settings)
+            else:
+                k, pointer = deserialize_object(buffer, pointer, settings)
             v, pointer = deserialize_object(buffer, pointer, settings)
             res_dict[k] = v
         return res_dict, pointer

@@ -5,8 +5,9 @@ from typing import Union, List, Tuple
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
-    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, HEADER, \
-    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE
+    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, \
+    POINTER_FLAG, HEADER, \
+    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS
 from pypinch.exceptions import EncodingError
 from pypinch.serialize.settings import Settings
 from pypinch.serialize.utils import encode_number
@@ -14,10 +15,9 @@ from pypinch.serialize.utils import encode_number
 _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
 
-def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, modify_input: bool = False, serialize_dates: bool = True) -> bytes:
+def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, serialize_dates: bool = True) -> bytes:
     settings = Settings(
         allow_non_string_keys=allow_non_string_keys,
-        modify_input=modify_input,  # TODO
         pointers={},
         serialize_dates=serialize_dates,
         str_count=0
@@ -34,12 +34,14 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(EMPTY_STR_FLAG)
             return
         if prev_pos := settings.pointers.get(obj):
-            temp_buffer = bytearray()
-            # TODO: estimate length without encoding
-            encode_number(temp_buffer, prev_pos)
-            if len(temp_buffer) <= len(obj):
+            predicted_digits = 1
+            for i in ENCODED_NUMBER_LIMITS:
+                if prev_pos <= i:
+                    break
+                predicted_digits += 1
+            if predicted_digits <= len(obj):
                 buffer.append(POINTER_FLAG)
-                buffer.extend(temp_buffer)
+                encode_number(buffer, prev_pos)
                 return
         else:
             settings.pointers[obj] = settings.str_count
