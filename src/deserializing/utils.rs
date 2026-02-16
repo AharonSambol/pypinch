@@ -1,22 +1,7 @@
 use std::ffi::{c_long, c_ulonglong};
 use pyo3_ffi::{Py_DECREF, PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject};
 use crate::utils::consts::ENDING_FLAG;
-// use lazy_static::lazy_static;
-//
-// lazy_static! {
-// 	static ref CACHED_INTS: [*mut PyObject; 10] = [
-//         PyLong_FromLong(0 as c_long),
-//         PyLong_FromLong(1 as c_long),
-//         PyLong_FromLong(2 as c_long),
-//         PyLong_FromLong(3 as c_long),
-//         PyLong_FromLong(4 as c_long),
-//         PyLong_FromLong(5 as c_long),
-//         PyLong_FromLong(6 as c_long),
-//         PyLong_FromLong(7 as c_long),
-//         PyLong_FromLong(8 as c_long),
-//         PyLong_FromLong(9 as c_long),
-//     ]
-// }
+
 #[inline(always)]
 pub unsafe fn decode_number<const BASE: u128>(
     buf: &[u8],
@@ -62,8 +47,8 @@ pub unsafe fn decode_large_number<const BASE: u128>(
         num_length += 1;
         temp_ptr += 1;
     }
-    // 64 is the amount of bytes in a c_longlong
-    if num_length <= 8 {
+    let bytes_in_c_ulonglong = c_ulonglong::BITS / 8;
+    if num_length <= bytes_in_c_ulonglong {
         *ptr -= 1;
         return PyLong_FromUnsignedLongLong(decode_number::<BASE>(buf, ptr) as c_ulonglong);
     }
@@ -71,7 +56,7 @@ pub unsafe fn decode_large_number<const BASE: u128>(
 
     let mut res: u128 = BASE;
     let mut mul: u128 = 1;
-    for _ in 0..8 {
+    for _ in 0..bytes_in_c_ulonglong {
         let byte = *buf.get_unchecked(*ptr);
         *ptr += 1;
         res += (byte as u128) * mul;
@@ -105,28 +90,3 @@ pub unsafe fn decode_large_number<const BASE: u128>(
         mul = tmp;
     }
 }
-
-// #[inline(always)]
-// unsafe fn decode_number<const BASE: u128>(
-//     buf: &mut *const [u8],
-// ) -> u128 {
-//     let b = buf[0];
-//     *buf = buf.add(1);
-//     if b != ENDING_FLAG {
-//         return b as u128;
-//     }
-//
-//
-//     let mut res: u128 = 0;
-//     let mut mul: u128 = 1;
-//
-//     loop {
-//         let v = buf[0];
-//         *buf = buf.add(1);
-//         if v == ENDING_FLAG {
-//             return res;
-//         }
-//         res += (v as u128) * mul;
-//         mul *= BASE;
-//     }
-// }
