@@ -22,7 +22,6 @@ pub const LIST_FLAG: u8 = 14;
 pub const CONSISTENT_TYPE_LIST_FLAG: u8 = 15;
 pub const DICT_FLAG: u8 = 16;
 pub const STR_KEY_DICT_FLAG: u8 = 17;
-pub const CONSISTENT_TYPE_DICT_FLAG: u8 = 18;
-pub const POINTER_FLAG: u8 = 19;
+pub const POINTER_FLAG: u8 = 18;
 
 pub const AMOUNT_OF_USED_FLAGS: u8 = 30; // for future flags

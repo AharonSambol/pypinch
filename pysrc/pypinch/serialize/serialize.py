@@ -1,3 +1,4 @@
+import bisect
 import struct
 from datetime import datetime
 from typing import Union, List, Tuple
@@ -7,8 +8,8 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, \
     POINTER_FLAG, HEADER, \
-    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS
-from pypinch.exceptions import EncodingError
+    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, INVALID_UTF_8_START_BYTE
+from pypinch.exceptions import SerializationError
 from pypinch.serialize.settings import Settings
 from pypinch.serialize.utils import encode_number
 
@@ -16,15 +17,22 @@ _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
 
 def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, serialize_dates: bool = True) -> bytes:
-    settings = Settings(
-        allow_non_string_keys=allow_non_string_keys,
-        pointers={},
-        serialize_dates=serialize_dates,
-        str_count=0
-    )
-    buffer = bytearray(HEADER)
-    serialize_object_with_type(buffer, obj, settings)
-    return bytes(buffer)
+    try:
+        settings = Settings(
+            allow_non_string_keys=allow_non_string_keys,
+            pointers={},
+            serialize_dates=serialize_dates,
+            str_count=0
+        )
+        buffer = bytearray(HEADER)
+        serialize_object_with_type(buffer, obj, settings)
+        return bytes(buffer)
+    except SerializationError:
+        raise
+    except MemoryError:
+        raise
+    except Exception as e:
+        raise SerializationError() from e
 
 
 def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settings) -> None:
@@ -34,11 +42,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(EMPTY_STR_FLAG)
             return
         if prev_pos := settings.pointers.get(obj):
-            predicted_digits = 1
-            for i in ENCODED_NUMBER_LIMITS:
-                if prev_pos <= i:
-                    break
-                predicted_digits += 1
+            predicted_digits = 1 + bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
             if predicted_digits <= len(obj):
                 buffer.append(POINTER_FLAG)
                 encode_number(buffer, prev_pos)
@@ -104,7 +108,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
                 try:
                     buffer.append({str: STR_FLAG, bytes: BYTES_FLAG, float: FLOAT_FLAG, datetime: STR_FLAG}[first_type])
                 except KeyError:
-                    raise EncodingError(f"Unexpected type: {first_type}")
+                    raise SerializationError(f"Unexpected type: {first_type}")
 
                 encode_number(buffer, len(obj))
                 for item in obj:
@@ -122,12 +126,20 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
         #             raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
         #         serialize_object_without_type(buffer, k, settings)
         #         serialize_object_with_type(buffer, v, settings)
-        # elif not settings.use_pointers and all(type(x) is str for x in obj.keys()):
-        #     buffer.append(STR_KEY_DICT_FLAG)
-        #     encode_number(buffer, len(obj))
-        #     for k, v in obj.items():
-        #         serialize_object_without_type(buffer, k, settings)
-        #         serialize_object_with_type(buffer, v, settings)
+        elif all(type(x) is str for x in obj.keys()):
+            buffer.append(STR_KEY_DICT_FLAG)
+            encode_number(buffer, len(obj))
+            for k, v in obj.items():    # TODO: on lists as well
+                if prev_pos := settings.pointers.get(k):
+                    predicted_digits = 1 + bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
+                    if predicted_digits <= len(obj):
+                        buffer.append(INVALID_UTF_8_START_BYTE)
+                        encode_number(buffer, prev_pos)
+                    else:
+                        serialize_object_without_type(buffer, k, settings)
+                else:
+                    serialize_object_without_type(buffer, k, settings)
+                serialize_object_with_type(buffer, v, settings)
         else:
             buffer.append(DICT_FLAG)
             encode_number(buffer, len(obj))
@@ -148,8 +160,8 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
         return serialize_object_with_type(buffer, obj.isoformat(), settings)
     else:
         if typ is datetime and not settings.serialize_dates:
-            raise EncodingError(f"Unexpected type: datetime, with flag serialize_dates disabled")
-        raise EncodingError(f"Unexpected type: {typ}")
+            raise SerializationError(f"Unexpected type: datetime, with flag serialize_dates disabled")
+        raise SerializationError(f"Unexpected type: {typ}")
 
 
 def serialize_normal_list(buffer: bytearray, obj: Union[List, Tuple], settings: Settings) -> None:
@@ -219,4 +231,4 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
     elif typ is datetime and settings.serialize_dates:
         return serialize_object_without_type(buffer, obj.isoformat(), settings)
     else:
-        raise EncodingError(f"Unexpected type: {typ}")
+        raise SerializationError(f"Unexpected type: {typ}")

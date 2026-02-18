@@ -7,10 +7,10 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
-    ByteLike, HEADER, CONSISTENT_TYPE_DICT_FLAG, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
-    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS
+    ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
+    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, INVALID_UTF_8_START_BYTE
 
-from pypinch.exceptions import DecodingError
+from pypinch.exceptions import DeserializationError
 from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number
 
@@ -20,6 +20,7 @@ def load_bytes(
     *,
     use_tuples: bool = False,
     stop_gc: bool = False,
+    ignore_extra_data: bool = False
 ) -> ObjType:
 
     try:
@@ -30,7 +31,16 @@ def load_bytes(
             use_tuples=use_tuples,  # TODO
             pointers=[],
         )
-        return deserialize_object(buffer, len(HEADER), settings)[0]
+        res, pointer = deserialize_object(buffer, len(HEADER), settings)
+        if not ignore_extra_data and pointer != len(buffer):
+            raise DeserializationError("Extra data")
+        return res
+    except DeserializationError:
+        raise
+    except MemoryError:
+        raise
+    except Exception as e:
+        raise DeserializationError() from e
     finally:
         if stop_gc:
             gc.unfreeze()
@@ -47,7 +57,11 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         length, pointer = decode_number(buffer, pointer)
         res_dict = {}
         for i in range(length):
-            k, pointer = deserialize_str(buffer, pointer, settings)
+            if buffer[pointer] == INVALID_UTF_8_START_BYTE:
+                position, pointer = decode_number(buffer, pointer + 1)
+                k = settings.pointers[position]
+            else:
+                k, pointer = deserialize_str(buffer, pointer, settings)
             v, pointer = deserialize_object(buffer, pointer, settings)
             res_dict[k] = v
         return res_dict, pointer
@@ -56,7 +70,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
     elif flag == DICT_FLAG:
         length, pointer = decode_number(buffer, pointer)
         res_dict = {}
-        for i in range(length):
+        for _ in range(length):
             if buffer[pointer] == STR_FLAG:
                 # fast path
                 k, pointer = deserialize_str(buffer, pointer + 1, settings)
@@ -118,13 +132,14 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
                 res_list[i], pointer = deserialize_str(buffer, pointer, settings)
             return res_list, pointer
         elif typ_flag == FLOAT_FLAG:
-            res_list = typing.cast(List[float], [None] * length)
-            for i in range(length):
-                res_list[i] = struct.unpack(BIG_ENDIAN_DOUBLE_FORMAT, buffer[pointer:pointer + BYTES_IN_DOUBLE])[0]
-                pointer += BYTES_IN_DOUBLE
+            res_list = [
+                struct.unpack(BIG_ENDIAN_DOUBLE_FORMAT, buffer[pos:pos + BYTES_IN_DOUBLE])[0]
+                for pos in range(pointer, pointer + BYTES_IN_DOUBLE * length, BYTES_IN_DOUBLE)
+            ]
+            pointer += BYTES_IN_DOUBLE * length
             return res_list, pointer
         else:
-            raise DecodingError(f"Unexpected type flag: {typ_flag}")
+            raise DeserializationError(f"Unexpected type flag: {typ_flag}")
     elif flag == NEGATIVE_INT_FLAG:
         num, pointer = decode_number(buffer, pointer)
         return -num, pointer
@@ -138,11 +153,9 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         position, pointer = decode_number(buffer, pointer)
         return settings.pointers[position], pointer
     elif flag == INT_FLAG:
-        raise DecodingError("unexpected flag")
+        raise DeserializationError("unexpected flag")
     elif flag == BOOL_FLAG:
-        raise DecodingError("unexpected flag")
-    elif flag == CONSISTENT_TYPE_DICT_FLAG:
-        raise Exception("not implemented yet")  # todo
+        raise DeserializationError("unexpected flag")
     else:
         return flag - AMOUNT_OF_USED_FLAGS, pointer
 

@@ -1,6 +1,6 @@
-class EncodingError(Exception):
+class SerializationError(Exception):
     pass
 
 
-class DecodingError(Exception):
+class DeserializationError(Exception):
     pass
