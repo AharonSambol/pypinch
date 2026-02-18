@@ -8,7 +8,7 @@ use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
 use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
 use crate::utils::wrappers::{get_list_size, get_tuple_size, list_get_item, tuple_get_item};
 
-type Pointers<'a> = &'a mut FxHashMap<*mut PyObject, usize>;
+type Pointers = FxHashMap<*mut PyObject, usize>;
 const ENCODED_NUMBER_LIMITS: [u128; 18] = [
     254,
     255,
@@ -35,7 +35,7 @@ const ENCODED_NUMBER_LIMITS: [u128; 18] = [
 pub unsafe fn serialize(
     obj: *mut PyObject,
     buffer: &mut Vec<u8>,
-    pointers: &mut Option<Pointers>,
+    pointers: &mut Pointers,
     str_count: &mut usize,
 ) {
     let typ = (*obj).ob_type;
@@ -48,28 +48,27 @@ pub unsafe fn serialize(
             return;
         }
 
-        if let Some(pmap) = pointers {
-            match pmap.entry(obj) {
-                Entry::Occupied(entry) => {
-                    let position = (*entry.get()) as u128;
-                    let mut predicted_digits = 1;
-                    for i in ENCODED_NUMBER_LIMITS {
-                        if position <= i {
-                            break
-                        }
-                        predicted_digits += 1;
+        match pointers.entry(obj) {
+            Entry::Occupied(entry) => {
+                let position = (*entry.get()) as u128;
+                let mut predicted_digits = 1;
+                for i in ENCODED_NUMBER_LIMITS {
+                    if position <= i {
+                        break
                     }
-                    if predicted_digits <= len as usize {
-                        buffer.push(POINTER_FLAG);
-                        encode_number::<NUMBER_BASE>(buffer, position);
-                        return;
-                    }
-                },
-                Entry::Vacant(entry) => {
-                    entry.insert(*str_count);
+                    predicted_digits += 1;
                 }
+                if predicted_digits <= len as usize {
+                    buffer.push(POINTER_FLAG);
+                    encode_number::<NUMBER_BASE>(buffer, position);
+                    return;
+                }
+            },
+            Entry::Vacant(entry) => {
+                entry.insert(*str_count);
             }
         }
+
         *str_count += 1;
         buffer.push(STR_FLAG);
         encode_number::<NUMBER_BASE>(buffer, len as u128);
@@ -130,7 +129,7 @@ pub unsafe fn serialize(
                 return;
             }
             let first_type = (*first_item).ob_type;
-            if first_type == &mut PyUnicode_Type && pointers.is_some() {
+            if first_type == &mut PyUnicode_Type {
                 serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
                 return;
             }
@@ -196,7 +195,8 @@ pub unsafe fn serialize(
             buffer.push(EMPTY_DICT_FLAG);
             return;
         }
-        if pointers.is_none() && all_dict_keys_are_str(obj) {
+        if all_dict_keys_are_str(obj) {
+            // TODO: !!!!!!!!!!
             buffer.push(STR_KEY_DICT_FLAG);
             encode_number::<NUMBER_BASE>(buffer, size as u128);
 
@@ -269,7 +269,7 @@ pub unsafe fn serialize(
 
 
 
-unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Option<Pointers>, is_list: bool, len: Py_ssize_t, str_count: &mut usize) {
+unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Pointers, is_list: bool, len: Py_ssize_t, str_count: &mut usize) {
     buf.push(LIST_FLAG);
     encode_number::<NUMBER_BASE>(buf, len as u128);
     for i in 0..len {

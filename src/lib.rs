@@ -76,27 +76,9 @@ pub unsafe extern "C" fn dump_bytes(
 
     let arg1 = *args;
 
-    let mut use_pointers = true;
-    if !kwnames.is_null() {
-        let nkw = PyTuple_Size(kwnames);
-
-        for i in 0..nkw {
-            let key = tuple_get_item(kwnames, i);
-            // key is guaranteed to be str
-            if PyUnicode_CompareWithASCIIString(
-                key,
-                b"use_pointers\0".as_ptr() as *const _,
-            ) == 0
-            {
-                let value = *args.offset(nargs + i);
-                use_pointers = PyObject_IsTrue(value) == 1;
-            }
-        }
-    }
 
     let mut buf = Vec::from(b"<o>");
-    let mut map = FxHashMap::default();
-    let mut pointers = if use_pointers { Some(&mut map) } else { None };
+    let mut pointers = FxHashMap::default();
     serialize(arg1, &mut buf, &mut pointers, &mut 0);
     let ptr = buf.as_ptr() as *const c_char;
     let len = buf.len() as Py_ssize_t;
@@ -121,22 +103,12 @@ pub unsafe extern "C" fn load_bytes(
 
     let arg1 = *args;
 
-    let mut use_pointers = true;
     let mut use_tuples = false;
     if !kwnames.is_null() {
         let nkw = PyTuple_Size(kwnames);
 
         for i in 0..nkw {
             let key = tuple_get_item(kwnames, i);
-            // key is guaranteed to be str
-            if PyUnicode_CompareWithASCIIString(
-                key,
-                b"use_pointers\0".as_ptr() as *const _,
-            ) == 0
-            {
-                let value = *args.offset(nargs + i);
-                use_pointers = PyObject_IsTrue(value) == 1;
-            }
             if PyUnicode_CompareWithASCIIString(
                 key,
                 b"use_tuples\0".as_ptr() as *const _,
@@ -148,8 +120,7 @@ pub unsafe extern "C" fn load_bytes(
         }
     }
 
-    let mut map = FxHashMap::default();
-    let mut pointers = if use_pointers { Some(&mut map) } else { None };
+    let mut pointers = FxHashMap::default();
     let slice = if (*arg1).ob_type == &mut PyByteArray_Type {
         let len = PyByteArray_Size(arg1) as usize;
         let data_ptr = PyByteArray_AsString(arg1) as *const u8;

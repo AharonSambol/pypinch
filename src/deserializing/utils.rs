@@ -27,6 +27,33 @@ pub unsafe fn decode_number<const BASE: u128>(
     }
 }
 
+// TODO: use this
+// TODO: combine with logic above?
+#[inline(always)]
+pub unsafe fn decode_number_usize<const BASE: usize>(
+    buf: &[u8],
+    ptr: &mut usize,
+) -> usize {
+    let b = *buf.get_unchecked(*ptr);
+    *ptr += 1;
+    if b != ENDING_FLAG {
+        return b as usize;
+    }
+
+    let mut res: usize = BASE;
+    let mut mul: usize = 1;
+
+    loop {
+        let v = *buf.get_unchecked(*ptr);
+        *ptr += 1;
+        if v == ENDING_FLAG {
+            return res;
+        }
+        res += (v as usize) * mul;
+        mul *= BASE;
+    }
+}
+
 #[inline(always)]
 pub unsafe fn decode_large_number<const BASE: u128>(
     buf: &[u8],

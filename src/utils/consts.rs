@@ -1,8 +1,10 @@
 pub const NUMBER_BASE: u128 = 255;
+pub const NUMBER_BASE_USIZE: usize = NUMBER_BASE as usize;
 pub const ENDING_FLAG: u8 = 255;
 pub const NEGATIVE_NUMBER_SIGN: u128 = NUMBER_BASE - 1;
 pub const LEFTMOST_BIT_MASK: u8 = 128;
 pub const HEADER: &[u8] = b"<o>";
+pub const INVALID_UTF_8_START_BYTE: u8 = 0xff;
 
 pub const EMPTY_STR_FLAG: u8 = 0;
 pub const EMPTY_BYTES_FLAG: u8 = 1;

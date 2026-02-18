@@ -1,17 +1,19 @@
 use std::ffi::{c_char, c_long};
-use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_ssize_t, Py_True, PyBytes_FromStringAndSize, PyDict_New, PyDict_SetItem, PyErr_SetString, PyExc_TypeError, PyFloat_FromDouble, PyList_New, PyLong_FromLong, PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyLong_Type, PyNumber_Negative, PyObject, PyTuple_New, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, PyUnicode_New, PyUnicode_Type};
+
+use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_ssize_t, Py_True, PyBytes_FromStringAndSize, PyDict_New, PyDict_SetItem, PyErr_SetString, PyExc_TypeError, PyFloat_FromDouble, PyList_New, PyLong_FromLong, PyNumber_Negative, PyObject, PyTuple_New, PyUnicode_New};
 use rustc_hash::FxHashMap;
+
 use crate::deserializing::string_cache::StringCache;
-use crate::deserializing::utils::{decode_large_number, decode_number};
+use crate::deserializing::utils::{decode_large_number, decode_number, decode_number_usize};
 use crate::py_string;
-use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, INT_FLAG, LEFTMOST_BIT_MASK, LIST_FLAG, NEGATIVE_INT_FLAG, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
+use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, INT_FLAG, INVALID_UTF_8_START_BYTE, LEFTMOST_BIT_MASK, LIST_FLAG, NEGATIVE_INT_FLAG, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, NUMBER_BASE_USIZE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 // todo add necessary checks so it never crashes completely
 pub unsafe fn deserialize_object<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Option<&mut FxHashMap<usize, *mut PyObject>>,
+    pointers: &mut FxHashMap<usize, *mut PyObject>,
     use_tuples: bool,
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
@@ -55,15 +57,9 @@ pub unsafe fn deserialize_object<'a>(
         },
         POINTER_FLAG => {
             let pos = decode_number::<NUMBER_BASE>(buf, ptr);
-            if let Some(pointers) = pointers {
-                let res = pointers[&(pos as usize)];
-                Py_INCREF(res);
-                res
-            } else {
-                // todo not type error, encoding\decoding error
-                PyErr_SetString(PyExc_TypeError, py_string!("unexpected flag pointer, when use_pointers is disabled"));
-                return std::ptr::null_mut();
-            }
+            let res = pointers[&(pos as usize)];
+            Py_INCREF(res);
+            res
         }
         BYTES_FLAG => {
             let len = decode_number::<NUMBER_BASE>(buf, ptr);
@@ -172,15 +168,21 @@ pub unsafe fn deserialize_object<'a>(
             let len = decode_number::<NUMBER_BASE>(buf, ptr);
             let dict = PyDict_New();
             for _ in 0..len {
-                let k = decode_string(
-                    buf,
-                    ptr,
-                    pointers,
-                    string_cache,
-                    str_count,
-                );
-                let v = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count);
-                PyDict_SetItem(dict, k, v);
+                let key = if buf[*ptr] == INVALID_UTF_8_START_BYTE {
+                    *ptr += 1;
+                    let position = decode_number_usize::<NUMBER_BASE_USIZE>(buf, ptr);
+                    pointers[&position]
+                } else {
+                    decode_string(
+                        buf,
+                        ptr,
+                        pointers,
+                        string_cache,
+                        str_count,
+                    )
+                };
+                let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count);
+                PyDict_SetItem(dict, key, value);
             }
             dict
         }
@@ -217,7 +219,7 @@ pub unsafe fn deserialize_object<'a>(
 unsafe fn decode_string<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Option<&mut FxHashMap<usize, *mut PyObject>>,
+    pointers: &mut FxHashMap<usize, *mut PyObject>,
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> *mut PyObject {
@@ -227,9 +229,7 @@ unsafe fn decode_string<'a>(
     let string = string_cache.get_or_create(&buf[*ptr..*ptr + len as usize]);
     *ptr += len as usize;
 
-    if let Some(map) = pointers {
-        map.insert(*str_count, string);
-    }
+    pointers.insert(*str_count, string);
     *str_count += 1;
     string
 }
