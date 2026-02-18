@@ -27,3 +27,8 @@ pub const STR_KEY_DICT_FLAG: u8 = 17;
 pub const POINTER_FLAG: u8 = 18;
 
 pub const AMOUNT_OF_USED_FLAGS: u8 = 30; // for future flags
+
+pub const NOT_A_STR_BUT_A_POINTER_FLAG: [u8; 2] = [
+    AMOUNT_OF_USED_FLAGS + 1,   // a str of length 1
+    INVALID_UTF_8_START_BYTE,   // sike, not really
+];

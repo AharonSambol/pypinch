@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number, decode_number_usize};
 use crate::py_string;
-use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, INT_FLAG, INVALID_UTF_8_START_BYTE, LEFTMOST_BIT_MASK, LIST_FLAG, NEGATIVE_INT_FLAG, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, NUMBER_BASE_USIZE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
+use crate::utils::consts::{NOT_A_STR_BUT_A_POINTER_FLAG, AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, INT_FLAG, INVALID_UTF_8_START_BYTE, LEFTMOST_BIT_MASK, LIST_FLAG, NEGATIVE_INT_FLAG, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, NUMBER_BASE_USIZE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 // todo add necessary checks so it never crashes completely
@@ -168,9 +168,9 @@ pub unsafe fn deserialize_object<'a>(
             let len = decode_number::<NUMBER_BASE>(buf, ptr);
             let dict = PyDict_New();
             for _ in 0..len {
-                let key = if buf[*ptr] == INVALID_UTF_8_START_BYTE {
-                    *ptr += 1;
-                    let position = decode_number_usize::<NUMBER_BASE_USIZE>(buf, ptr);
+                let key = if buf[*ptr..*ptr + NOT_A_STR_BUT_A_POINTER_FLAG.len()] == NOT_A_STR_BUT_A_POINTER_FLAG {
+                    *ptr += NOT_A_STR_BUT_A_POINTER_FLAG.len();
+                    let position = decode_number::<NUMBER_BASE>(buf, ptr) as usize;
                     pointers[&position]
                 } else {
                     decode_string(

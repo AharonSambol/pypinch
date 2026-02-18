@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 use std::ptr;
 use crate::serializing::number_encoding::encode_python_int;
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
-use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
+use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, INVALID_UTF_8_START_BYTE, LIST_FLAG, NEGATIVE_INT_FLAG, NOT_A_STR_BUT_A_POINTER_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
 use crate::utils::wrappers::{get_list_size, get_tuple_size, list_get_item, tuple_get_item};
 
 type Pointers = FxHashMap<*mut PyObject, usize>;
@@ -43,32 +43,15 @@ pub unsafe fn serialize(
     if typ == &mut PyUnicode_Type {
         let mut len: isize = 0;
         let data = PyUnicode_AsUTF8AndSize(obj, &mut len);
+
         if len == 0 {
             buffer.push(EMPTY_STR_FLAG);
             return;
         }
 
-        match pointers.entry(obj) {
-            Entry::Occupied(entry) => {
-                let position = (*entry.get()) as u128;
-                let mut predicted_digits = 1;
-                for i in ENCODED_NUMBER_LIMITS {
-                    if position <= i {
-                        break
-                    }
-                    predicted_digits += 1;
-                }
-                if predicted_digits <= len as usize {
-                    buffer.push(POINTER_FLAG);
-                    encode_number::<NUMBER_BASE>(buffer, position);
-                    return;
-                }
-            },
-            Entry::Vacant(entry) => {
-                entry.insert(*str_count);
-            }
+        if try_encode_as_pointer(&obj, buffer, pointers, *str_count, len, &[POINTER_FLAG]) {
+            return;
         }
-
         *str_count += 1;
         buffer.push(STR_FLAG);
         encode_number::<NUMBER_BASE>(buffer, len as u128);
@@ -162,7 +145,7 @@ pub unsafe fn serialize(
                 }
                 return;
             }
-            // if first_type == &mut PyLong_Type {
+            // todo: if first_type == &mut PyLong_Type {
             //     buffer.push(CONSISTENT_TYPE_LIST_FLAG);
             //     buffer.push(INT_FLAG);
             //     encode_number(buffer, len as u128, NUMBER_BASE);
@@ -195,7 +178,7 @@ pub unsafe fn serialize(
             buffer.push(EMPTY_DICT_FLAG);
             return;
         }
-        if all_dict_keys_are_str(obj) {
+        if all_dict_keys_are_str(obj){
             // TODO: !!!!!!!!!!
             buffer.push(STR_KEY_DICT_FLAG);
             encode_number::<NUMBER_BASE>(buffer, size as u128);
@@ -205,14 +188,17 @@ pub unsafe fn serialize(
             let mut val: *mut PyObject = ptr::null_mut();
             while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
                 // key
-                *str_count += 1;
-                let mut len: isize = 0;
-                let data = PyUnicode_AsUTF8AndSize(key, &mut len);
-                encode_number::<NUMBER_BASE>(buffer, len as u128);
-                buffer.extend_from_slice(std::slice::from_raw_parts(
-                    data as *const u8,
-                    len as usize,
-                ));
+                let len = PyUnicode_GetLength(key);
+                let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &NOT_A_STR_BUT_A_POINTER_FLAG);
+                if !encoded_as_pointer {
+                    *str_count += 1;
+                    let data = PyUnicode_AsUTF8AndSize(key, &mut 0);
+                    encode_number::<NUMBER_BASE>(buffer, len as u128);
+                    buffer.extend_from_slice(std::slice::from_raw_parts(
+                        data as *const u8,
+                        len as usize,
+                    ));
+                }
                 // value
                 serialize(val, buffer, pointers, str_count);
             }
@@ -267,8 +253,40 @@ pub unsafe fn serialize(
     // PyErr_SetString(PyExc_TypeError, format!("Unsupported type::{}\0", ).as_bytes().as_ptr() as _);
 }
 
+#[inline(always)]
+unsafe fn try_encode_as_pointer(str: &*mut PyObject, buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: usize, str_len: Py_ssize_t, pointer_flag: &[u8]) -> bool {
+    match pointers.entry(*str) {
+        Entry::Occupied(entry) => {
+            let position = (*entry.get()) as u128;
+            let predicted_pointer_length = predict_encoded_number_length(position);
+            let predicted_str_length = str_len as usize + predict_encoded_number_length(str_len as u128);
+            // todo update this in the python as well
+            if predicted_pointer_length <= predicted_str_length {
+                buffer.extend(pointer_flag);
+                encode_number::<NUMBER_BASE>(buffer, position);
+                return true;
+            }
+        },
+        Entry::Vacant(entry) => {
+            entry.insert(str_count);
+        }
+    }
+    false
+}
 
+#[inline(always)]
+unsafe fn predict_encoded_number_length(number: u128) -> usize {
+    let mut predicted_digits = 1;
+    for limit in ENCODED_NUMBER_LIMITS {
+        if number <= limit {
+            break
+        }
+        predicted_digits += 1;
+    }
+    predicted_digits
+}
 
+#[inline(always)]
 unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Pointers, is_list: bool, len: Py_ssize_t, str_count: &mut usize) {
     buf.push(LIST_FLAG);
     encode_number::<NUMBER_BASE>(buf, len as u128);

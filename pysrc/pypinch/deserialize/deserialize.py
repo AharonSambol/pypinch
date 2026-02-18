@@ -8,7 +8,8 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
-    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, INVALID_UTF_8_START_BYTE
+    LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, INVALID_UTF_8_START_BYTE, \
+    NOT_A_STR_BUT_A_POINTER_FLAG
 
 from pypinch.exceptions import DeserializationError
 from pypinch.deserialize.settings import Settings
@@ -57,8 +58,8 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         length, pointer = decode_number(buffer, pointer)
         res_dict = {}
         for i in range(length):
-            if buffer[pointer] == INVALID_UTF_8_START_BYTE:
-                position, pointer = decode_number(buffer, pointer + 1)
+            if buffer[pointer:pointer+len(NOT_A_STR_BUT_A_POINTER_FLAG)] == NOT_A_STR_BUT_A_POINTER_FLAG:
+                position, pointer = decode_number(buffer, pointer + len(NOT_A_STR_BUT_A_POINTER_FLAG))
                 k = settings.pointers[position]
             else:
                 k, pointer = deserialize_str(buffer, pointer, settings)

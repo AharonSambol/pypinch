@@ -8,7 +8,8 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, \
     POINTER_FLAG, HEADER, \
-    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, INVALID_UTF_8_START_BYTE
+    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, INVALID_UTF_8_START_BYTE, \
+    NOT_A_STR_BUT_A_POINTER_FLAG
 from pypinch.exceptions import SerializationError
 from pypinch.serialize.settings import Settings
 from pypinch.serialize.utils import encode_number
@@ -129,11 +130,11 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
         elif all(type(x) is str for x in obj.keys()):
             buffer.append(STR_KEY_DICT_FLAG)
             encode_number(buffer, len(obj))
-            for k, v in obj.items():    # TODO: on lists as well
+            for k, v in obj.items():    # TODO: on lists as well and in serialize_without_type
                 if prev_pos := settings.pointers.get(k):
                     predicted_digits = 1 + bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
                     if predicted_digits <= len(obj):
-                        buffer.append(INVALID_UTF_8_START_BYTE)
+                        buffer.extend(NOT_A_STR_BUT_A_POINTER_FLAG)
                         encode_number(buffer, prev_pos)
                     else:
                         serialize_object_without_type(buffer, k, settings)
