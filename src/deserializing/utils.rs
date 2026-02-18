@@ -1,57 +1,51 @@
 use std::ffi::{c_long, c_ulonglong};
-use pyo3_ffi::{Py_DECREF, PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject};
+use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject};
 use crate::utils::consts::ENDING_FLAG;
 
-#[inline(always)]
-pub unsafe fn decode_number<const BASE: u128>(
-    buf: &[u8],
-    ptr: &mut usize,
-) -> u128 {
-    let b = *buf.get_unchecked(*ptr);
-    *ptr += 1;
-    if b != ENDING_FLAG {
-        return b as u128;
-    }
+macro_rules! _decode_number {
+    ($buf:expr, $ptr:expr, $base:expr, $type:ty) => {{
+        let byte = *$buf.get_unchecked(*$ptr);
+        *$ptr += 1;
 
-    let mut res: u128 = BASE;
-    let mut mul: u128 = 1;
-
-    loop {
-        let v = *buf.get_unchecked(*ptr);
-        *ptr += 1;
-        if v == ENDING_FLAG {
-            return res;
+        if byte != ENDING_FLAG {
+            return byte as $type;
         }
-        res += (v as u128) * mul;
-        mul *= BASE;
-    }
-}
+        let mut res = $base;
+        let mut mul = 1;
 
-// TODO: use this
-// TODO: combine with logic above?
+        loop {
+            let byte = *$buf.get_unchecked(*$ptr);
+            *$ptr += 1;
+            if byte == ENDING_FLAG {
+                break res;
+            }
+            res += (byte as $type) * mul;
+            mul *= $base;
+        }
+    }};
+}
 #[inline(always)]
-pub unsafe fn decode_number_usize<const BASE: usize>(
+pub unsafe fn decode_number__usize<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> usize {
-    let b = *buf.get_unchecked(*ptr);
-    *ptr += 1;
-    if b != ENDING_FLAG {
-        return b as usize;
-    }
+    _decode_number!(buf, ptr, BASE as usize, usize)
+}
 
-    let mut res: usize = BASE;
-    let mut mul: usize = 1;
+#[inline(always)]
+pub unsafe fn decode_number__py_ssize_t<const BASE: u128>(
+    buf: &[u8],
+    ptr: &mut usize,
+) -> Py_ssize_t {
+    _decode_number!(buf, ptr, BASE as Py_ssize_t, Py_ssize_t)
+}
 
-    loop {
-        let v = *buf.get_unchecked(*ptr);
-        *ptr += 1;
-        if v == ENDING_FLAG {
-            return res;
-        }
-        res += (v as usize) * mul;
-        mul *= BASE;
-    }
+#[inline(always)]
+pub unsafe fn decode_number__c_ulonglong<const BASE: u128>(
+    buf: &[u8],
+    ptr: &mut usize,
+) -> c_ulonglong {
+    _decode_number!(buf, ptr, BASE as c_ulonglong, c_ulonglong)
 }
 
 #[inline(always)]
@@ -77,7 +71,7 @@ pub unsafe fn decode_large_number<const BASE: u128>(
     let bytes_in_c_ulonglong = c_ulonglong::BITS / 8;
     if num_length <= bytes_in_c_ulonglong {
         *ptr -= 1;
-        return PyLong_FromUnsignedLongLong(decode_number::<BASE>(buf, ptr) as c_ulonglong);
+        return PyLong_FromUnsignedLongLong(decode_number__c_ulonglong::<BASE>(buf, ptr));
     }
 
 

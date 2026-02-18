@@ -4,7 +4,7 @@ use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_ssize_t, Py_True, PyB
 use rustc_hash::FxHashMap;
 
 use crate::deserializing::string_cache::StringCache;
-use crate::deserializing::utils::{decode_large_number, decode_number, decode_number_usize};
+use crate::deserializing::utils::{decode_large_number, decode_number__py_ssize_t, decode_number__usize};
 use crate::py_string;
 use crate::utils::consts::{NOT_A_STR_BUT_A_POINTER_FLAG, AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, INT_FLAG, INVALID_UTF_8_START_BYTE, LEFTMOST_BIT_MASK, LIST_FLAG, NEGATIVE_INT_FLAG, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, NUMBER_BASE_USIZE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
@@ -56,16 +56,16 @@ pub unsafe fn deserialize_object<'a>(
             none
         },
         POINTER_FLAG => {
-            let pos = decode_number::<NUMBER_BASE>(buf, ptr);
-            let res = pointers[&(pos as usize)];
+            let pos = decode_number__usize::<NUMBER_BASE>(buf, ptr);
+            let res = pointers[&pos];
             Py_INCREF(res);
             res
         }
         BYTES_FLAG => {
-            let len = decode_number::<NUMBER_BASE>(buf, ptr);
+            let len = decode_number__py_ssize_t::<NUMBER_BASE>(buf, ptr);
             let bytes = PyBytes_FromStringAndSize(
                 buf.as_ptr().add(*ptr) as *const c_char,
-                len as Py_ssize_t,
+                len,
             );
             *ptr += len as usize;
             bytes
@@ -73,7 +73,7 @@ pub unsafe fn deserialize_object<'a>(
         CONSISTENT_TYPE_LIST_FLAG => {
             let typ = *buf.get_unchecked(*ptr);
             *ptr += 1;
-            let len= decode_number::<NUMBER_BASE>(buf, ptr) as Py_ssize_t;
+            let len= decode_number__py_ssize_t::<NUMBER_BASE>(buf, ptr);
 
             match typ {
                 NULL_FLAG => {
@@ -116,10 +116,10 @@ pub unsafe fn deserialize_object<'a>(
                 BYTES_FLAG => {
                     let list = PyList_New(len);
                     for i in 0..len {
-                        let bytes_len = decode_number::<NUMBER_BASE>(buf, ptr);
+                        let bytes_len = decode_number__py_ssize_t::<NUMBER_BASE>(buf, ptr);
                         let bytes = PyBytes_FromStringAndSize(
                             buf.as_ptr().add(*ptr) as *const c_char,
-                            bytes_len as Py_ssize_t,
+                            bytes_len,
                         );
                         list_set_item(list, i, bytes);
                         *ptr += bytes_len as usize;
@@ -155,7 +155,7 @@ pub unsafe fn deserialize_object<'a>(
             }
         },
         DICT_FLAG =>  {
-            let len = decode_number::<NUMBER_BASE>(buf, ptr);
+            let len = decode_number__usize::<NUMBER_BASE>(buf, ptr);
             let dict = PyDict_New();
             for _ in 0..len {
                 let k = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count);
@@ -165,12 +165,12 @@ pub unsafe fn deserialize_object<'a>(
             dict
         }
         STR_KEY_DICT_FLAG => {
-            let len = decode_number::<NUMBER_BASE>(buf, ptr);
+            let len = decode_number__usize::<NUMBER_BASE>(buf, ptr);
             let dict = PyDict_New();
             for _ in 0..len {
                 let key = if buf[*ptr..*ptr + NOT_A_STR_BUT_A_POINTER_FLAG.len()] == NOT_A_STR_BUT_A_POINTER_FLAG {
                     *ptr += NOT_A_STR_BUT_A_POINTER_FLAG.len();
-                    let position = decode_number::<NUMBER_BASE>(buf, ptr) as usize;
+                    let position = decode_number__usize::<NUMBER_BASE>(buf, ptr) as usize;
                     pointers[&position]
                 } else {
                     decode_string(
@@ -191,7 +191,7 @@ pub unsafe fn deserialize_object<'a>(
         EMPTY_LIST_FLAG => if use_tuples { PyTuple_New(0) /*todo cache this?*/} else { PyList_New(0) },
         EMPTY_STR_FLAG => PyUnicode_New(0, 127), // todo cache this?
         LIST_FLAG => {
-            let len = decode_number::<NUMBER_BASE>(buf, ptr) as Py_ssize_t;
+            let len = decode_number__py_ssize_t::<NUMBER_BASE>(buf, ptr);
 
             if use_tuples {
                 let tup = PyTuple_New(len);
@@ -223,11 +223,10 @@ unsafe fn decode_string<'a>(
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> *mut PyObject {
+    let len = decode_number__usize::<NUMBER_BASE>(buf, ptr);
 
-    let len = decode_number::<NUMBER_BASE>(buf, ptr);
-
-    let string = string_cache.get_or_create(&buf[*ptr..*ptr + len as usize]);
-    *ptr += len as usize;
+    let string = string_cache.get_or_create(&buf[*ptr..*ptr + len]);
+    *ptr += len;
 
     pointers.insert(*str_count, string);
     *str_count += 1;
