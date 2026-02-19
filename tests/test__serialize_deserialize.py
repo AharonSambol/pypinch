@@ -70,13 +70,13 @@ ALL_TYPES_OF_OBJECTS = [
     ["obj"],
     ALL_TYPES_OF_OBJECTS
 )
-def test__serialize_deserialize__modify_input(obj):
+def test__serialize_deserialize__default(obj):
     # Arrange
     original_obj = copy.deepcopy(obj)
 
     # Act
     # print("!")
-    serialized = pypinch.dump_bytes(obj, modify_input=True)
+    serialized = pypinch.dump_bytes(obj)
     unserialized = pypinch.load_bytes(serialized)
 
     # Assert
@@ -133,89 +133,6 @@ def test__tuples_serialize_deserialize__into_list(input_tuple, expected):
 #
 #     # Assert
 #     assert unserialized == expected
-
-
-@pytest.mark.parametrize(
-    ["obj"],
-    ALL_TYPES_OF_OBJECTS
-)
-def test__serialize_deserialize__with_pointers(obj):
-    # Arrange
-    original_obj = copy.deepcopy(obj)
-
-    # Act
-    serialized = pypinch.dump_bytes(obj, use_pointers=True)
-    unserialized = pypinch.load_bytes(serialized)
-
-    # Assert
-    assert unserialized == original_obj
-
-
-@pytest.mark.parametrize(
-    ["obj"],
-    ALL_TYPES_OF_OBJECTS
-)
-def test__serialize_deserialize__dont_modify_input(obj):
-    # Arrange
-    original_obj = copy.deepcopy(obj)
-
-    # Act
-    serialized = pypinch.dump_bytes(obj, modify_input=False)
-    unserialized = pypinch.load_bytes(serialized)
-
-    # Assert
-    assert unserialized == original_obj
-    assert obj == original_obj
-
-
-@pytest.mark.parametrize(
-    ["obj"],
-    ALL_TYPES_OF_OBJECTS
-)
-def test__serialize_deserialize__dont_modify_serialized_data(obj):
-    # Arrange
-    original_obj = copy.deepcopy(obj)
-    serialized = pypinch.dump_bytes(obj)
-    original_serialized = copy.deepcopy(serialized)
-
-    # Act
-    unserialized = pypinch.load_bytes(serialized, modify_input=False)
-
-    # Assert
-    assert unserialized == original_obj
-    assert serialized == original_serialized
-
-
-@pytest.mark.parametrize(
-    ["obj"],
-    ALL_TYPES_OF_OBJECTS
-)
-def test__serialize_deserialize__modify_serialized_data(obj):
-    # Arrange
-    original_obj = copy.deepcopy(obj)
-    serialized = pypinch.dump_bytes(obj)
-
-    # Act
-    unserialized = pypinch.load_bytes(serialized, modify_input=True)
-
-    # Assert
-    assert unserialized == original_obj
-
-
-@pytest.mark.parametrize(
-    ["obj"],
-    ALL_TYPES_OF_OBJECTS
-)
-def test__serialize_deserialize__bytes_serialized_data(obj):
-    # Arrange
-    original_obj = copy.deepcopy(obj)
-    serialized = bytes(pypinch.dump_bytes(obj))
-
-    # Act
-    unserialized = pypinch.load_bytes(serialized, modify_input=True)
-
-    # Assert
-    assert unserialized == original_obj
 
 
 # @pytest.mark.parametrize(
