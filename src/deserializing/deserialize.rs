@@ -1,12 +1,13 @@
 use std::ffi::{c_char, c_long};
 
-use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_ssize_t, Py_True, PyBytes_FromStringAndSize, PyDict_New, PyDict_SetItem, PyErr_SetString, PyExc_TypeError, PyFloat_FromDouble, PyList_New, PyLong_FromLong, PyNumber_Negative, PyObject, PyTuple_New, PyUnicode_New};
+use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_ssize_t, Py_True, PyBytes_FromStringAndSize, PyDict_New, PyDict_SetItem, PyExc_TypeError, PyFloat_FromDouble, PyList_New, PyLong_FromLong, PyNumber_Negative, PyObject, PyTuple_New, PyUnicode_New};
 use rustc_hash::FxHashMap;
 
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number__py_ssize_t, decode_number__usize};
 use crate::py_string;
 use crate::utils::consts::{NOT_A_STR_BUT_A_POINTER_FLAG, AMOUNT_OF_USED_FLAGS, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, INT_FLAG, INVALID_UTF_8_START_BYTE, LEFTMOST_BIT_MASK, LIST_FLAG, NEGATIVE_INT_FLAG, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, NUMBER_BASE_USIZE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
+use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 // todo add necessary checks so it never crashes completely
@@ -149,8 +150,7 @@ pub unsafe fn deserialize_object<'a>(
                     list
                 }
                 _ => {
-                    PyErr_SetString(PyExc_TypeError, py_string!("unexpected consistent list type"));
-                    return std::ptr::null_mut();
+                    return "unexpected consistent list type".to_py_error(PyExc_TypeError);
                 }
             }
         },

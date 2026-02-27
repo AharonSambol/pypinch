@@ -1,5 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::ffi::{c_char};
+use std::marker::PhantomData;
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
 use std::ptr;
@@ -30,6 +31,7 @@ const ENCODED_NUMBER_LIMITS: [u128; 18] = [
     255*255*255*255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
 ];
 
+
 // todo: all_str_keys=False
 #[inline(always)]
 pub unsafe fn serialize(
@@ -37,7 +39,7 @@ pub unsafe fn serialize(
     buffer: &mut Vec<u8>,
     pointers: &mut Pointers,
     str_count: &mut usize,
-) {
+) -> Result<(), ()>{
     let typ = (*obj).ob_type;
 
     if typ == &mut PyUnicode_Type {
@@ -46,11 +48,11 @@ pub unsafe fn serialize(
 
         if len == 0 {
             buffer.push(EMPTY_STR_FLAG);
-            return;
+            return Ok(());
         }
 
         if try_encode_as_pointer(&obj, buffer, pointers, *str_count, len, &[POINTER_FLAG]) {
-            return;
+            return Ok(());
         }
         *str_count += 1;
         buffer.push(STR_FLAG);
@@ -59,23 +61,23 @@ pub unsafe fn serialize(
             data as *const u8,
             len as usize,
         ));
-        return;
+        return Ok(());
     }
 
     if typ == &mut PyBool_Type {
         buffer.push(if obj == Py_True() { TRUE_FLAG } else { FALSE_FLAG });
-        return;
+        return Ok(());
     }
 
     if typ == &mut PyLong_Type {
         encode_python_int::<NUMBER_BASE>(obj, buffer);
-        return;
+        return Ok(());
     }
 
 
     if obj == Py_None() {
         buffer.push(NULL_FLAG);
-        return;
+        return Ok(());
     }
 
     if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
@@ -87,7 +89,7 @@ pub unsafe fn serialize(
         };
         if len == 0 {
             buffer.push(EMPTY_LIST_FLAG);
-            return;
+            return Ok(());
         }
         unsafe fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssize_t) -> bool {
             let first_type = (*if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) }).ob_type;
@@ -109,12 +111,11 @@ pub unsafe fn serialize(
                 buffer.push(CONSISTENT_TYPE_LIST_FLAG);
                 buffer.push(NULL_FLAG);
                 encode_number::<NUMBER_BASE>(buffer, len as u128);
-                return;
+                return Ok(());
             }
             let first_type = (*first_item).ob_type;
             if first_type == &mut PyUnicode_Type {
-                serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
-                return;
+                return serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
             }
             else if first_type == &mut PyBool_Type {
                 buffer.push(CONSISTENT_TYPE_LIST_FLAG);
@@ -143,7 +144,7 @@ pub unsafe fn serialize(
                 if n != 0 {
                     buffer.push(byte << (8 - n));
                 }
-                return;
+                return Ok(());
             }
             // todo: if first_type == &mut PyLong_Type {
             //     buffer.push(CONSISTENT_TYPE_LIST_FLAG);
@@ -167,8 +168,7 @@ pub unsafe fn serialize(
             // }
         }
 
-        serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
-        return;
+        return serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
     }
 
     // dict
@@ -176,7 +176,7 @@ pub unsafe fn serialize(
         let size = PyDict_Size(obj);
         if size == 0 {
             buffer.push(EMPTY_DICT_FLAG);
-            return;
+            return Ok(());
         }
         if all_dict_keys_are_str(obj){
             // TODO: !!!!!!!!!!
@@ -200,9 +200,9 @@ pub unsafe fn serialize(
                     ));
                 }
                 // value
-                serialize(val, buffer, pointers, str_count);
+                serialize(val, buffer, pointers, str_count)?;
             }
-            return;
+            return Ok(());
         }
 
         buffer.push(DICT_FLAG);
@@ -212,18 +212,17 @@ pub unsafe fn serialize(
         let mut key: *mut PyObject = ptr::null_mut();
         let mut val: *mut PyObject = ptr::null_mut();
         while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
-            serialize(key, buffer, pointers, str_count);
-            serialize(val, buffer, pointers, str_count);
+            serialize(key, buffer, pointers, str_count)?;
+            serialize(val, buffer, pointers, str_count)?;
         }
-        return;
+        return Ok(());
     }
-
 
     if typ == &mut PyFloat_Type {
         let value = (*(obj as *mut PyFloatObject)).ob_fval;
         buffer.push(FLOAT_FLAG);
         buffer.extend_from_slice(&value.to_be_bytes());
-        return;
+        return Ok(());
     }
 
     if typ == &mut PyBytes_Type {
@@ -240,17 +239,15 @@ pub unsafe fn serialize(
                 size as usize,
             ));
         }
-        return;
+        return Ok(());
     }
-
-    let name = (*typ).tp_name;
 
     PyErr_Format(
         PyExc_TypeError,
         b"Unsupported type: %s\0".as_ptr() as *const c_char,
-        name,
+        (*typ).tp_name,
     );
-    // PyErr_SetString(PyExc_TypeError, format!("Unsupported type::{}\0", ).as_bytes().as_ptr() as _);
+    return Err(())
 }
 
 #[inline(always)]
@@ -287,7 +284,9 @@ unsafe fn predict_encoded_number_length(number: u128) -> usize {
 }
 
 #[inline(always)]
-unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Pointers, is_list: bool, len: Py_ssize_t, str_count: &mut usize) {
+unsafe fn serialize_normal_list(
+    obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Pointers, is_list: bool, len: Py_ssize_t, str_count: &mut usize
+) -> Result<(), ()>{
     buf.push(LIST_FLAG);
     encode_number::<NUMBER_BASE>(buf, len as u128);
     for i in 0..len {
@@ -296,6 +295,7 @@ unsafe fn serialize_normal_list(obj: *mut PyObject, buf: &mut Vec<u8>, pointers:
         } else {
             tuple_get_item(obj, i)
         };
-        serialize(item, buf, pointers, str_count);
+        serialize(item, buf, pointers, str_count)?;
     }
+    Ok(())
 }

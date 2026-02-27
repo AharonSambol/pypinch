@@ -1,5 +1,5 @@
 use std::ffi::c_long;
-use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, Py_DECREF, PyErr_SetString, PyExc_RuntimeError, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyLongObject, PyNumber_Add, PyNumber_Subtract, PyObject, PyObject_RichCompareBool};
+use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, Py_DECREF, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyLongObject, PyNumber_Add, PyNumber_Subtract, PyObject, PyObject_RichCompareBool};
 use crate::serializing::utils::encode_number;
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ENDING_FLAG, NEGATIVE_INT_FLAG, NUMBER_BASE, POSITIVE_INT_FLAG};
 
@@ -48,20 +48,13 @@ unsafe fn encode_pylong_big<const BASE: u128>(
     bytes.set_len(nbytes);
 
     // signed = 1 → two's complement
-    let rc = _PyLong_AsByteArray(
+    _PyLong_AsByteArray(
         obj as *mut PyLongObject,
         bytes.as_mut_ptr(),
         nbytes,
         0, // big-endian
         1, // signed
     );
-    if rc != 0 {
-        PyErr_SetString(
-            PyExc_RuntimeError,
-            b"Failed to extract PyLong bytes\0".as_ptr() as _,
-        );
-        return;
-    }
 
     // Determine sign from MSB
     // let is_negative = (bytes[0] & 0x80) != 0;
