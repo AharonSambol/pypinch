@@ -1,6 +1,6 @@
 use std::{ptr, slice};
-
-use pyo3_ffi::{Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString};
+use std::ffi::CString;
+use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyExc_Exception, PyImport_Import, PyImport_ImportModule, PyObject, PyObject_GetAttrString, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString};
 
 use crate::py_string_format;
 
@@ -28,6 +28,19 @@ pub unsafe fn convert_py_buffer_into_bytes_slice(buffer: &*mut PyObject) -> &[u8
         let data_ptr = PyBytes_AsString(buffer) as *const u8;
         slice::from_raw_parts(data_ptr, len)
     }
+}
+
+pub unsafe fn import_object_from_python(module_name: &str, object_name: &str) -> *mut PyObject {
+    let module_name = CString::new(module_name).unwrap();
+    let class_name = CString::new(object_name).unwrap();
+    let py_mod_path = PyUnicode_FromString(module_name.as_ptr());
+    let module = PyImport_Import(py_mod_path);
+
+    Py_DECREF(py_mod_path);
+    let object = PyObject_GetAttrString(module, class_name.as_ptr());
+
+    Py_DECREF(module);
+    object
 }
 
 pub trait ToPyErr<T> {
