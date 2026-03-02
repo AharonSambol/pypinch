@@ -1,9 +1,28 @@
 use std::ptr;
 
 use pyo3_ffi::{PyDict_Next, PyObject, PyUnicode_Type};
-
 use crate::utils::consts::NUMBER_BASE;
 
+const ENCODED_NUMBER_LIMITS: [u128; 18] = [
+    254,
+    255,
+    255 + 255 - 1,
+    255*255 + 255 - 1,
+    255*255*255 + 255 - 1,
+    255*255*255*255 + 255 - 1,
+    255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
+    255*255*255*255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
+];
 
 #[inline(always)]
 pub unsafe fn encode_number<const BASE: u128>(buf: &mut Vec<u8>, mut number: u128) {
@@ -21,6 +40,7 @@ pub unsafe fn encode_number<const BASE: u128>(buf: &mut Vec<u8>, mut number: u12
     }
 }
 
+#[inline(always)]
 pub unsafe fn all_dict_keys_are_str(obj: *mut PyObject) -> bool {
     let mut pos = 0;
     let mut key: *mut PyObject = ptr::null_mut();
@@ -33,3 +53,14 @@ pub unsafe fn all_dict_keys_are_str(obj: *mut PyObject) -> bool {
     true
 }
 
+#[inline(always)]
+pub unsafe fn predict_encoded_number_length(number: u128) -> usize {
+    let mut predicted_digits = 1;
+    for limit in ENCODED_NUMBER_LIMITS {
+        if number <= limit {
+            break
+        }
+        predicted_digits += 1;
+    }
+    predicted_digits
+}

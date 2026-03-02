@@ -1,37 +1,16 @@
-use std::collections::hash_map::Entry;
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
-use std::ptr;
 use crate::serializing::number_encoding::encode_python_int;
-use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
-use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, INVALID_UTF_8_START_BYTE, LIST_FLAG, NEGATIVE_INT_FLAG, NOT_A_STR_BUT_A_POINTER_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
+use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE, TRUE_FLAG};
 use crate::utils::py_helpers::ToPyErr;
-use crate::utils::wrappers::{get_list_size, get_tuple_size, list_get_item, tuple_get_item};
+use pyo3_ffi::{PyBool_Type, PyBytes_Type, PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyObject, PyTuple_Type, PyUnicode_Type};
+use crate::serializing::{compound_types, primitives};
 
-type Pointers = FxHashMap<*mut PyObject, usize>;
-const ENCODED_NUMBER_LIMITS: [u128; 18] = [
-    254,
-    255,
-    255 + 255 - 1,
-    255*255 + 255 - 1,
-    255*255*255 + 255 - 1,
-    255*255*255*255 + 255 - 1,
-    255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
-    255*255*255*255*255*255*255*255*255*255*255*255*255*255*255*255 + 255 - 1,
-];
+pub type Pointers = FxHashMap<*mut PyObject, usize>;
 
 
-// todo: all_str_keys=False
+
+// todo: all_str_keys=False - if true store at the start a flag and then store all dicts without key types
 #[inline(always)]
 pub unsafe fn serialize(
     obj: *mut PyObject,
@@ -42,255 +21,25 @@ pub unsafe fn serialize(
     let typ = (*obj).ob_type;
 
     if typ == &mut PyUnicode_Type {
-        let mut len: isize = 0;
-        let data = PyUnicode_AsUTF8AndSize(obj, &mut len);
-
-        if len == 0 {
-            buffer.push(EMPTY_STR_FLAG);
-            return Ok(());
-        }
-
-        if try_encode_as_pointer(&obj, buffer, pointers, *str_count, len, &[POINTER_FLAG]) {
-            return Ok(());
-        }
-        *str_count += 1;
-        buffer.push(STR_FLAG);
-        encode_number::<NUMBER_BASE>(buffer, len as u128);
-        buffer.extend_from_slice(std::slice::from_raw_parts(
-            data as *const u8,
-            len as usize,
-        ));
-        return Ok(());
-    }
-
-    if typ == &mut PyBool_Type {
+        primitives::serialize_str(obj, buffer, pointers, str_count);
+    } else if typ == &mut PyBool_Type {
         buffer.push(if obj == Py_True() { TRUE_FLAG } else { FALSE_FLAG });
-        return Ok(());
-    }
-
-    if typ == &mut PyLong_Type {
+    } else if typ == &mut PyLong_Type {
         encode_python_int::<NUMBER_BASE>(obj, buffer);
-        return Ok(());
+    } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
+        compound_types::encode_list(obj, buffer, pointers, str_count, typ)?;
+    } else if typ == &mut PyDict_Type {
+        compound_types::serialize_dict(obj, buffer, pointers, str_count)?;
+    } else if typ == &mut PyFloat_Type {
+        primitives::serialize_float(obj, buffer);
+    } else if typ == &mut PyBytes_Type {
+        primitives::serialize_bytes(obj, buffer);
+    } else if obj == Py_None() {
+        buffer.push(NULL_FLAG)
+    } else {
+        // TODO is this supposed to be type error or serialization error?
+        return Err(format!("Unsupported type: {:?}", (*typ).tp_name).to_py_error(PyExc_TypeError));
     }
-
-
-    if obj == Py_None() {
-        buffer.push(NULL_FLAG);
-        return Ok(());
-    }
-
-    if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
-        let is_list = typ == &mut PyList_Type;
-        let len = if is_list {
-            get_list_size(obj)
-        } else {
-            get_tuple_size(obj)
-        };
-        if len == 0 {
-            buffer.push(EMPTY_LIST_FLAG);
-            return Ok(());
-        }
-        unsafe fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssize_t) -> bool {
-            let first_type = (*if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) }).ob_type;
-            for i in 1..len {
-                let item = if is_list {
-                    list_get_item(obj, i)
-                } else {
-                    tuple_get_item(obj, i)
-                };
-                if (*item).ob_type != first_type {
-                    return false
-                }
-            }
-            true
-        }
-        if is_consistent_type_list(obj, is_list, len) {
-            let first_item = if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) };
-            if first_item == Py_None() {
-                buffer.push(CONSISTENT_TYPE_LIST_FLAG);
-                buffer.push(NULL_FLAG);
-                encode_number::<NUMBER_BASE>(buffer, len as u128);
-                return Ok(());
-            }
-            let first_type = (*first_item).ob_type;
-            if first_type == &mut PyUnicode_Type {
-                return serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
-            }
-            else if first_type == &mut PyBool_Type {
-                buffer.push(CONSISTENT_TYPE_LIST_FLAG);
-                buffer.push(BOOL_FLAG);
-                encode_number::<NUMBER_BASE>(buffer, len as u128);
-
-                let mut byte: u8 = 0;
-                let mut n: u8 = 0;
-
-                for i in 0..len {
-                    let item = if is_list {
-                        list_get_item(obj, i)
-                    } else {
-                        tuple_get_item(obj, i)
-                    };
-                    byte = (byte << 1) | ((item == Py_True()) as u8);
-                    n += 1;
-
-                    if n == 8 {
-                        buffer.push(byte);
-                        byte = 0;
-                        n = 0;
-                    }
-                }
-
-                if n != 0 {
-                    buffer.push(byte << (8 - n));
-                }
-                return Ok(());
-            }
-            // todo: if first_type == &mut PyLong_Type {
-            //     buffer.push(CONSISTENT_TYPE_LIST_FLAG);
-            //     buffer.push(INT_FLAG);
-            //     encode_number(buffer, len as u128, NUMBER_BASE);
-            //     for i in 0..len {
-            //         let item = if is_list {
-            //             PyList_GetItem(obj, i)
-            //         } else {
-            //             PyTuple_GetItem(obj, i)
-            //         };
-            //         serialize(item, buf, pointers);
-            //         if item <= 0 {
-            //             buffer.push(NUMBER_BASE - 1);
-            //             // todo ignore sign
-            //             encode_python_int(obj, buffer, NUMBER_BASE-1);
-            //         } else {
-            //             encode_python_int(obj, buffer, NUMBER_BASE-1);
-            //         }
-            //     }
-            // }
-        }
-
-        return serialize_normal_list(obj, buffer, pointers, is_list, len, str_count);
-    }
-
-    // dict
-    if typ == &mut PyDict_Type {
-        let size = PyDict_Size(obj);
-        if size == 0 {
-            buffer.push(EMPTY_DICT_FLAG);
-            return Ok(());
-        }
-        if all_dict_keys_are_str(obj){
-            // TODO: !!!!!!!!!!
-            buffer.push(STR_KEY_DICT_FLAG);
-            encode_number::<NUMBER_BASE>(buffer, size as u128);
-
-            let mut pos = 0;
-            let mut key: *mut PyObject = ptr::null_mut();
-            let mut val: *mut PyObject = ptr::null_mut();
-            while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
-                // key
-                let len = PyUnicode_GetLength(key);
-                let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &NOT_A_STR_BUT_A_POINTER_FLAG);
-                if !encoded_as_pointer {
-                    *str_count += 1;
-                    let data = PyUnicode_AsUTF8AndSize(key, &mut 0);
-                    encode_number::<NUMBER_BASE>(buffer, len as u128);
-                    buffer.extend_from_slice(std::slice::from_raw_parts(
-                        data as *const u8,
-                        len as usize,
-                    ));
-                }
-                // value
-                serialize(val, buffer, pointers, str_count)?;
-            }
-            return Ok(());
-        }
-
-        buffer.push(DICT_FLAG);
-        encode_number::<NUMBER_BASE>(buffer, size as u128);
-
-        let mut pos = 0;
-        let mut key: *mut PyObject = ptr::null_mut();
-        let mut val: *mut PyObject = ptr::null_mut();
-        while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
-            serialize(key, buffer, pointers, str_count)?;
-            serialize(val, buffer, pointers, str_count)?;
-        }
-        return Ok(());
-    }
-
-    if typ == &mut PyFloat_Type {
-        let value = (*(obj as *mut PyFloatObject)).ob_fval;
-        buffer.push(FLOAT_FLAG);
-        buffer.extend_from_slice(&value.to_be_bytes());
-        return Ok(());
-    }
-
-    if typ == &mut PyBytes_Type {
-        let size = PyBytes_Size(obj);
-        let data = PyBytes_AsString(obj);
-
-        if size == 0 {
-            buffer.push(EMPTY_BYTES_FLAG);
-        } else {
-            buffer.push(BYTES_FLAG);
-            encode_number::<NUMBER_BASE>(buffer, size as u128);
-            buffer.extend_from_slice(std::slice::from_raw_parts(
-                data as *const u8,
-                size as usize,
-            ));
-        }
-        return Ok(());
-    }
-
-    // TODO is this supposed to be type error or serialization error?
-    return Err(format!("Unsupported type: {:?}", (*typ).tp_name).to_py_error(PyExc_TypeError))
+    return Ok(());
 }
 
-#[inline(always)]
-unsafe fn try_encode_as_pointer(str: &*mut PyObject, buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: usize, str_len: Py_ssize_t, pointer_flag: &[u8]) -> bool {
-    match pointers.entry(*str) {
-        Entry::Occupied(entry) => {
-            let position = (*entry.get()) as u128;
-            let predicted_pointer_length = predict_encoded_number_length(position);
-            let predicted_str_length = str_len as usize + predict_encoded_number_length(str_len as u128);
-            // todo update this in the python as well
-            if predicted_pointer_length <= predicted_str_length {
-                buffer.extend(pointer_flag);
-                encode_number::<NUMBER_BASE>(buffer, position);
-                return true;
-            }
-        },
-        Entry::Vacant(entry) => {
-            entry.insert(str_count);
-        }
-    }
-    false
-}
-
-#[inline(always)]
-unsafe fn predict_encoded_number_length(number: u128) -> usize {
-    let mut predicted_digits = 1;
-    for limit in ENCODED_NUMBER_LIMITS {
-        if number <= limit {
-            break
-        }
-        predicted_digits += 1;
-    }
-    predicted_digits
-}
-
-#[inline(always)]
-unsafe fn serialize_normal_list(
-    obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Pointers, is_list: bool, len: Py_ssize_t, str_count: &mut usize
-) -> Result<(), *mut PyObject>{
-    buf.push(LIST_FLAG);
-    encode_number::<NUMBER_BASE>(buf, len as u128);
-    for i in 0..len {
-        let item = if is_list {
-            list_get_item(obj, i)
-        } else {
-            tuple_get_item(obj, i)
-        };
-        serialize(item, buf, pointers, str_count)?;
-    }
-    Ok(())
-}
