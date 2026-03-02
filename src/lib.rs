@@ -6,7 +6,7 @@ use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::string_cache::StringCache;
 use crate::serializing::serialize::serialize;
 use crate::utils::consts::{HEADER};
-use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, get_my_exception_type, import_object_from_python, py_str_to_rust_str, ToPyErr};
+use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::tuple_get_item;
 
 mod utils;
@@ -109,8 +109,8 @@ pub unsafe extern "C" fn dump_bytes(
     let mut buf = Vec::from(b"<o>");
     let mut pointers = FxHashMap::default();
     let result = serialize(obj, &mut buf, &mut pointers, &mut 0);
-    if result.is_err() {
-        return ptr::null_mut();
+    if let Err(error) = result {
+        return error;
     }
     let ptr = buf.as_ptr() as *const c_char;
     let len = buf.len() as Py_ssize_t;
@@ -175,12 +175,18 @@ pub unsafe extern "C" fn load_bytes(
     let mut pointer = HEADER.len();
     let deserialization_error_type = import_object_from_python("pypinch.exceptions", "DeserializationError");
     let result = deserialize_object(slice, &mut pointer, &mut pointers, use_tuples, &mut string_cache, &mut 0);
-    if !ignore_extra_data && pointer != slice.len() {
-        return format!(
-            "Unexpected extra data, from position {pointer}. If you want to ignore it use the flag `ignore_extra_data`"
-        ).to_py_error(
-            deserialization_error_type
-        )
+    match result {
+        Ok(result_object) => {
+            if !ignore_extra_data && pointer != slice.len() {
+                return format!(
+                    "Unexpected extra data, from position {pointer}. If you want to ignore it use the flag `ignore_extra_data`"
+                ).to_py_error(
+                    deserialization_error_type
+                )
+            }
+            result_object
+        }
+        Err(err) => err
     }
-    result
+
 }
