@@ -61,8 +61,6 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
     EMPTY_TUPLE = PyTuple_New(0);
     EMPTY_STRING = PyUnicode_New(0, 127);
     EMPTY_BYTES = PyBytes_FromStringAndSize(ptr::null(), 0);
-    NUMBER_BASE_PY_NUM = PyLong_FromLong(NUMBER_BASE as c_long);
-    NUMBER_BASE_MINUS_1_PY_NUM = PyLong_FromLong((NUMBER_BASE - 1) as c_long);
 
     PyModule_Create(ptr::addr_of_mut!(MODULE_DEF))
 }
