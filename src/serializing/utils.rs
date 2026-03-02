@@ -3,6 +3,7 @@ use std::ptr;
 use pyo3_ffi::{PyDict_Next, PyObject, PyUnicode_Type};
 use crate::utils::consts::NUMBER_BASE;
 
+pub static mut PYTHON_ZERO: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_TUPLE: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_STRING: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_BYTES: *mut PyObject = ptr::null_mut();

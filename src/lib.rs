@@ -58,6 +58,7 @@ static mut METHODS: [PyMethodDef; 3] = [
 #[allow(non_snake_case)]
 #[no_mangle]
 pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
+    PYTHON_ZERO = PyLong_FromLong(0);
     EMPTY_TUPLE = PyTuple_New(0);
     EMPTY_STRING = PyUnicode_New(0, 127);
     EMPTY_BYTES = PyBytes_FromStringAndSize(ptr::null(), 0);

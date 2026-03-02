@@ -1,14 +1,20 @@
 use std::ffi::c_long;
+
 use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, Py_DECREF, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyLongObject, PyNumber_Add, PyNumber_Subtract, PyObject, PyObject_RichCompareBool};
-use crate::serializing::utils::encode_number;
+
+use crate::serializing::utils::{encode_number, NUMBER_BASE_MINUS_1_PY_NUM, NUMBER_BASE_PY_NUM, PYTHON_ZERO};
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ENDING_FLAG, NEGATIVE_INT_FLAG, NUMBER_BASE, POSITIVE_INT_FLAG};
 
-pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &mut Vec<u8>) {
+
+
+pub unsafe fn encode_python_int<const BASE: u128, const IGNORE_SIGN: bool>(obj: *mut PyObject, buffer: &mut Vec<u8>) {
     let mut overflow = 0;
     let longlong = PyLong_AsLongLongAndOverflow(obj, &mut overflow);
 
     if overflow == 0 {
-        if longlong >= 0 {
+        if IGNORE_SIGN {
+            encode_number::<BASE>(buffer, if longlong >= 0 { longlong } else { -longlong } as u128);
+        } else if longlong >= 0 {
             if longlong < ((NUMBER_BASE as u8) - AMOUNT_OF_USED_FLAGS) as i64 {
                 buffer.push(AMOUNT_OF_USED_FLAGS + longlong as u8);
             } else {
@@ -19,21 +25,27 @@ pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &m
             buffer.push(NEGATIVE_INT_FLAG);
             encode_number::<BASE>(buffer, -longlong as u128);
         }
-        return;
+    } else {
+        encode_pylong_big::<BASE, IGNORE_SIGN>(buffer, obj);
     }
-
-    encode_pylong_big::<BASE>(buffer, obj);
 }
 
 
 #[inline(always)]
-unsafe fn encode_pylong_big<const BASE: u128>(
+unsafe fn encode_pylong_big<const BASE: u128, const IGNORE_SIGN: bool>(
     buf: &mut Vec<u8>,
     obj: *mut PyObject,
 ) {
-    let is_negative = PyObject_RichCompareBool(obj, PyLong_FromLong(0), pyo3_ffi::Py_LT) == 1;
+    let is_negative = check_if_python_number_is_negative(obj);
 
-    let python_base_num = PyLong_FromLong(BASE as c_long);
+    let python_base_num = if BASE == NUMBER_BASE {
+        NUMBER_BASE_PY_NUM
+    } else if BASE == NUMBER_BASE - 1 {
+        NUMBER_BASE_MINUS_1_PY_NUM
+    } else {
+        PyLong_FromLong(BASE as c_long)
+    };
+
     let obj = if is_negative {
         PyNumber_Add(obj, python_base_num)
     } else {
@@ -59,17 +71,24 @@ unsafe fn encode_pylong_big<const BASE: u128>(
     // Determine sign from MSB
     // let is_negative = (bytes[0] & 0x80) != 0;
 
-    buf.push(if is_negative {
-        NEGATIVE_INT_FLAG
-    } else {
-        POSITIVE_INT_FLAG
-    });
+    if !IGNORE_SIGN {
+        buf.push(if is_negative {
+            NEGATIVE_INT_FLAG
+        } else {
+            POSITIVE_INT_FLAG
+        });
+    }
 
     if is_negative {
         twos_complement_inplace(&mut bytes);
     }
 
     encode_base_from_bytes::<BASE>(buf, &bytes);
+}
+
+#[inline(always)]
+pub unsafe fn check_if_python_number_is_negative(obj: *mut PyObject) -> bool {
+    PyObject_RichCompareBool(obj, PYTHON_ZERO, pyo3_ffi::Py_LT) == 1
 }
 
 #[inline(always)]

@@ -25,7 +25,7 @@ pub unsafe fn serialize(
     } else if typ == &mut PyBool_Type {
         buffer.push(if obj == Py_True() { TRUE_FLAG } else { FALSE_FLAG });
     } else if typ == &mut PyLong_Type {
-        encode_python_int::<NUMBER_BASE>(obj, buffer);
+        encode_python_int::<NUMBER_BASE, false>(obj, buffer);
     } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
         compound_types::encode_list(obj, buffer, pointers, str_count, typ)?;
     } else if typ == &mut PyDict_Type {
