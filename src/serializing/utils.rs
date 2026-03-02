@@ -3,6 +3,12 @@ use std::ptr;
 use pyo3_ffi::{PyDict_Next, PyObject, PyUnicode_Type};
 use crate::utils::consts::NUMBER_BASE;
 
+pub static mut EMPTY_TUPLE: *mut PyObject = ptr::null_mut();
+pub static mut EMPTY_STRING: *mut PyObject = ptr::null_mut();
+pub static mut EMPTY_BYTES: *mut PyObject = ptr::null_mut();
+pub static mut NUMBER_BASE_PY_NUM: *mut PyObject = ptr::null_mut();
+pub static mut NUMBER_BASE_MINUS_1_PY_NUM: *mut PyObject = ptr::null_mut();
+
 const ENCODED_NUMBER_LIMITS: [u128; 18] = [
     254,
     255,

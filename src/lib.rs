@@ -1,3 +1,4 @@
+use std::ffi::c_long;
 use std::os::raw::c_char;
 use std::ptr;
 use pyo3_ffi::*;
@@ -5,7 +6,8 @@ use rustc_hash::FxHashMap;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::string_cache::StringCache;
 use crate::serializing::serialize::serialize;
-use crate::utils::consts::{HEADER};
+use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, NUMBER_BASE_MINUS_1_PY_NUM, NUMBER_BASE_PY_NUM, PYTHON_ZERO};
+use crate::utils::consts::{HEADER, NUMBER_BASE};
 use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::tuple_get_item;
 
@@ -56,6 +58,12 @@ static mut METHODS: [PyMethodDef; 3] = [
 #[allow(non_snake_case)]
 #[no_mangle]
 pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
+    EMPTY_TUPLE = PyTuple_New(0);
+    EMPTY_STRING = PyUnicode_New(0, 127);
+    EMPTY_BYTES = PyBytes_FromStringAndSize(ptr::null(), 0);
+    NUMBER_BASE_PY_NUM = PyLong_FromLong(NUMBER_BASE as c_long);
+    NUMBER_BASE_MINUS_1_PY_NUM = PyLong_FromLong((NUMBER_BASE - 1) as c_long);
+
     PyModule_Create(ptr::addr_of_mut!(MODULE_DEF))
 }
 
