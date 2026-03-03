@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::string_cache::StringCache;
 use crate::serializing::serialize::serialize;
-use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, NUMBER_BASE_MINUS_1_PY_NUM, NUMBER_BASE_PY_NUM, PYTHON_ZERO};
+use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
 use crate::utils::consts::{HEADER, NUMBER_BASE};
 use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::tuple_get_item;
