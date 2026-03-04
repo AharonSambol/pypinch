@@ -8,8 +8,8 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, \
     POINTER_FLAG, HEADER, \
-    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, INVALID_UTF_8_START_BYTE, \
-    NOT_A_STR_BUT_A_POINTER_FLAG
+    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, \
+    NOT_A_STR_BUT_A_POINTER_FLAG, ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII
 from pypinch.exceptions import SerializationError
 from pypinch.serialize.settings import Settings
 from pypinch.serialize.utils import encode_number
@@ -17,7 +17,7 @@ from pypinch.serialize.utils import encode_number
 _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
 
-def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, serialize_dates: bool = True) -> bytes:
+def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, serialize_dates: bool = False) -> bytes:
     try:
         settings = Settings(
             allow_non_string_keys=allow_non_string_keys,
@@ -51,8 +51,12 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
         else:
             settings.pointers[obj] = settings.str_count
         settings.str_count += 1
-        buffer.append(STR_FLAG)
-        encoded_str = obj.encode()
+        try:
+            encoded_str = obj.encode(encoding="ascii")
+            buffer.append(ASCII_STR_FLAG)
+        except UnicodeEncodeError:
+            buffer.append(STR_FLAG)
+            encoded_str = obj.encode()
         encode_number(buffer, len(encoded_str))
         buffer.extend(encoded_str)
     elif typ is int:
@@ -86,7 +90,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
                 buffer.append(INT_FLAG)
                 encode_number(buffer, len(obj))
                 for item in obj:
-                    if item <= 0:
+                    if item < 0:
                         buffer.append(NUMBER_BASE - 1)
                         encode_number(buffer, -item, base=NUMBER_BASE - 1)
                     else:
@@ -107,6 +111,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             else:
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 try:
+                    # todo: support str (with utf trick)?
                     buffer.append({str: STR_FLAG, bytes: BYTES_FLAG, float: FLOAT_FLAG, datetime: STR_FLAG}[first_type])
                 except KeyError:
                     raise SerializationError(f"Unexpected type: {first_type}")
@@ -224,10 +229,15 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
     elif typ is float:
         buffer.extend(_pack_double(obj))
     elif typ is str:
-        encoded_str = obj.encode()
+        try:
+            encoded_str = obj.encode(encoding="ascii")
+            encode_number(buffer, 1 + len(encoded_str))
+            buffer.append(INVALID_UTF_8_START_BYTE_COMPACT_ASCII);
+        except UnicodeEncodeError:
+            encoded_str = obj.encode()
+            encode_number(buffer, len(encoded_str))
         settings.pointers[obj] = settings.str_count
         settings.str_count += 1
-        encode_number(buffer, len(encoded_str))
         buffer.extend(encoded_str)
     elif typ is datetime and settings.serialize_dates:
         return serialize_object_without_type(buffer, obj.isoformat(), settings)

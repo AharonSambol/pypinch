@@ -9,7 +9,7 @@ use crate::deserializing::primitives::{decode_bytes, decode_f64, decode_false, d
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::decode_large_number;
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
-use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG};
+use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, ASCII_STR_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG, YES_ASCII, NOT_ASCII};
 
 // todo add necessary checks so it never crashes completely
 pub unsafe fn deserialize_object<'a>(
@@ -26,7 +26,8 @@ pub unsafe fn deserialize_object<'a>(
         POSITIVE_INT_FLAG => decode_large_number::<NUMBER_BASE>(buf, ptr),
         NEGATIVE_INT_FLAG => decode_negative_int(buf, ptr),
         FLOAT_FLAG => PyFloat_FromDouble(decode_f64(buf, ptr)),
-        STR_FLAG => decode_string(buf, ptr, pointers, string_cache, str_count),
+        STR_FLAG => decode_string::<NOT_ASCII>(buf, ptr, pointers, string_cache, str_count),
+        ASCII_STR_FLAG => decode_string::<YES_ASCII>(buf, ptr, pointers, string_cache, str_count),
         TRUE_FLAG => decode_true(),
         FALSE_FLAG => decode_false(),
         NULL_FLAG => decode_null(),

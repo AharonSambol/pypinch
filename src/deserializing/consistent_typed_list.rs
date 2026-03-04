@@ -5,7 +5,7 @@ use crate::deserializing::compound_types::decode_bool_list;
 use crate::deserializing::primitives::{decode_f64, decode_string};
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t};
-use crate::utils::consts::{NEGATIVE_NUMBER_SIGN, NUMBER_BASE, NULL_FLAG, BOOL_FLAG, INT_FLAG, BYTES_FLAG, STR_FLAG, FLOAT_FLAG};
+use crate::utils::consts::{MIGHT_BE_ASCII, NEGATIVE_NUMBER_SIGN, NUMBER_BASE, NULL_FLAG, BOOL_FLAG, INT_FLAG, BYTES_FLAG, STR_FLAG, FLOAT_FLAG};
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
@@ -50,7 +50,7 @@ unsafe fn decode_floats_list(buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> *m
 unsafe fn decode_str_list<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize, len: Py_ssize_t) -> *mut PyObject {
     let list = PyList_New(len);
     for i in 0..len {
-        let str = decode_string(
+        let str = decode_string::<MIGHT_BE_ASCII>(
             buf,
             ptr,
             pointers,

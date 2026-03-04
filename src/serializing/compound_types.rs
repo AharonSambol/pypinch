@@ -1,12 +1,12 @@
-use std::ptr;
+use std::{ptr, slice};
 
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_Type};
+use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_IS_COMPACT_ASCII, PyUnicode_Type};
 
 use crate::serializing::primitives::try_encode_as_pointer;
 use crate::serializing::serialize;
 use crate::serializing::serialize::Pointers;
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
-use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, LIST_FLAG, NOT_A_STR_BUT_A_POINTER_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
+use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, NOT_A_STR_BUT_A_POINTER_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
 use crate::utils::wrappers::{get_list_size, get_tuple_size, list_get_item, tuple_get_item};
 
 #[inline(always)]
@@ -49,13 +49,24 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers:
 #[inline(always)]
 unsafe fn encode_dict_key(buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize, key: *mut PyObject) {
     let mut len = 0;
-    let data = PyUnicode_AsUTF8AndSize(key, &mut len);
+    let is_compact_ascii = PyUnicode_IS_COMPACT_ASCII(key) == 1;
+    let data = if is_compact_ascii {
+        len = PyUnicode_GET_LENGTH(key);
+        PyUnicode_DATA(key) as *const u8
+    } else {
+        PyUnicode_AsUTF8AndSize(key, &mut len) as *const u8
+    };
     let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &NOT_A_STR_BUT_A_POINTER_FLAG);
     if !encoded_as_pointer {
         *str_count += 1;
-        encode_number::<NUMBER_BASE>(buffer, len as u128);
-        buffer.extend_from_slice(std::slice::from_raw_parts(
-            data as *const u8,
+        if is_compact_ascii {
+            encode_number::<NUMBER_BASE>(buffer, 1 + len as u128);
+            buffer.push(INVALID_UTF_8_START_BYTE_COMPACT_ASCII);
+        } else {
+            encode_number::<NUMBER_BASE>(buffer, len as u128);
+        }
+        buffer.extend_from_slice(slice::from_raw_parts(
+            data,
             len as usize,
         ));
     }

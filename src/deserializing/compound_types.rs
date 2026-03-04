@@ -1,10 +1,10 @@
 use pyo3_ffi::{Py_False, Py_INCREF, Py_ssize_t, Py_True, PyDict_New, PyDict_SetItem, PyList_New, PyObject, PyTuple_New};
 use rustc_hash::FxHashMap;
 use crate::deserializing::deserialize::deserialize_object;
-use crate::deserializing::primitives::decode_string;
+use crate::deserializing::primitives::{decode_string};
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
-use crate::utils::consts::{LEFTMOST_BIT_MASK, NOT_A_STR_BUT_A_POINTER_FLAG, NUMBER_BASE};
+use crate::utils::consts::{LEFTMOST_BIT_MASK, NOT_A_STR_BUT_A_POINTER_FLAG, NUMBER_BASE, MIGHT_BE_ASCII};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 #[inline(always)]
@@ -47,17 +47,21 @@ pub unsafe fn decode_str_key_dict<'a>(
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr);
     let dict = PyDict_New();
     for _ in 0..len {
-        let key = if buf[*ptr..*ptr + NOT_A_STR_BUT_A_POINTER_FLAG.len()] == NOT_A_STR_BUT_A_POINTER_FLAG {
-            *ptr += NOT_A_STR_BUT_A_POINTER_FLAG.len();
-            let position = decode_number_usize::<NUMBER_BASE>(buf, ptr);
-            pointers[&position]
-        } else {
-            decode_string(buf, ptr, pointers, string_cache, str_count)
-        };
+        let key = deserialize_dict_key(buf, ptr, pointers, string_cache, str_count);
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         PyDict_SetItem(dict, key, value);
     }
     Ok(dict)
+}
+
+unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize) -> *mut PyObject {
+    if buf[*ptr..*ptr + NOT_A_STR_BUT_A_POINTER_FLAG.len()] == NOT_A_STR_BUT_A_POINTER_FLAG {
+        *ptr += NOT_A_STR_BUT_A_POINTER_FLAG.len();
+        let position = decode_number_usize::<NUMBER_BASE>(buf, ptr);
+        pointers[&position]
+    } else {
+        decode_string::<MIGHT_BE_ASCII>(buf, ptr, pointers, string_cache, str_count)
+    }
 }
 
 #[inline(always)]

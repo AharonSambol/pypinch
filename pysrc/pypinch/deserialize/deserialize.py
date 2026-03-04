@@ -9,7 +9,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, INVALID_UTF_8_START_BYTE, \
-    NOT_A_STR_BUT_A_POINTER_FLAG
+    NOT_A_STR_BUT_A_POINTER_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, ASCII_STR_FLAG
 
 from pypinch.exceptions import DeserializationError
 from pypinch.deserialize.settings import Settings
@@ -66,6 +66,8 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
             v, pointer = deserialize_object(buffer, pointer, settings)
             res_dict[k] = v
         return res_dict, pointer
+    elif flag == ASCII_STR_FLAG:
+        return deserialize_str(buffer, pointer, settings)
     elif flag == STR_FLAG:
         return deserialize_str(buffer, pointer, settings)
     elif flag == DICT_FLAG:
@@ -163,6 +165,10 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
 
 def deserialize_str(buffer: bytes, pointer: int, settings: Settings) -> Tuple[str, int]:
     length, pointer = decode_number(buffer, pointer)
-    string = buffer[pointer:pointer + length].decode()
+    string = buffer[
+        #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+        pointer + (buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
+        :pointer + length
+    ].decode()
     settings.pointers.append(string)
     return string, pointer + length

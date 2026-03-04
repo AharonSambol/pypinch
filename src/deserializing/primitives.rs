@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t, decode_number_usize};
-use crate::utils::consts::NUMBER_BASE;
+use crate::utils::consts::{INVALID_UTF_8_START_BYTE_COMPACT_ASCII, NUMBER_BASE, IsAscii, YES_ASCII, NOT_ASCII, MIGHT_BE_ASCII};
 
 
 #[inline(always)]
@@ -57,7 +57,7 @@ pub unsafe fn decode_negative_int(buf: &[u8], ptr: &mut usize) -> *mut PyObject 
 }
 
 #[inline(always)]
-pub unsafe fn decode_string<'a>(
+pub unsafe fn decode_string<'a, const IS_ASCII: IsAscii>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
@@ -65,10 +65,19 @@ pub unsafe fn decode_string<'a>(
     str_count: &mut usize,
 ) -> *mut PyObject {
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr);
-
-    let string = string_cache.get_or_create(&buf[*ptr..*ptr + len]);
+    let string = match IS_ASCII {
+        YES_ASCII => string_cache.get_or_create::<true>(&buf[*ptr..*ptr + len]),
+        NOT_ASCII => string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len]),
+        MIGHT_BE_ASCII => {
+            if buf[*ptr] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII {
+                string_cache.get_or_create::<true>(&buf[*ptr + 1..*ptr + len])
+            } else {
+                string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len])
+            }
+        },
+        _ => unreachable!()
+    };
     *ptr += len;
-
     pointers.insert(*str_count, string);
     *str_count += 1;
     string
