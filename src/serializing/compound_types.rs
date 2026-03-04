@@ -1,6 +1,6 @@
 use std::{ptr, slice};
 
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_IS_COMPACT_ASCII, PyUnicode_Type};
+use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_IS_ASCII, PyUnicode_Type};
 
 use crate::serializing::primitives::try_encode_as_pointer;
 use crate::serializing::serialize;
@@ -49,7 +49,7 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers:
 #[inline(always)]
 unsafe fn encode_dict_key(buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize, key: *mut PyObject) {
     let mut len = 0;
-    let is_compact_ascii = PyUnicode_IS_COMPACT_ASCII(key) == 1;
+    let is_compact_ascii = PyUnicode_IS_ASCII(key) == 1;
     let data = if is_compact_ascii {
         len = PyUnicode_GET_LENGTH(key);
         PyUnicode_DATA(key) as *const u8

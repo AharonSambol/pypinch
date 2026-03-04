@@ -1,4 +1,4 @@
-use pyo3_ffi::{Py_ssize_t, PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_IS_COMPACT_ASCII};
+use pyo3_ffi::{Py_ssize_t, PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_IS_ASCII, PyUnicode_IS_COMPACT_ASCII};
 use std::collections::hash_map::Entry;
 use std::slice;
 use crate::serializing::serialize::Pointers;
@@ -32,7 +32,7 @@ pub unsafe fn serialize_float(obj: *mut PyObject, buffer: &mut Vec<u8>) {
 #[inline(always)]
 pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize) {
     let mut len: isize = 0;
-    if PyUnicode_IS_COMPACT_ASCII(obj) == 1 {
+    if PyUnicode_IS_ASCII(obj) == 1 {
         let len = PyUnicode_GET_LENGTH(obj) as usize;
         if len == 0 {
             buffer.push(EMPTY_STR_FLAG);
