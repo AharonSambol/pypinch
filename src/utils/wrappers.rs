@@ -82,7 +82,7 @@ pub unsafe fn list_set_item(list: *mut PyObject, i: Py_ssize_t, obj: *mut PyObje
 pub unsafe fn is_ascii(obj: *mut PyObject) -> bool {
     #[cfg(Py_3_14)]
     {
-        PyUnicode_KIND(obj) == PyUnicode_1BYTE_KIND && PyUnicode_MAX_CHAR_VALUE(op) <= 0x7F
+        false // no support for the macro anymore :(
     }
 
     #[cfg(not(Py_3_14))]
