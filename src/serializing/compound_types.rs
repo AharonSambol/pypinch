@@ -1,6 +1,6 @@
 use std::ptr;
 
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_GetLength, PyUnicode_Type};
+use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_Type};
 
 use crate::serializing::primitives::try_encode_as_pointer;
 use crate::serializing::serialize;
@@ -48,11 +48,11 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers:
 
 #[inline(always)]
 unsafe fn encode_dict_key(buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize, key: *mut PyObject) {
-    let len = PyUnicode_GetLength(key);
+    let mut len = 0;
+    let data = PyUnicode_AsUTF8AndSize(key, &mut len);
     let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &NOT_A_STR_BUT_A_POINTER_FLAG);
     if !encoded_as_pointer {
         *str_count += 1;
-        let data = PyUnicode_AsUTF8AndSize(key, &mut 0);
         encode_number::<NUMBER_BASE>(buffer, len as u128);
         buffer.extend_from_slice(std::slice::from_raw_parts(
             data as *const u8,

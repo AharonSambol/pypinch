@@ -1,19 +1,22 @@
-use std::ffi::c_long;
+#![allow(static_mut_refs)]
 use std::os::raw::c_char;
 use std::ptr;
+
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
+
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::string_cache::StringCache;
 use crate::serializing::serialize::serialize;
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
-use crate::utils::consts::{HEADER, NUMBER_BASE};
+use crate::utils::consts::HEADER;
 use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::tuple_get_item;
 
 mod utils;
 mod serializing;
 mod deserializing;
+
 
 static mut MODULE_DEF: PyModuleDef = PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
@@ -33,7 +36,7 @@ static mut METHODS: [PyMethodDef; 3] = [
     PyMethodDef {
         ml_name: "dump_bytes\0".as_ptr().cast::<c_char>(),
         ml_meth: PyMethodDefPointer {
-            _PyCFunctionFastWithKeywords: dump_bytes,
+            PyCFunctionFastWithKeywords: dump_bytes,
         },
         ml_flags: METH_FASTCALL | METH_KEYWORDS,
         ml_doc: "serializes pinch\0"
@@ -43,7 +46,7 @@ static mut METHODS: [PyMethodDef; 3] = [
     PyMethodDef {
         ml_name: "load_bytes\0".as_ptr().cast::<c_char>(),
         ml_meth: PyMethodDefPointer {
-            _PyCFunctionFastWithKeywords: load_bytes,
+            PyCFunctionFastWithKeywords: load_bytes,
         },
         ml_flags: METH_FASTCALL | METH_KEYWORDS,
         ml_doc: "deserializes pinch\0"
@@ -66,6 +69,7 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
 }
 
 
+#[allow(unused)]
 pub unsafe extern "C" fn dump_bytes(
     _self: *mut PyObject,
     args: *const *mut PyObject,
@@ -73,6 +77,7 @@ pub unsafe extern "C" fn dump_bytes(
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
     let mut obj = None;
+    // TODO
     let mut allow_non_string_keys: bool = true;
     let mut serialize_dates: bool = false;
 
@@ -131,7 +136,7 @@ pub unsafe extern "C" fn load_bytes(
 ) -> *mut PyObject {
     let mut buffer = None;
     let mut use_tuples: bool = false;
-    let mut stop_gc: bool;
+    let mut _stop_gc: bool;
     let mut ignore_extra_data: bool = false;
 
     if !kwnames.is_null() {
@@ -146,7 +151,7 @@ pub unsafe extern "C" fn load_bytes(
                 use_tuples = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"stop_gc\0") {
                 let value = *args.offset(nargs + i);
-                stop_gc = PyObject_IsTrue(value) == 1;
+                _stop_gc = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"ignore_extra_data\0") {
                 let value = *args.offset(nargs + i);
                 ignore_extra_data = PyObject_IsTrue(value) == 1;

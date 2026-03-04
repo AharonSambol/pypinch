@@ -4,13 +4,13 @@ use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_True, PyBytes_FromStr
 use rustc_hash::FxHashMap;
 
 use crate::deserializing::string_cache::StringCache;
-use crate::deserializing::utils::{decode_large_number, decode_number__py_ssize_t, decode_number__usize};
+use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t, decode_number_usize};
 use crate::utils::consts::NUMBER_BASE;
 
 
 #[inline(always)]
 pub unsafe fn decode_bytes(buf: &[u8], ptr: &mut usize) -> *mut PyObject {
-    let len = decode_number__py_ssize_t::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr);
     let bytes = PyBytes_FromStringAndSize(
         buf.as_ptr().add(*ptr) as *const c_char,
         len,
@@ -21,7 +21,7 @@ pub unsafe fn decode_bytes(buf: &[u8], ptr: &mut usize) -> *mut PyObject {
 
 #[inline(always)]
 pub unsafe fn decode_pointer(buf: &[u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>) -> *mut PyObject {
-    let pos = decode_number__usize::<NUMBER_BASE>(buf, ptr);
+    let pos = decode_number_usize::<NUMBER_BASE>(buf, ptr);
     let res = pointers[&pos];
     Py_INCREF(res);
     res
@@ -64,7 +64,7 @@ pub unsafe fn decode_string<'a>(
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> *mut PyObject {
-    let len = decode_number__usize::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr);
 
     let string = string_cache.get_or_create(&buf[*ptr..*ptr + len]);
     *ptr += len;

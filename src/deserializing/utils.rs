@@ -25,7 +25,7 @@ macro_rules! _decode_number {
     }};
 }
 #[inline(always)]
-pub unsafe fn decode_number__usize<const BASE: u128>(
+pub unsafe fn decode_number_usize<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> usize {
@@ -33,7 +33,7 @@ pub unsafe fn decode_number__usize<const BASE: u128>(
 }
 
 #[inline(always)]
-pub unsafe fn decode_number__py_ssize_t<const BASE: u128>(
+pub unsafe fn decode_number_py_ssize_t<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> Py_ssize_t {
@@ -41,7 +41,7 @@ pub unsafe fn decode_number__py_ssize_t<const BASE: u128>(
 }
 
 #[inline(always)]
-pub unsafe fn decode_number__c_ulonglong<const BASE: u128>(
+pub unsafe fn decode_number_c_ulonglong<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> c_ulonglong {
@@ -71,7 +71,7 @@ pub unsafe fn decode_large_number<const BASE: u128>(
     let bytes_in_c_ulonglong = c_ulonglong::BITS / 8;
     if num_length <= bytes_in_c_ulonglong {
         *ptr -= 1;
-        return PyLong_FromUnsignedLongLong(decode_number__c_ulonglong::<BASE>(buf, ptr));
+        return PyLong_FromUnsignedLongLong(decode_number_c_ulonglong::<BASE>(buf, ptr));
     }
 
 

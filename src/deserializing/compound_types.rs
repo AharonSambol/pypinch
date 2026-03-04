@@ -3,7 +3,7 @@ use rustc_hash::FxHashMap;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::decode_string;
 use crate::deserializing::string_cache::StringCache;
-use crate::deserializing::utils::{decode_number__py_ssize_t, decode_number__usize};
+use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
 use crate::utils::consts::{LEFTMOST_BIT_MASK, NOT_A_STR_BUT_A_POINTER_FLAG, NUMBER_BASE};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
@@ -16,7 +16,7 @@ pub unsafe fn decode_list<'a>(
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
-    let len = decode_number__py_ssize_t::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr);
 
     if use_tuples {
         let tup = PyTuple_New(len);
@@ -44,12 +44,12 @@ pub unsafe fn decode_str_key_dict<'a>(
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
-    let len = decode_number__usize::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr);
     let dict = PyDict_New();
     for _ in 0..len {
         let key = if buf[*ptr..*ptr + NOT_A_STR_BUT_A_POINTER_FLAG.len()] == NOT_A_STR_BUT_A_POINTER_FLAG {
             *ptr += NOT_A_STR_BUT_A_POINTER_FLAG.len();
-            let position = decode_number__usize::<NUMBER_BASE>(buf, ptr);
+            let position = decode_number_usize::<NUMBER_BASE>(buf, ptr);
             pointers[&position]
         } else {
             decode_string(buf, ptr, pointers, string_cache, str_count)
@@ -69,7 +69,7 @@ pub unsafe fn decode_dict<'a>(
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
-    let len = decode_number__usize::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr);
     let dict = PyDict_New();
     for _ in 0..len {
         let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;

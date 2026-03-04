@@ -1,5 +1,4 @@
 pub const NUMBER_BASE: u128 = 255;
-pub const NUMBER_BASE_USIZE: usize = NUMBER_BASE as usize;
 pub const ENDING_FLAG: u8 = 255;
 pub const NEGATIVE_NUMBER_SIGN: u128 = NUMBER_BASE - 1;
 pub const LEFTMOST_BIT_MASK: u8 = 128;

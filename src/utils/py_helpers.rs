@@ -1,6 +1,6 @@
 use std::{ptr, slice};
 use std::ffi::CString;
-use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyExc_Exception, PyImport_Import, PyImport_ImportModule, PyObject, PyObject_GetAttrString, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString};
+use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString};
 
 use crate::py_string_format;
 

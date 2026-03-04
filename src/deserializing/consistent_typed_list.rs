@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 use crate::deserializing::compound_types::decode_bool_list;
 use crate::deserializing::primitives::{decode_f64, decode_string};
 use crate::deserializing::string_cache::StringCache;
-use crate::deserializing::utils::{decode_large_number, decode_number__py_ssize_t};
+use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t};
 use crate::utils::consts::{NEGATIVE_NUMBER_SIGN, NUMBER_BASE, NULL_FLAG, BOOL_FLAG, INT_FLAG, BYTES_FLAG, STR_FLAG, FLOAT_FLAG};
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
@@ -20,7 +20,7 @@ pub unsafe fn decode_consistent_type_list<'a>(
 ) -> Result<*mut PyObject, *mut PyObject> {
     let typ = *buf.get_unchecked(*ptr);
     *ptr += 1;
-    let len = decode_number__py_ssize_t::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr);
 
     Ok(match typ {
         NULL_FLAG => decode_null_list(use_tuples, len),
@@ -66,7 +66,7 @@ unsafe fn decode_str_list<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxH
 unsafe fn decode_bytes_list(buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> *mut PyObject {
     let list = PyList_New(len);
     for i in 0..len {
-        let bytes_len = decode_number__py_ssize_t::<NUMBER_BASE>(buf, ptr);
+        let bytes_len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr);
         let bytes = PyBytes_FromStringAndSize(
             buf.as_ptr().add(*ptr) as *const c_char,
             bytes_len,
