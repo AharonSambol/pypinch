@@ -1,9 +1,10 @@
 use std::ffi::c_long;
 use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, Py_DECREF, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyLongObject, PyNumber_Add, PyNumber_Subtract, PyObject, PyObject_RichCompareBool};
+use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::utils::encode_number;
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ENDING_FLAG, NEGATIVE_INT_FLAG, NUMBER_BASE, POSITIVE_INT_FLAG};
 
-pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &mut Vec<u8>) {
+pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &mut PyBytesBuffer) {
     let mut overflow = 0;
     let longlong = PyLong_AsLongLongAndOverflow(obj, &mut overflow);
 
@@ -28,7 +29,7 @@ pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &m
 
 #[inline(always)]
 unsafe fn encode_pylong_big<const BASE: u128>(
-    buf: &mut Vec<u8>,
+    buf: &mut PyBytesBuffer,
     obj: *mut PyObject,
 ) {
     let is_negative = PyObject_RichCompareBool(obj, PyLong_FromLong(0), pyo3_ffi::Py_LT) == 1;
@@ -90,7 +91,7 @@ fn twos_complement_inplace(bytes: &mut [u8]) {
 }
 
 #[inline(always)]
-fn encode_base_from_bytes<const BASE: u128>(buf: &mut Vec<u8>, bytes: &[u8]) {
+unsafe fn encode_base_from_bytes<const BASE: u128>(buf: &mut PyBytesBuffer, bytes: &[u8]) {
     // Working copy (big-endian base-256 number)
     let mut work = bytes.to_vec();
 

@@ -5,6 +5,7 @@ use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE, TRUE_FLAG};
 use crate::utils::py_helpers::ToPyErr;
 use pyo3_ffi::{PyBool_Type, PyBytes_Type, PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyObject, PyTuple_Type, PyUnicode_Type};
 use crate::serializing::{compound_types, primitives};
+use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 
 pub type Pointers = FxHashMap<*mut PyObject, usize>;
 
@@ -14,7 +15,7 @@ pub type Pointers = FxHashMap<*mut PyObject, usize>;
 #[inline(always)]
 pub unsafe fn serialize(
     obj: *mut PyObject,
-    buffer: &mut Vec<u8>,
+    buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
     str_count: &mut usize,
 ) -> Result<(), *mut PyObject>{

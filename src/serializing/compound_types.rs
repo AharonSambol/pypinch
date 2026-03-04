@@ -3,6 +3,7 @@ use std::{ptr, slice};
 use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_Type};
 
 use crate::serializing::primitives::try_encode_as_pointer;
+use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize;
 use crate::serializing::serialize::Pointers;
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
@@ -10,7 +11,7 @@ use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPT
 use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, tuple_get_item};
 
 #[inline(always)]
-pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject>{
+pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject>{
     let size = PyDict_Size(obj);
     if size == 0 {
         buffer.push(EMPTY_DICT_FLAG);
@@ -47,7 +48,7 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers:
 }
 
 #[inline(always)]
-unsafe fn encode_dict_key(buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize, key: *mut PyObject) {
+unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize, key: *mut PyObject) {
     let mut len = 0;
     let is_compact_ascii = is_ascii(key);
     let data = if is_compact_ascii {
@@ -87,7 +88,7 @@ unsafe fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssi
     true
 }
 
-pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize, typ: *mut PyTypeObject) -> Result<(), *mut PyObject> {
+pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize, typ: *mut PyTypeObject) -> Result<(), *mut PyObject> {
     let is_list = typ == &mut PyList_Type;
     let len = if is_list {
         get_list_size(obj)
@@ -142,7 +143,7 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers: &m
 }
 
 #[inline(always)]
-unsafe fn encode_bool_list(obj: *mut PyObject, buffer: &mut Vec<u8>, is_list: bool, len: isize) {
+unsafe fn encode_bool_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, is_list: bool, len: isize) {
     buffer.push(CONSISTENT_TYPE_LIST_FLAG);
     buffer.push(BOOL_FLAG);
     encode_number::<NUMBER_BASE>(buffer, len as u128);
@@ -173,7 +174,7 @@ unsafe fn encode_bool_list(obj: *mut PyObject, buffer: &mut Vec<u8>, is_list: bo
 
 #[inline(always)]
 unsafe fn serialize_normal_list(
-    obj: *mut PyObject, buf: &mut Vec<u8>, pointers: &mut Pointers, is_list: bool, len: Py_ssize_t, str_count: &mut usize
+    obj: *mut PyObject, buf: &mut PyBytesBuffer, pointers: &mut Pointers, is_list: bool, len: Py_ssize_t, str_count: &mut usize
 ) -> Result<(), *mut PyObject>{
     buf.push(LIST_FLAG);
     encode_number::<NUMBER_BASE>(buf, len as u128);

@@ -1,6 +1,7 @@
 use std::ptr;
 
 use pyo3_ffi::{PyDict_Next, PyObject, PyUnicode_Type};
+use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::utils::consts::NUMBER_BASE;
 
 pub static mut EMPTY_TUPLE: *mut PyObject = ptr::null_mut();
@@ -29,7 +30,7 @@ const ENCODED_NUMBER_LIMITS: [u128; 18] = [
 ];
 
 #[inline(always)]
-pub unsafe fn encode_number<const BASE: u128>(buf: &mut Vec<u8>, mut number: u128) {
+pub unsafe fn encode_number<const BASE: u128>(buf: &mut PyBytesBuffer, mut number: u128) {
     if number < BASE {
         buf.push(number as u8);
     } else {

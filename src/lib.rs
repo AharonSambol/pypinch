@@ -7,6 +7,7 @@ use rustc_hash::FxHashMap;
 
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::string_cache::StringCache;
+use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
 use crate::utils::consts::HEADER;
@@ -116,16 +117,19 @@ pub unsafe extern "C" fn dump_bytes(
         }
         *args
     };
-
-    let mut buf = Vec::from(b"<o>");
+    let mut buf = PyBytesBuffer::with_capacity(8);
+    buf.extend_from_slice(b"<o>");
+    // let mut buf = Vec::from(b"<o>");
     let mut pointers = FxHashMap::default();
     let result = serialize(obj, &mut buf, &mut pointers, &mut 0);
     if let Err(error) = result {
         return error;
     }
-    let ptr = buf.as_ptr() as *const c_char;
-    let len = buf.len() as Py_ssize_t;
-    PyBytes_FromStringAndSize(ptr, len)
+
+    // let ptr = buf.as_ptr() as *const c_char;
+    // let len = buf.len() as Py_ssize_t;
+    // PyBytes_FromStringAndSize(ptr, len)
+    buf.finish()
 }
 
 pub unsafe extern "C" fn load_bytes(

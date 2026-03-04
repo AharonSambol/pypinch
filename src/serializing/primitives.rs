@@ -1,13 +1,14 @@
 use pyo3_ffi::{Py_ssize_t, PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH};
 use std::collections::hash_map::Entry;
 use std::slice;
+use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::Pointers;
 use crate::serializing::utils::{encode_number, predict_encoded_number_length};
 use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE, POINTER_FLAG, STR_FLAG};
 use crate::utils::wrappers::is_ascii;
 
 #[inline(always)]
-pub unsafe fn serialize_bytes(obj: *mut PyObject, buffer: &mut Vec<u8>) {
+pub unsafe fn serialize_bytes(obj: *mut PyObject, buffer: &mut PyBytesBuffer) {
     let size = PyBytes_Size(obj);
     let data = PyBytes_AsString(obj);
 
@@ -24,14 +25,14 @@ pub unsafe fn serialize_bytes(obj: *mut PyObject, buffer: &mut Vec<u8>) {
 }
 
 #[inline(always)]
-pub unsafe fn serialize_float(obj: *mut PyObject, buffer: &mut Vec<u8>) {
+pub unsafe fn serialize_float(obj: *mut PyObject, buffer: &mut PyBytesBuffer) {
     let value = (*(obj as *mut PyFloatObject)).ob_fval;
     buffer.push(FLOAT_FLAG);
     buffer.extend_from_slice(&value.to_be_bytes());
 }
 
 #[inline(always)]
-pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize) {
+pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize) {
     let mut len: isize = 0;
     if is_ascii(obj) {
         let len = PyUnicode_GET_LENGTH(obj) as usize;
@@ -79,7 +80,7 @@ pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers: 
 }
 
 #[inline(always)]
-pub unsafe fn try_encode_as_pointer(str: &*mut PyObject, buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: usize, str_len: Py_ssize_t, pointer_flag: &[u8]) -> bool {
+pub unsafe fn try_encode_as_pointer(str: &*mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: usize, str_len: Py_ssize_t, pointer_flag: &[u8]) -> bool {
     match pointers.entry(*str) {
         Entry::Occupied(entry) => {
             let position = (*entry.get()) as u128;
