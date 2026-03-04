@@ -1,13 +1,13 @@
 use std::{ptr, slice};
 
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_IS_ASCII, PyUnicode_Type};
+use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_Type};
 
 use crate::serializing::primitives::try_encode_as_pointer;
 use crate::serializing::serialize;
 use crate::serializing::serialize::Pointers;
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
 use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, NOT_A_STR_BUT_A_POINTER_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
-use crate::utils::wrappers::{get_list_size, get_tuple_size, list_get_item, tuple_get_item};
+use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, tuple_get_item};
 
 #[inline(always)]
 pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject>{
@@ -49,7 +49,7 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut Vec<u8>, pointers:
 #[inline(always)]
 unsafe fn encode_dict_key(buffer: &mut Vec<u8>, pointers: &mut Pointers, str_count: &mut usize, key: *mut PyObject) {
     let mut len = 0;
-    let is_compact_ascii = PyUnicode_IS_ASCII(key) == 1;
+    let is_compact_ascii = is_ascii(key);
     let data = if is_compact_ascii {
         len = PyUnicode_GET_LENGTH(key);
         PyUnicode_DATA(key) as *const u8

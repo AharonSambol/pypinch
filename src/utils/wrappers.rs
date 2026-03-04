@@ -77,3 +77,16 @@ pub unsafe fn list_set_item(list: *mut PyObject, i: Py_ssize_t, obj: *mut PyObje
         PyList_SET_ITEM(list, i, obj);
     }
 }
+
+#[inline(always)]
+pub unsafe fn is_ascii(obj: *mut PyObject) -> bool {
+    #[cfg(Py_3_14)]
+    {
+        PyUnicode_KIND(obj) == PyUnicode_1BYTE_KIND && PyUnicode_GetMax(obj) <= 127
+    }
+
+    #[cfg(not(Py_3_14))]
+    {
+        PyUnicode_IS_ASCII(obj) == 1
+    }
+}
