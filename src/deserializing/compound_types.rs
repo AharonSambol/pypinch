@@ -1,4 +1,4 @@
-use pyo3_ffi::{Py_False, Py_INCREF, Py_ssize_t, Py_True, PyDict_New, PyDict_SetItem, PyList_New, PyObject, PyTuple_New};
+use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_ssize_t, Py_True, PyDict_New, PyDict_SetItem, PyList_New, PyObject, PyTuple_New};
 use rustc_hash::FxHashMap;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::{decode_string};
@@ -50,6 +50,8 @@ pub unsafe fn decode_str_key_dict<'a>(
         let key = deserialize_dict_key(buf, ptr, pointers, string_cache, str_count);
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         PyDict_SetItem(dict, key, value);
+        Py_DECREF(key);
+        Py_DECREF(value);
     }
     Ok(dict)
 }
@@ -58,7 +60,9 @@ unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mu
     if buf[*ptr..*ptr + NOT_A_STR_BUT_A_POINTER_FLAG.len()] == NOT_A_STR_BUT_A_POINTER_FLAG {
         *ptr += NOT_A_STR_BUT_A_POINTER_FLAG.len();
         let position = decode_number_usize::<NUMBER_BASE>(buf, ptr);
-        pointers[&position]
+        let res = pointers[&position];
+        Py_INCREF(res);
+        res
     } else {
         decode_string::<MIGHT_BE_ASCII>(buf, ptr, pointers, string_cache, str_count)
     }
@@ -79,6 +83,8 @@ pub unsafe fn decode_dict<'a>(
         let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         PyDict_SetItem(dict, key, value);
+        Py_DECREF(key);
+        Py_DECREF(value);
     }
     Ok(dict)
 }
