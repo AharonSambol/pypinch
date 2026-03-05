@@ -1,20 +1,21 @@
 use std::ffi::c_char;
-use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_True, PyBytes_FromStringAndSize, PyNumber_Negative, PyObject};
+use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_True, PyBytes_FromStringAndSize, PyFloat_FromDouble, PyNumber_Negative, PyObject};
 use rustc_hash::FxHashMap;
 
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t, decode_number_usize};
 use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
+use crate::raise_mem_error_if_null;
 use crate::utils::consts::{INVALID_UTF_8_START_BYTE_COMPACT_ASCII, NUMBER_BASE, IsAscii, YES_ASCII, NOT_ASCII, MIGHT_BE_ASCII, UNEXPECTED_END_OF_INPUT};
 use crate::utils::py_helpers::ToPyErr;
 
 #[inline(always)]
 pub unsafe fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
-    let bytes = PyBytes_FromStringAndSize(
+    let bytes = raise_mem_error_if_null!(PyBytes_FromStringAndSize(
         buf.as_ptr().add(*ptr) as *const c_char,
         len,
-    );
+    ));
     *ptr += len as usize;
     Ok(bytes)
 }
@@ -51,7 +52,7 @@ pub unsafe fn decode_true() -> *mut PyObject {
 #[inline(always)]
 pub unsafe fn decode_negative_int(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
     let num = decode_large_number::<NUMBER_BASE>(buf, ptr)?;
-    let res = PyNumber_Negative(num);
+    let res = raise_mem_error_if_null!(PyNumber_Negative(num));
     Py_DECREF(num);
     Ok(res)
 }
@@ -69,13 +70,13 @@ pub unsafe fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128>(
         return Err(UNEXPECTED_END_OF_INPUT.to_py_error(DESERIALIZATION_ERROR_TYPE))
     }
     let string = match IS_ASCII {
-        YES_ASCII => string_cache.get_or_create::<true>(&buf[*ptr..*ptr + len]),
-        NOT_ASCII => string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len]),
+        YES_ASCII => string_cache.get_or_create::<true>(&buf[*ptr..*ptr + len])?,
+        NOT_ASCII => string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len])?,
         MIGHT_BE_ASCII => {
             if *buf.get_unchecked(*ptr) == INVALID_UTF_8_START_BYTE_COMPACT_ASCII {
-                string_cache.get_or_create::<true>(&buf[*ptr + 1..*ptr + len])
+                string_cache.get_or_create::<true>(&buf[*ptr + 1..*ptr + len])?
             } else {
-                string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len])
+                string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len])?
             }
         },
         _ => unreachable!()
@@ -86,9 +87,10 @@ pub unsafe fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128>(
     Ok(string)
 }
 
-#[inline(always)]
-pub unsafe fn decode_f64(buf: &[u8], ptr: &mut usize) -> f64 {
+pub unsafe fn decode_f64(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
     let p = buf.as_ptr().add(*ptr) as *const u64;
     *ptr += 8;
-    f64::from_bits(u64::from_be(std::ptr::read_unaligned(p)))
+    let float = f64::from_bits(u64::from_be(std::ptr::read_unaligned(p)));
+    let py_float = raise_mem_error_if_null!(PyFloat_FromDouble(float));
+    Ok(py_float)
 }

@@ -23,24 +23,23 @@ pub unsafe fn serialize(
     let typ = (*obj).ob_type;
 
     if typ == &mut PyUnicode_Type {
-        primitives::serialize_str(obj, buffer, pointers, str_count);
+        primitives::serialize_str(obj, buffer, pointers, str_count)
     } else if typ == &mut PyBool_Type {
-        buffer.push(if obj == Py_True() { TRUE_FLAG } else { FALSE_FLAG });
+        buffer.push(if obj == Py_True() { TRUE_FLAG } else { FALSE_FLAG })
     } else if typ == &mut PyLong_Type {
-        encode_python_int::<NUMBER_BASE>(obj, buffer);
+        encode_python_int::<NUMBER_BASE>(obj, buffer)
     } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
-        compound_types::encode_list(obj, buffer, pointers, str_count, typ)?;
+        compound_types::encode_list(obj, buffer, pointers, str_count, typ)
     } else if typ == &mut PyDict_Type {
-        compound_types::serialize_dict(obj, buffer, pointers, str_count)?;
+        compound_types::serialize_dict(obj, buffer, pointers, str_count)
     } else if typ == &mut PyFloat_Type {
-        primitives::serialize_float(obj, buffer);
+        primitives::serialize_float(obj, buffer)
     } else if typ == &mut PyBytes_Type {
-        primitives::serialize_bytes(obj, buffer);
+        primitives::serialize_bytes(obj, buffer)
     } else if obj == Py_None() {
         buffer.push(NULL_FLAG)
     } else {
-        return Err(format!("Unexpected type: {:?}", (*typ).tp_name).to_py_error(SERIALIZATION_ERROR_TYPE));
+        Err(format!("Unexpected type: {:?}", (*typ).tp_name).to_py_error(SERIALIZATION_ERROR_TYPE))
     }
-    return Ok(());
 }
 

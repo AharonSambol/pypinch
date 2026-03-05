@@ -14,27 +14,26 @@ use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_i
 pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject>{
     let size = PyDict_Size(obj);
     if size == 0 {
-        buffer.push(EMPTY_DICT_FLAG);
-        return Ok(());
+        return buffer.push(EMPTY_DICT_FLAG);
     }
     if all_dict_keys_are_str(obj) {
-        buffer.push(STR_KEY_DICT_FLAG);
-        encode_number::<NUMBER_BASE>(buffer, size as u128);
+        buffer.push(STR_KEY_DICT_FLAG)?;
+        encode_number::<NUMBER_BASE>(buffer, size as u128)?;
 
         let mut pos = 0;
         let mut key: *mut PyObject = ptr::null_mut();
         let mut val: *mut PyObject = ptr::null_mut();
         while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
             // key
-            encode_dict_key(buffer, pointers, str_count, key);
+            encode_dict_key(buffer, pointers, str_count, key)?;
             // value
             serialize::serialize(val, buffer, pointers, str_count)?;
         }
         return Ok(());
     }
 
-    buffer.push(DICT_FLAG);
-    encode_number::<NUMBER_BASE>(buffer, size as u128);
+    buffer.push(DICT_FLAG)?;
+    encode_number::<NUMBER_BASE>(buffer, size as u128)?;
 
     let mut pos = 0;
     let mut key: *mut PyObject = ptr::null_mut();
@@ -47,7 +46,7 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poi
 }
 
 #[inline(always)]
-unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize, key: *mut PyObject) {
+unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize, key: *mut PyObject) -> Result<(), *mut PyObject>{
     let mut len = 0;
     let is_compact_ascii = is_ascii(key);
     let data = if is_compact_ascii {
@@ -56,25 +55,28 @@ unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, s
     } else {
         PyUnicode_AsUTF8AndSize(key, &mut len) as *const u8
     };
-    let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &[NUMBER_BASE as u8 - 1]);
+    let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &[NUMBER_BASE as u8 - 1])?;
     if !encoded_as_pointer {
         // TODO: most keys are is_compact_ascii but now thats a byte longer...
         *str_count += 1;
         if is_compact_ascii {
-            encode_number::<{ NUMBER_BASE - 1 }>(buffer, 1 + len as u128);
-            buffer.push(INVALID_UTF_8_START_BYTE_COMPACT_ASCII);
+            encode_number::<{ NUMBER_BASE - 1 }>(buffer, 1 + len as u128)?;
+            buffer.push(INVALID_UTF_8_START_BYTE_COMPACT_ASCII)?;
         } else {
-            encode_number::<{ NUMBER_BASE - 1 }>(buffer, len as u128);
+            encode_number::<{ NUMBER_BASE - 1 }>(buffer, len as u128)?;
         }
         buffer.extend_from_slice(slice::from_raw_parts(
             data,
             len as usize,
-        ));
+        ))
+    } else {
+        Ok(())
     }
 }
 
 unsafe fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssize_t) -> bool {
     let first_type = (*if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) }).ob_type;
+    // todo is using .iter() faster?
     for i in 1..len {
         let item = if is_list {
             list_get_item(obj, i)
@@ -96,25 +98,21 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
         get_tuple_size(obj)
     };
     if len == 0 {
-        buffer.push(EMPTY_LIST_FLAG);
-        return Ok(());
+        return buffer.push(EMPTY_LIST_FLAG);
     }
 
     if is_consistent_type_list(obj, is_list, len) {
         let first_item = if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) };
         if first_item == Py_None() {
-            buffer.push(CONSISTENT_TYPE_LIST_FLAG);
-            buffer.push(NULL_FLAG);
-            encode_number::<NUMBER_BASE>(buffer, len as u128);
-            return Ok(());
+            buffer.extend_from_slice(&[CONSISTENT_TYPE_LIST_FLAG, NULL_FLAG])?;
+            return encode_number::<NUMBER_BASE>(buffer, len as u128);
         }
         let first_type = (*first_item).ob_type;
         if first_type == &mut PyUnicode_Type {
             // todo?
             // don't do anything special
         } else if first_type == &mut PyBool_Type {
-            encode_bool_list(obj, buffer, is_list, len);
-            return Ok(())
+            return encode_bool_list(obj, buffer, is_list, len);
         } else if first_type == &mut PyLong_Type {
             // buffer.push(CONSISTENT_TYPE_LIST_FLAG);
             // buffer.push(INT_FLAG);
@@ -143,10 +141,9 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
 }
 
 #[inline(always)]
-unsafe fn encode_bool_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, is_list: bool, len: isize) {
-    buffer.push(CONSISTENT_TYPE_LIST_FLAG);
-    buffer.push(BOOL_FLAG);
-    encode_number::<NUMBER_BASE>(buffer, len as u128);
+unsafe fn encode_bool_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, is_list: bool, len: isize) -> Result<(), *mut PyObject> {
+    buffer.extend_from_slice(&[CONSISTENT_TYPE_LIST_FLAG, BOOL_FLAG])?;
+    encode_number::<NUMBER_BASE>(buffer, len as u128)?;
 
     let mut byte: u8 = 0;
     let mut n: u8 = 0;
@@ -161,23 +158,23 @@ unsafe fn encode_bool_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, is_li
         n += 1;
 
         if n == 8 {
-            buffer.push(byte);
+            buffer.push(byte)?;
             byte = 0;
             n = 0;
         }
     }
 
     if n != 0 {
-        buffer.push(byte << (8 - n));
-    }
+        buffer.push(byte << (8 - n))
+    } else { Ok(()) }
 }
 
 #[inline(always)]
 unsafe fn serialize_normal_list(
     obj: *mut PyObject, buf: &mut PyBytesBuffer, pointers: &mut Pointers, is_list: bool, len: Py_ssize_t, str_count: &mut usize
 ) -> Result<(), *mut PyObject>{
-    buf.push(LIST_FLAG);
-    encode_number::<NUMBER_BASE>(buf, len as u128);
+    buf.push(LIST_FLAG)?;
+    encode_number::<NUMBER_BASE>(buf, len as u128)?;
     for i in 0..len {
         let item = if is_list {
             list_get_item(obj, i)

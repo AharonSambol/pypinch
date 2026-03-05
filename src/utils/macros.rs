@@ -30,3 +30,40 @@
         }
     }
 }
+
+#[macro_export] macro_rules! safe_new_py_list {
+    ($length:expr, $use_tuples:expr) => {
+        {
+            let length = $length;
+            let list = if $use_tuples { pyo3_ffi::PyTuple_New(length) } else { pyo3_ffi::PyList_New(length) };
+            if list.is_null() {
+                return Err(pyo3_ffi::PyErr_NoMemory());
+            }
+            list
+        }
+    }
+}
+
+#[macro_export] macro_rules! safe_new_py_dict {
+    () => {
+        {
+            let dict = pyo3_ffi::PyDict_New();
+            if dict.is_null() {
+                return Err(pyo3_ffi::PyErr_NoMemory());
+            }
+            dict
+        }
+    }
+}
+
+#[macro_export] macro_rules! raise_mem_error_if_null {
+    ($item:expr) => {
+        {
+            let item = $item;
+            if item.is_null() {
+                return Err(pyo3_ffi::PyErr_NoMemory());
+            }
+            item
+        }
+    }
+}

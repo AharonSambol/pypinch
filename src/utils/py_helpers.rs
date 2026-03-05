@@ -2,7 +2,7 @@ use std::{ptr, slice};
 use std::ffi::CString;
 use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString};
 
-use crate::py_string_format;
+use crate::{py_string_format, raise_mem_error_if_null};
 
 
 #[inline(always)]
@@ -13,22 +13,22 @@ pub unsafe fn compare_str(py_str: *mut PyObject, rust_str: &[u8]) -> bool {
     ) == 0
 }
 
-pub unsafe fn py_str_to_rust_str(py_str: &*mut PyObject) -> &str {
+pub unsafe fn py_str_to_rust_str(py_str: &*mut PyObject) -> Result<&str, *mut PyObject> {
     let mut size: Py_ssize_t = 0;
-    let c_ptr = PyUnicode_AsUTF8AndSize(*py_str, &mut size);
-    str::from_utf8_unchecked(slice::from_raw_parts(c_ptr as *const u8, size as usize))
+    let c_ptr = raise_mem_error_if_null!(PyUnicode_AsUTF8AndSize(*py_str, &mut size));
+    Ok(str::from_utf8_unchecked(slice::from_raw_parts(c_ptr as *const u8, size as usize)))
 }
 
-pub unsafe fn convert_py_buffer_into_bytes_slice(buffer: &*mut PyObject) -> &[u8] {
+pub unsafe fn convert_py_buffer_into_bytes_slice(buffer: &*mut PyObject) -> Result<&[u8], *mut PyObject> {
     let buffer = *buffer;
     if (*buffer).ob_type == &mut PyByteArray_Type {
         let len = PyByteArray_Size(buffer) as usize;
-        let data_ptr = PyByteArray_AsString(buffer) as *const u8;
-        slice::from_raw_parts(data_ptr, len)
+        let data_ptr = raise_mem_error_if_null!(PyByteArray_AsString(buffer)) as *const u8;
+        Ok(slice::from_raw_parts(data_ptr, len))
     } else {
         let len = PyBytes_Size(buffer) as usize;
-        let data_ptr = PyBytes_AsString(buffer) as *const u8;
-        slice::from_raw_parts(data_ptr, len)
+        let data_ptr = raise_mem_error_if_null!(PyBytes_AsString(buffer)) as *const u8;
+        Ok(slice::from_raw_parts(data_ptr, len))
     }
 }
 

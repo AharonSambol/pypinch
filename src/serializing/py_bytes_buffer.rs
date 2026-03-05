@@ -1,26 +1,28 @@
-use pyo3_ffi as ffi;
 use std::ptr;
 
+use pyo3_ffi::{_PyBytes_Resize, PyBytes_AS_STRING, PyBytes_FromStringAndSize, PyErr_NoMemory, PyObject};
+use crate::raise_mem_error_if_null;
+
 pub struct PyBytesBuffer {
-    obj: *mut ffi::PyObject,
+    obj: *mut PyObject,
     len: usize,
     cap: usize,
 }
 
 impl PyBytesBuffer {
-    pub unsafe fn with_capacity(cap: usize) -> Self {
-        let obj = ffi::PyBytes_FromStringAndSize(ptr::null(), cap as isize);
+    pub unsafe fn with_capacity(cap: usize) -> Result<Self, *mut PyObject> {
+        let obj = raise_mem_error_if_null!(PyBytes_FromStringAndSize(ptr::null(), cap as isize));
 
-        Self {
+        Ok(Self {
             obj,
             len: 0,
             cap: if cap <= 0 { 8 } else { cap },
-        }
+        })
     }
 
     #[inline(always)]
     unsafe fn data_ptr(&self) -> *mut u8 {
-        ffi::PyBytes_AS_STRING(self.obj) as *mut u8
+        PyBytes_AS_STRING(self.obj) as *mut u8
     }
 
     #[inline]
@@ -31,29 +33,24 @@ impl PyBytesBuffer {
         }
 
         self.cap = required.max(self.cap * 2);
-        if ffi::_PyBytes_Resize(&mut self.obj, self.cap as isize) < 0 {
-            return false;
-        }
-
-        true
+        _PyBytes_Resize(&mut self.obj, self.cap as isize) >= 0
     }
 
     #[inline]
-    pub unsafe fn push(&mut self, byte: u8) {
+    pub unsafe fn push(&mut self, byte: u8) -> Result<(), *mut PyObject> {
         if !self.ensure_capacity(1) {
-            // TODO
-            todo!()
+            return Err(PyErr_NoMemory());
         }
 
         *self.data_ptr().add(self.len) = byte;
         self.len += 1;
+        Ok(())
     }
 
     #[inline]
-    pub unsafe fn extend_from_slice(&mut self, slice: &[u8]) {
+    pub unsafe fn extend_from_slice(&mut self, slice: &[u8]) -> Result<(), *mut PyObject> {
         if !self.ensure_capacity(slice.len()) {
-            // TODO
-            todo!()
+            return Err(PyErr_NoMemory());
         }
 
         ptr::copy_nonoverlapping(
@@ -63,11 +60,12 @@ impl PyBytesBuffer {
         );
 
         self.len += slice.len();
+        Ok(())
     }
 
-    pub unsafe fn finish(mut self) -> *mut ffi::PyObject {
+    pub unsafe fn finish(mut self) -> *mut PyObject {
         if self.len != self.cap {
-            ffi::_PyBytes_Resize(&mut self.obj, self.len as isize);
+            _PyBytes_Resize(&mut self.obj, self.len as isize);
         }
 
         self.obj

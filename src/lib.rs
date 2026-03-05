@@ -67,7 +67,9 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
     EMPTY_BYTES = PyBytes_FromStringAndSize(ptr::null(), 0);
     DESERIALIZATION_ERROR_TYPE = import_object_from_python("pypinch.exceptions", "DeserializationError");
     SERIALIZATION_ERROR_TYPE = import_object_from_python("pypinch.exceptions", "SerializationError");
-
+    if EMPTY_TUPLE.is_null() || EMPTY_STRING.is_null() || EMPTY_BYTES.is_null() || DESERIALIZATION_ERROR_TYPE.is_null() || SERIALIZATION_ERROR_TYPE.is_null() {
+        return PyErr_NoMemory();
+    }
     PyModule_Create(ptr::addr_of_mut!(MODULE_DEF))
 }
 
@@ -99,7 +101,7 @@ pub unsafe extern "C" fn dump_bytes(
                 serialize_dates = PyObject_IsTrue(value) == 1;
             } else {
                 return format!(
-                    "dump_bytes() got an unexpected keyword argument '{}'", py_str_to_rust_str(&key)
+                    "dump_bytes() got an unexpected keyword argument '{}'", py_str_to_rust_str(&key).unwrap_or("<memory error>")
                 ).to_py_error(PyExc_TypeError);
             }
         }
@@ -119,18 +121,18 @@ pub unsafe extern "C" fn dump_bytes(
         }
         *args
     };
-    let mut buf = PyBytesBuffer::with_capacity(8);
+    let mut buf = match PyBytesBuffer::with_capacity(8) {
+        Ok(buf) => buf,
+        Err(err) => return err,
+    };
+
     buf.extend_from_slice(b"<o>");
-    // let mut buf = Vec::from(b"<o>");
     let mut pointers = FxHashMap::default();
     let result = serialize(obj, &mut buf, &mut pointers, &mut 0);
     if let Err(error) = result {
         return error;
     }
 
-    // let ptr = buf.as_ptr() as *const c_char;
-    // let len = buf.len() as Py_ssize_t;
-    // PyBytes_FromStringAndSize(ptr, len)
     buf.finish()
 }
 
@@ -163,7 +165,7 @@ pub unsafe extern "C" fn load_bytes(
                 ignore_extra_data = PyObject_IsTrue(value) == 1;
             } else {
                 return format!(
-                    "load_bytes() got an unexpected keyword argument '{}'", py_str_to_rust_str(&key)
+                    "load_bytes() got an unexpected keyword argument '{}'", py_str_to_rust_str(&key).unwrap_or("<memory error>")
                 ).to_py_error(PyExc_TypeError);
             }
         }
@@ -186,7 +188,11 @@ pub unsafe extern "C" fn load_bytes(
 
 
     let mut pointers = FxHashMap::default();
-    let slice = convert_py_buffer_into_bytes_slice(&buffer);
+    // TODO: do i need to do this at all? why not just read from the buffer as it is?
+    let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
+        Ok(slice) => slice,
+        Err(err) => return err,
+    };
 
     let mut string_cache = StringCache::new();
     let mut pointer = HEADER.len();

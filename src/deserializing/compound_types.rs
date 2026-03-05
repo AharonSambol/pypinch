@@ -1,11 +1,12 @@
-use pyo3_ffi::{Py_DECREF, Py_INCREF, PyDict_New, PyDict_SetItem, PyList_New, PyObject, PyTuple_New};
+use pyo3_ffi::{Py_DECREF, Py_INCREF, PyDict_SetItem, PyObject};
 use rustc_hash::FxHashMap;
+
+use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
 use crate::deserializing::deserialize::deserialize_object;
-use crate::deserializing::primitives::{decode_string};
+use crate::deserializing::primitives::decode_string;
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
-use crate::safe_get;
-use crate::utils::consts::{NUMBER_BASE, MIGHT_BE_ASCII};
+use crate::utils::consts::{MIGHT_BE_ASCII, NUMBER_BASE};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 #[inline(always)]
@@ -20,14 +21,14 @@ pub unsafe fn decode_list<'a>(
     let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
 
     if use_tuples {
-        let tup = PyTuple_New(len);
+        let tup = safe_new_py_list!(len, true);
         for i in 0..len {
             let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
             tuple_set_item(tup, i, obj);
         }
         Ok(tup)
     } else {
-        let list = PyList_New(len);
+        let list = safe_new_py_list!(len, false);
         for i in 0..len {
             let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
             list_set_item(list, i, obj);
@@ -46,7 +47,7 @@ pub unsafe fn decode_str_key_dict<'a>(
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
-    let dict = PyDict_New();
+    let dict = safe_new_py_dict!();
     for _ in 0..len {
         let key = deserialize_dict_key(buf, ptr, pointers, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
@@ -61,6 +62,7 @@ unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mu
     if *safe_get!(buf, *ptr) == NUMBER_BASE as u8 - 1 {
         *ptr += 1;
         let position = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
+        // TODO: this can cause panic
         let res = pointers[&position];
         Py_INCREF(res);
         Ok(res)
@@ -79,7 +81,7 @@ pub unsafe fn decode_dict<'a>(
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
-    let dict = PyDict_New();
+    let dict = safe_new_py_dict!();
     for _ in 0..len {
         let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;

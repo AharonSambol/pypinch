@@ -31,18 +31,18 @@ const ENCODED_NUMBER_LIMITS: [u128; 18] = [
 ];
 
 #[inline(always)]
-pub unsafe fn encode_number<const BASE: u128>(buf: &mut PyBytesBuffer, mut number: u128) {
+pub unsafe fn encode_number<const BASE: u128>(buf: &mut PyBytesBuffer, mut number: u128) -> Result<(), *mut PyObject> {
     if number < BASE {
-        buf.push(number as u8);
+        buf.push(number as u8)
     } else {
-        buf.push(NUMBER_BASE as u8);
+        buf.push(NUMBER_BASE as u8)?;
         number -= BASE;
         while number != 0 {
             let remainder = number % BASE;
             number /= BASE;
-            buf.push(remainder as u8);
+            buf.push(remainder as u8)?;
         }
-        buf.push(NUMBER_BASE as u8);
+        buf.push(NUMBER_BASE as u8)
     }
 }
 

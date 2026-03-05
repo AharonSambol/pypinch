@@ -1,29 +1,29 @@
 use std::ffi::c_long;
 use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, Py_DECREF, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyLongObject, PyNumber_Add, PyNumber_Subtract, PyObject, PyObject_RichCompareBool};
+use crate::raise_mem_error_if_null;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::utils::encode_number;
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ENDING_FLAG, NEGATIVE_INT_FLAG, NUMBER_BASE, POSITIVE_INT_FLAG};
 
-pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &mut PyBytesBuffer) {
+pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &mut PyBytesBuffer) -> Result<(), *mut PyObject> {
     let mut overflow = 0;
     let longlong = PyLong_AsLongLongAndOverflow(obj, &mut overflow);
 
     if overflow == 0 {
-        if longlong >= 0 {
+        return if longlong >= 0 {
             if longlong < ((NUMBER_BASE as u8) - AMOUNT_OF_USED_FLAGS) as i64 {
-                buffer.push(AMOUNT_OF_USED_FLAGS + longlong as u8);
+                buffer.push(AMOUNT_OF_USED_FLAGS + longlong as u8)
             } else {
-                buffer.push(POSITIVE_INT_FLAG);
-                encode_number::<BASE>(buffer, longlong as u128);
+                buffer.push(POSITIVE_INT_FLAG)?;
+                encode_number::<BASE>(buffer, longlong as u128)
             }
         } else {
-            buffer.push(NEGATIVE_INT_FLAG);
-            encode_number::<BASE>(buffer, -longlong as u128);
-        }
-        return;
+            buffer.push(NEGATIVE_INT_FLAG)?;
+            encode_number::<BASE>(buffer, -longlong as u128)
+        };
     }
 
-    encode_pylong_big::<BASE>(buffer, obj);
+    encode_pylong_big::<BASE>(buffer, obj)
 }
 
 
@@ -31,15 +31,19 @@ pub unsafe fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &m
 unsafe fn encode_pylong_big<const BASE: u128>(
     buf: &mut PyBytesBuffer,
     obj: *mut PyObject,
-) {
-    let is_negative = PyObject_RichCompareBool(obj, PyLong_FromLong(0), pyo3_ffi::Py_LT) == 1;
+) -> Result<(), *mut PyObject> {
+    let is_negative = PyObject_RichCompareBool(
+        obj,
+        raise_mem_error_if_null!(PyLong_FromLong(0)),
+        pyo3_ffi::Py_LT
+    ) == 1;
 
-    let python_base_num = PyLong_FromLong(BASE as c_long);
-    let obj = if is_negative {
+    let python_base_num = raise_mem_error_if_null!(PyLong_FromLong(BASE as c_long));
+    let obj = raise_mem_error_if_null!(if is_negative {
         PyNumber_Add(obj, python_base_num)
     } else {
         PyNumber_Subtract(obj, python_base_num)
-    };
+    });
     Py_DECREF(python_base_num);
 
     let nbits = _PyLong_NumBits(obj);
@@ -64,13 +68,13 @@ unsafe fn encode_pylong_big<const BASE: u128>(
         NEGATIVE_INT_FLAG
     } else {
         POSITIVE_INT_FLAG
-    });
+    })?;
 
     if is_negative {
         twos_complement_inplace(&mut bytes);
     }
 
-    encode_base_from_bytes::<BASE>(buf, &bytes);
+    encode_base_from_bytes::<BASE>(buf, &bytes)
 }
 
 #[inline(always)]
@@ -91,11 +95,11 @@ fn twos_complement_inplace(bytes: &mut [u8]) {
 }
 
 #[inline(always)]
-unsafe fn encode_base_from_bytes<const BASE: u128>(buf: &mut PyBytesBuffer, bytes: &[u8]) {
+unsafe fn encode_base_from_bytes<const BASE: u128>(buf: &mut PyBytesBuffer, bytes: &[u8]) -> Result<(), *mut PyObject> {
     // Working copy (big-endian base-256 number)
     let mut work = bytes.to_vec();
 
-    buf.push(ENDING_FLAG);
+    buf.push(ENDING_FLAG)?;
 
     while !work.is_empty() {
         let mut carry: u32 = 0;
@@ -107,7 +111,7 @@ unsafe fn encode_base_from_bytes<const BASE: u128>(buf: &mut PyBytesBuffer, byte
         }
 
         // carry is the remainder
-        buf.push(carry as u8);
+        buf.push(carry as u8)?;
 
         // Trim leading zero bytes
         while !work.is_empty() && work[0] == 0 {
@@ -115,5 +119,5 @@ unsafe fn encode_base_from_bytes<const BASE: u128>(buf: &mut PyBytesBuffer, byte
         }
     }
 
-    buf.push(ENDING_FLAG);
+    buf.push(ENDING_FLAG)
 }
