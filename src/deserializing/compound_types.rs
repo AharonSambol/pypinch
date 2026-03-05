@@ -1,11 +1,11 @@
-use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_ssize_t, Py_True, PyDict_New, PyDict_SetItem, PyList_New, PyObject, PyTuple_New};
+use pyo3_ffi::{Py_DECREF, Py_INCREF, PyDict_New, PyDict_SetItem, PyList_New, PyObject, PyTuple_New};
 use rustc_hash::FxHashMap;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::{decode_string};
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
 use crate::safe_get;
-use crate::utils::consts::{LEFTMOST_BIT_MASK, NUMBER_BASE, MIGHT_BE_ASCII};
+use crate::utils::consts::{NUMBER_BASE, MIGHT_BE_ASCII};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 #[inline(always)]
@@ -88,38 +88,4 @@ pub unsafe fn decode_dict<'a>(
         Py_DECREF(value);
     }
     Ok(dict)
-}
-
-
-#[inline(always)]
-pub unsafe fn decode_bool_list(
-    buf: &[u8],
-    ptr: &mut usize,
-    length: Py_ssize_t,
-) -> Result<*mut PyObject, *mut PyObject> {
-    /*
-    same as: math.ceil(length / NUMBER_OF_BITS_IN_BYTE)
-    the `>> 3` is like dividing by 8 (8 is `1000` in binary)
-    the + 7 is like rounding up
-     */
-    let amount_of_bytes = ((length as usize) + 7) >> 3;
-    let list = PyList_New(length);
-
-    let mut pos = 0;
-    let table = [Py_True(), Py_False()];
-    for i in 0..amount_of_bytes {
-        let mut byte = *safe_get!(buf, *ptr + i);
-        for _ in 0..8 {
-            let obj = table[((byte & LEFTMOST_BIT_MASK) == 0) as usize];
-            Py_INCREF(obj);
-            list_set_item(list, pos, obj);
-            pos += 1;
-            if pos == length {
-                break;
-            }
-            byte <<= 1;
-        }
-    }
-    *ptr += amount_of_bytes;
-    Ok(list)
 }

@@ -18,7 +18,6 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poi
         return Ok(());
     }
     if all_dict_keys_are_str(obj) {
-        // TODO: !!!!!!!!!!
         buffer.push(STR_KEY_DICT_FLAG);
         encode_number::<NUMBER_BASE>(buffer, size as u128);
 
