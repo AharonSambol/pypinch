@@ -36,7 +36,6 @@ pub unsafe fn decode_consistent_type_list<'a>(
     })
 }
 
-#[inline(always)]
 unsafe fn decode_floats_list(buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> *mut PyObject {
     let list = PyList_New(len);
     for i in 0..len {
@@ -46,11 +45,10 @@ unsafe fn decode_floats_list(buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> *m
     list
 }
 
-#[inline(always)]
 unsafe fn decode_str_list<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize, len: Py_ssize_t) -> *mut PyObject {
     let list = PyList_New(len);
     for i in 0..len {
-        let str = decode_string::<MIGHT_BE_ASCII>(
+        let str = decode_string::<MIGHT_BE_ASCII, NUMBER_BASE>(
             buf,
             ptr,
             pointers,
@@ -62,7 +60,6 @@ unsafe fn decode_str_list<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxH
     list
 }
 
-#[inline(always)]
 unsafe fn decode_bytes_list(buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> *mut PyObject {
     let list = PyList_New(len);
     for i in 0..len {
@@ -77,7 +74,6 @@ unsafe fn decode_bytes_list(buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> *mu
     list
 }
 
-#[inline(always)]
 unsafe fn decode_int_list(buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> *mut PyObject {
     let list = PyList_New(len);
     for i in 0..len {
@@ -96,7 +92,6 @@ unsafe fn decode_int_list(buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> *mut 
 }
 
 // todo: turn use_tuples into <const>?
-#[inline(always)]
 unsafe fn decode_null_list(use_tuples: bool, len: Py_ssize_t) -> *mut PyObject {
     let none = Py_None();
 

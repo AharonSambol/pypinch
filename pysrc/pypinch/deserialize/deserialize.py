@@ -58,11 +58,11 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         length, pointer = decode_number(buffer, pointer)
         res_dict = {}
         for i in range(length):
-            if buffer[pointer:pointer+len(NOT_A_STR_BUT_A_POINTER_FLAG)] == NOT_A_STR_BUT_A_POINTER_FLAG:
-                position, pointer = decode_number(buffer, pointer + len(NOT_A_STR_BUT_A_POINTER_FLAG))
+            if buffer[pointer] == NUMBER_BASE - 1:
+                position, pointer = decode_number(buffer, pointer + 1)
                 k = settings.pointers[position]
             else:
-                k, pointer = deserialize_str(buffer, pointer, settings)
+                k, pointer = deserialize_str(buffer, pointer, settings, base=NUMBER_BASE - 1)
             v, pointer = deserialize_object(buffer, pointer, settings)
             res_dict[k] = v
         return res_dict, pointer
@@ -163,8 +163,8 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         return flag - AMOUNT_OF_USED_FLAGS, pointer
 
 
-def deserialize_str(buffer: bytes, pointer: int, settings: Settings) -> Tuple[str, int]:
-    length, pointer = decode_number(buffer, pointer)
+def deserialize_str(buffer: bytes, pointer: int, settings: Settings, base: int = NUMBER_BASE) -> Tuple[str, int]:
+    length, pointer = decode_number(buffer, pointer, base=base)
     string = buffer[
         #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
         pointer + (buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)

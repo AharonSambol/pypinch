@@ -57,14 +57,14 @@ pub unsafe fn decode_negative_int(buf: &[u8], ptr: &mut usize) -> *mut PyObject 
 }
 
 #[inline(always)]
-pub unsafe fn decode_string<'a, const IS_ASCII: IsAscii>(
+pub unsafe fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> *mut PyObject {
-    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_usize::<BASE>(buf, ptr);
     let string = match IS_ASCII {
         YES_ASCII => string_cache.get_or_create::<true>(&buf[*ptr..*ptr + len]),
         NOT_ASCII => string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len]),

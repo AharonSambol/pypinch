@@ -4,7 +4,7 @@ use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::{decode_string};
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
-use crate::utils::consts::{LEFTMOST_BIT_MASK, NOT_A_STR_BUT_A_POINTER_FLAG, NUMBER_BASE, MIGHT_BE_ASCII};
+use crate::utils::consts::{LEFTMOST_BIT_MASK, NUMBER_BASE, MIGHT_BE_ASCII};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 #[inline(always)]
@@ -57,14 +57,14 @@ pub unsafe fn decode_str_key_dict<'a>(
 }
 
 unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize) -> *mut PyObject {
-    if buf[*ptr..*ptr + NOT_A_STR_BUT_A_POINTER_FLAG.len()] == NOT_A_STR_BUT_A_POINTER_FLAG {
-        *ptr += NOT_A_STR_BUT_A_POINTER_FLAG.len();
+    if buf[*ptr] == NUMBER_BASE as u8 - 1 {
+        *ptr += 1;
         let position = decode_number_usize::<NUMBER_BASE>(buf, ptr);
         let res = pointers[&position];
         Py_INCREF(res);
         res
     } else {
-        decode_string::<MIGHT_BE_ASCII>(buf, ptr, pointers, string_cache, str_count)
+        decode_string::<MIGHT_BE_ASCII, { NUMBER_BASE - 1 }>(buf, ptr, pointers, string_cache, str_count)
     }
 }
 

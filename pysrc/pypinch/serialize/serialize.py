@@ -139,12 +139,12 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
                 if prev_pos := settings.pointers.get(k):
                     predicted_digits = 1 + bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
                     if predicted_digits <= len(obj):
-                        buffer.extend(NOT_A_STR_BUT_A_POINTER_FLAG)
+                        buffer.append(NUMBER_BASE - 1)
                         encode_number(buffer, prev_pos)
                     else:
-                        serialize_object_without_type(buffer, k, settings)
+                        serialize_str_without_type(buffer, k, settings, base=NUMBER_BASE - 1)
                 else:
-                    serialize_object_without_type(buffer, k, settings)
+                    serialize_str_without_type(buffer, k, settings, base=NUMBER_BASE - 1)
                 serialize_object_with_type(buffer, v, settings)
         else:
             buffer.append(DICT_FLAG)
@@ -229,17 +229,21 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
     elif typ is float:
         buffer.extend(_pack_double(obj))
     elif typ is str:
-        try:
-            encoded_str = obj.encode(encoding="ascii")
-            encode_number(buffer, 1 + len(encoded_str))
-            buffer.append(INVALID_UTF_8_START_BYTE_COMPACT_ASCII);
-        except UnicodeEncodeError:
-            encoded_str = obj.encode()
-            encode_number(buffer, len(encoded_str))
-        settings.pointers[obj] = settings.str_count
-        settings.str_count += 1
-        buffer.extend(encoded_str)
+        serialize_str_without_type(buffer, obj, settings)
     elif typ is datetime and settings.serialize_dates:
         return serialize_object_without_type(buffer, obj.isoformat(), settings)
     else:
         raise SerializationError(f"Unexpected type: {typ}")
+
+
+def serialize_str_without_type(buffer: bytearray, obj: ObjType, settings: Settings, base: int = NUMBER_BASE) -> None:
+    try:
+        encoded_str = obj.encode(encoding="ascii")
+        encode_number(buffer, 1 + len(encoded_str), base=base)
+        buffer.append(INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
+    except UnicodeEncodeError:
+        encoded_str = obj.encode()
+        encode_number(buffer, len(encoded_str), base=base)
+    settings.pointers[obj] = settings.str_count
+    settings.str_count += 1
+    buffer.extend(encoded_str)

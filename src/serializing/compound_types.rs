@@ -57,14 +57,15 @@ unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, s
     } else {
         PyUnicode_AsUTF8AndSize(key, &mut len) as *const u8
     };
-    let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &NOT_A_STR_BUT_A_POINTER_FLAG);
+    let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &[NUMBER_BASE as u8 - 1]);
     if !encoded_as_pointer {
+        // TODO: most keys are is_compact_ascii but now thats a byte longer...
         *str_count += 1;
         if is_compact_ascii {
-            encode_number::<NUMBER_BASE>(buffer, 1 + len as u128);
+            encode_number::<{ NUMBER_BASE - 1 }>(buffer, 1 + len as u128);
             buffer.push(INVALID_UTF_8_START_BYTE_COMPACT_ASCII);
         } else {
-            encode_number::<NUMBER_BASE>(buffer, len as u128);
+            encode_number::<{ NUMBER_BASE - 1 }>(buffer, len as u128);
         }
         buffer.extend_from_slice(slice::from_raw_parts(
             data,
