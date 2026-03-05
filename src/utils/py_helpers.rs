@@ -4,6 +4,8 @@ use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, Py
 
 use crate::py_string_format;
 
+
+#[inline(always)]
 pub unsafe fn compare_str(py_str: *mut PyObject, rust_str: &[u8]) -> bool {
     PyUnicode_CompareWithASCIIString(
         py_str,

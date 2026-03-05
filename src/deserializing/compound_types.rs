@@ -4,6 +4,7 @@ use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::{decode_string};
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
+use crate::safe_get;
 use crate::utils::consts::{LEFTMOST_BIT_MASK, NUMBER_BASE, MIGHT_BE_ASCII};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
@@ -16,7 +17,7 @@ pub unsafe fn decode_list<'a>(
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
-    let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
 
     if use_tuples {
         let tup = PyTuple_New(len);
@@ -44,10 +45,10 @@ pub unsafe fn decode_str_key_dict<'a>(
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
-    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
     let dict = PyDict_New();
     for _ in 0..len {
-        let key = deserialize_dict_key(buf, ptr, pointers, string_cache, str_count);
+        let key = deserialize_dict_key(buf, ptr, pointers, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         PyDict_SetItem(dict, key, value);
         Py_DECREF(key);
@@ -56,13 +57,13 @@ pub unsafe fn decode_str_key_dict<'a>(
     Ok(dict)
 }
 
-unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize) -> *mut PyObject {
-    if buf[*ptr] == NUMBER_BASE as u8 - 1 {
+unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
+    if *safe_get!(buf, *ptr) == NUMBER_BASE as u8 - 1 {
         *ptr += 1;
-        let position = decode_number_usize::<NUMBER_BASE>(buf, ptr);
+        let position = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
         let res = pointers[&position];
         Py_INCREF(res);
-        res
+        Ok(res)
     } else {
         decode_string::<MIGHT_BE_ASCII, { NUMBER_BASE - 1 }>(buf, ptr, pointers, string_cache, str_count)
     }
@@ -77,7 +78,7 @@ pub unsafe fn decode_dict<'a>(
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
-    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr);
+    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
     let dict = PyDict_New();
     for _ in 0..len {
         let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
@@ -95,7 +96,7 @@ pub unsafe fn decode_bool_list(
     buf: &[u8],
     ptr: &mut usize,
     length: Py_ssize_t,
-) -> *mut PyObject {
+) -> Result<*mut PyObject, *mut PyObject> {
     /*
     same as: math.ceil(length / NUMBER_OF_BITS_IN_BYTE)
     the `>> 3` is like dividing by 8 (8 is `1000` in binary)
@@ -107,7 +108,7 @@ pub unsafe fn decode_bool_list(
     let mut pos = 0;
     let table = [Py_True(), Py_False()];
     for i in 0..amount_of_bytes {
-        let mut byte = buf[*ptr + i];
+        let mut byte = *safe_get!(buf, *ptr + i);
         for _ in 0..8 {
             let obj = table[((byte & LEFTMOST_BIT_MASK) == 0) as usize];
             Py_INCREF(obj);
@@ -120,5 +121,5 @@ pub unsafe fn decode_bool_list(
         }
     }
     *ptr += amount_of_bytes;
-    list
+    Ok(list)
 }

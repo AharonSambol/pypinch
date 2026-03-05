@@ -7,7 +7,7 @@ use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize;
 use crate::serializing::serialize::Pointers;
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
-use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, NOT_A_STR_BUT_A_POINTER_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
+use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
 use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, tuple_get_item};
 
 #[inline(always)]

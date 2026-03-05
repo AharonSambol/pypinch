@@ -7,6 +7,7 @@ use crate::utils::consts::NUMBER_BASE;
 pub static mut EMPTY_TUPLE: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_STRING: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_BYTES: *mut PyObject = ptr::null_mut();
+pub static mut DESERIALIZATION_ERROR_TYPE: *mut PyObject = ptr::null_mut();
 
 const ENCODED_NUMBER_LIMITS: [u128; 18] = [
     254,

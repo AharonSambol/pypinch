@@ -9,7 +9,7 @@ use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::string_cache::StringCache;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
-use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
+use crate::serializing::utils::{DESERIALIZATION_ERROR_TYPE, EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
 use crate::utils::consts::HEADER;
 use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::tuple_get_item;
@@ -65,6 +65,7 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
     EMPTY_TUPLE = PyTuple_New(0);
     EMPTY_STRING = PyUnicode_New(0, 127);
     EMPTY_BYTES = PyBytes_FromStringAndSize(ptr::null(), 0);
+    DESERIALIZATION_ERROR_TYPE = import_object_from_python("pypinch.exceptions", "DeserializationError");
 
     PyModule_Create(ptr::addr_of_mut!(MODULE_DEF))
 }
@@ -188,16 +189,13 @@ pub unsafe extern "C" fn load_bytes(
 
     let mut string_cache = StringCache::new();
     let mut pointer = HEADER.len();
-    let deserialization_error_type = import_object_from_python("pypinch.exceptions", "DeserializationError");
     let result = deserialize_object(slice, &mut pointer, &mut pointers, use_tuples, &mut string_cache, &mut 0);
     match result {
         Ok(result_object) => {
             if !ignore_extra_data && pointer != slice.len() {
                 return format!(
                     "Unexpected extra data, from position {pointer}. If you want to ignore it use the flag `ignore_extra_data`"
-                ).to_py_error(
-                    deserialization_error_type
-                )
+                ).to_py_error(DESERIALIZATION_ERROR_TYPE)
             }
             result_object
         }

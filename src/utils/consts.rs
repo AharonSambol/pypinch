@@ -3,8 +3,9 @@ pub const ENDING_FLAG: u8 = 255;
 pub const NEGATIVE_NUMBER_SIGN: u128 = NUMBER_BASE - 1;
 pub const LEFTMOST_BIT_MASK: u8 = 128;
 pub const HEADER: &[u8] = b"<o>";
-pub const INVALID_UTF_8_START_BYTE: u8 = 0xff;
 pub const INVALID_UTF_8_START_BYTE_COMPACT_ASCII: u8 = 0xfe;
+pub const UNEXPECTED_END_OF_INPUT: &'static str = "Unexpected end of input";
+
 
 pub const EMPTY_STR_FLAG: u8 = 0;
 pub const EMPTY_BYTES_FLAG: u8 = 1;
@@ -29,10 +30,6 @@ pub const ASCII_STR_FLAG: u8 = 19;
 
 pub const AMOUNT_OF_USED_FLAGS: u8 = 30; // for future flags
 
-pub const NOT_A_STR_BUT_A_POINTER_FLAG: [u8; 2] = [
-    AMOUNT_OF_USED_FLAGS + 1,   // a str of length 1
-    INVALID_UTF_8_START_BYTE,   // sike, not really
-];
 
 pub type IsAscii = u8;
 pub const YES_ASCII: IsAscii = 0;
