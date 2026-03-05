@@ -23,7 +23,7 @@
                 Some(x) => x,
                 None => {
                     return Err(crate::utils::consts::UNEXPECTED_END_OF_INPUT.to_py_error(
-                        crate::serializing::utils::DESERIALIZATION_ERROR_TYPE
+                        crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE
                     ))
                 }
             }

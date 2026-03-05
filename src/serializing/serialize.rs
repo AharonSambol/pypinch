@@ -6,6 +6,7 @@ use crate::utils::py_helpers::ToPyErr;
 use pyo3_ffi::{PyBool_Type, PyBytes_Type, PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyObject, PyTuple_Type, PyUnicode_Type};
 use crate::serializing::{compound_types, primitives};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
+use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 
 pub type Pointers = FxHashMap<*mut PyObject, usize>;
 
@@ -38,8 +39,7 @@ pub unsafe fn serialize(
     } else if obj == Py_None() {
         buffer.push(NULL_FLAG)
     } else {
-        // TODO is this supposed to be type error or serialization error?
-        return Err(format!("Unsupported type: {:?}", (*typ).tp_name).to_py_error(PyExc_TypeError));
+        return Err(format!("Unexpected type: {:?}", (*typ).tp_name).to_py_error(SERIALIZATION_ERROR_TYPE));
     }
     return Ok(());
 }

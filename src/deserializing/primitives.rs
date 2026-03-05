@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t, decode_number_usize};
-use crate::serializing::utils::DESERIALIZATION_ERROR_TYPE;
+use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::utils::consts::{INVALID_UTF_8_START_BYTE_COMPACT_ASCII, NUMBER_BASE, IsAscii, YES_ASCII, NOT_ASCII, MIGHT_BE_ASCII, UNEXPECTED_END_OF_INPUT};
 use crate::utils::py_helpers::ToPyErr;
 

@@ -1,5 +1,6 @@
 use std::ffi::{c_long, c_ulonglong};
 use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject};
+use std::ptr;
 use crate::safe_get;
 use crate::utils::consts::ENDING_FLAG;
 
@@ -112,3 +113,5 @@ pub unsafe fn decode_large_number<const BASE: u128>(
         mul = tmp;
     }
 }
+
+pub static mut DESERIALIZATION_ERROR_TYPE: *mut PyObject = ptr::null_mut();

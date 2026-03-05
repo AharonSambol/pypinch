@@ -4,12 +4,12 @@ use std::ptr;
 
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
-
+use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::string_cache::StringCache;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
-use crate::serializing::utils::{DESERIALIZATION_ERROR_TYPE, EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
+use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::HEADER;
 use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::tuple_get_item;
@@ -66,6 +66,7 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
     EMPTY_STRING = PyUnicode_New(0, 127);
     EMPTY_BYTES = PyBytes_FromStringAndSize(ptr::null(), 0);
     DESERIALIZATION_ERROR_TYPE = import_object_from_python("pypinch.exceptions", "DeserializationError");
+    SERIALIZATION_ERROR_TYPE = import_object_from_python("pypinch.exceptions", "SerializationError");
 
     PyModule_Create(ptr::addr_of_mut!(MODULE_DEF))
 }
