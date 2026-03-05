@@ -51,7 +51,7 @@ pub unsafe fn all_dict_keys_are_str(obj: *mut PyObject) -> bool {
     let mut key: *mut PyObject = ptr::null_mut();
     let mut val: *mut PyObject = ptr::null_mut();
     while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
-        if (*val).ob_type != &mut PyUnicode_Type {
+        if (*key).ob_type != &mut PyUnicode_Type {
             return false
         }
     }
