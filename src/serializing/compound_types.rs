@@ -76,18 +76,14 @@ unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, s
 
 unsafe fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssize_t) -> bool {
     let first_type = (*if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) }).ob_type;
-    // todo is using .iter() faster?
-    for i in 1..len {
+    (1..len).all(|i| {
         let item = if is_list {
             list_get_item(obj, i)
         } else {
             tuple_get_item(obj, i)
         };
-        if (*item).ob_type != first_type {
-            return false
-        }
-    }
-    true
+        (*item).ob_type == first_type
+    })
 }
 
 pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize, typ: *mut PyTypeObject) -> Result<(), *mut PyObject> {
