@@ -5,8 +5,8 @@ use rustc_hash::FxHashMap;
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t, decode_number_usize};
 use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
-use crate::raise_mem_error_if_null;
-use crate::utils::consts::{INVALID_UTF_8_START_BYTE_COMPACT_ASCII, NUMBER_BASE, IsAscii, YES_ASCII, NOT_ASCII, MIGHT_BE_ASCII, UNEXPECTED_END_OF_INPUT};
+use crate::{raise_mem_error_if_null, safe_get};
+use crate::utils::consts::{INVALID_UTF_8_START_BYTE_COMPACT_ASCII, NUMBER_BASE, IsAscii, YES_ASCII, NOT_ASCII, MIGHT_BE_ASCII, UNEXPECTED_END_OF_INPUT, CORRUPTED_DATA};
 use crate::utils::py_helpers::ToPyErr;
 
 #[inline(always)]
@@ -23,7 +23,7 @@ pub unsafe fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject,
 #[inline(always)]
 pub unsafe fn decode_pointer(buf: &[u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>) -> Result<*mut PyObject, *mut PyObject> {
     let pos = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
-    let res = pointers[&pos];
+    let res = *safe_get!(pointers, &pos, CORRUPTED_DATA);
     Py_INCREF(res);
     Ok(res)
 }
