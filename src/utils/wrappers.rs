@@ -90,3 +90,38 @@ pub unsafe fn is_ascii(obj: *mut PyObject) -> bool {
         PyUnicode_IS_ASCII(obj) == 1
     }
 }
+
+#[inline(always)]
+pub unsafe fn is_gc_enabled() -> bool {
+    #[cfg(Py_3_10)]
+    {
+        PyGC_IsEnabled() == 1
+    }
+
+    #[cfg(not(Py_3_10))]
+    {
+        false // no support :(
+    }
+}
+
+#[inline(always)]
+pub unsafe fn gc_enabled() -> bool {
+    #[cfg(Py_3_10)]
+    {
+        PyGC_Enable()
+    }
+
+    #[cfg(not(Py_3_10))]
+    {} // no support :(
+}
+
+#[inline(always)]
+pub unsafe fn gc_disable() -> bool {
+    #[cfg(Py_3_10)]
+    {
+        PyGC_Disable()
+    }
+
+    #[cfg(not(Py_3_10))]
+    {} // no support :(
+}

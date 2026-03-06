@@ -13,7 +13,7 @@ use crate::serializing::serialize::serialize;
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::HEADER;
 use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
-use crate::utils::wrappers::tuple_get_item;
+use crate::utils::wrappers::{gc_disable, gc_enabled, is_gc_enabled, tuple_get_item};
 
 mod utils;
 mod serializing;
@@ -188,8 +188,8 @@ pub unsafe extern "C" fn load_bytes(
     };
 
     let should_enable_gc = if stop_gc {
-        if PyGC_IsEnabled() == 1 {
-            PyGC_Disable();
+        if is_gc_enabled() {
+            gc_disable();
             true
         } else { false }
     } else { false };
@@ -199,7 +199,7 @@ pub unsafe extern "C" fn load_bytes(
         Ok(slice) => slice,
         Err(err) => {
             if should_enable_gc {
-                PyGC_Enable();
+                gc_enabled();
             }
             return err
         },
@@ -209,7 +209,7 @@ pub unsafe extern "C" fn load_bytes(
     let mut pointer = HEADER.len();
     let result = deserialize_object(slice, &mut pointer, &mut pointers, use_tuples, &mut string_cache, &mut 0);
     if should_enable_gc {
-        PyGC_Enable();
+        gc_enabled();
     }
     match result {
         Ok(result_object) => {
