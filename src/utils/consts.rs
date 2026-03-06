@@ -5,6 +5,7 @@ pub const LEFTMOST_BIT_MASK: u8 = 128;
 pub const HEADER: &[u8] = b"<o>";
 pub const INVALID_UTF_8_START_BYTE_COMPACT_ASCII: u8 = 0xfe;
 pub const UNEXPECTED_END_OF_INPUT: &'static str = "Unexpected end of input";
+pub const CORRUPTED_DATA: &'static str = "Corrupted data";
 
 
 pub const EMPTY_STR_FLAG: u8 = 0;
