@@ -9,7 +9,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, \
     POINTER_FLAG, HEADER, \
     BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, \
-    NOT_A_STR_BUT_A_POINTER_FLAG, ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+    ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII
 from pypinch.exceptions import SerializationError
 from pypinch.serialize.settings import Settings
 from pypinch.serialize.utils import encode_number
@@ -43,8 +43,9 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(EMPTY_STR_FLAG)
             return
         if prev_pos := settings.pointers.get(obj):
-            predicted_digits = 1 + bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
-            if predicted_digits <= len(obj):
+            predicted_pointer_length = bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
+            predicted_str_length = len(obj) + bisect.bisect_left(ENCODED_NUMBER_LIMITS, len(obj))
+            if predicted_pointer_length <= predicted_str_length:
                 buffer.append(POINTER_FLAG)
                 encode_number(buffer, prev_pos)
                 return
@@ -78,8 +79,6 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(EMPTY_LIST_FLAG)
         elif is_consistent_type_list(obj):
             first_type = type(obj[0])
-            # if first_type is str:
-            #     serialize_normal_list(buffer, obj, settings)
             if obj[0] is None:
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 buffer.append(NULL_FLAG)
@@ -112,7 +111,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 try:
                     # todo: support str (with utf trick)?
-                    buffer.append({str: STR_FLAG, bytes: BYTES_FLAG, float: FLOAT_FLAG, datetime: STR_FLAG}[first_type])
+                    buffer.append({bytes: BYTES_FLAG, float: FLOAT_FLAG, datetime: STR_FLAG}[first_type])
                 except KeyError:
                     raise SerializationError(f"Unexpected type: {first_type}")
 
@@ -124,18 +123,11 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
     elif typ is dict:
         if len(obj) == 0:
             buffer.append(EMPTY_DICT_FLAG)
-        # elif not settings.use_pointers and not settings.allow_non_string_keys:
-        #     buffer.append(STR_KEY_DICT_FLAG)
-        #     encode_number(buffer, len(obj))
-        #     for k, v in obj.items():
-        #         if type(k) is not str:
-        #             raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
-        #         serialize_object_without_type(buffer, k, settings)
-        #         serialize_object_with_type(buffer, v, settings)
+        # TODO: on lists as well and in serialize_without_type
         elif all(type(x) is str for x in obj.keys()):
             buffer.append(STR_KEY_DICT_FLAG)
             encode_number(buffer, len(obj))
-            for k, v in obj.items():    # TODO: on lists as well and in serialize_without_type
+            for k, v in obj.items():
                 if prev_pos := settings.pointers.get(k):
                     predicted_digits = 1 + bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
                     if predicted_digits <= len(obj):
@@ -183,8 +175,6 @@ def is_consistent_type_list(obj: Union[List, Tuple]) -> bool:
     first_type = type(obj[0])
     if first_type in [list, dict, tuple, str]:
         return False
-    # if first_type is str and settings.use_pointers:
-    #     return all(type(x) is str and x not in settings.pointers for x in obj)
     return all(type(x) is first_type for x in obj)
 
 

@@ -194,7 +194,6 @@ pub unsafe extern "C" fn load_bytes(
         } else { false }
     } else { false };
     let mut pointers = FxHashMap::default();
-    // TODO: do i need to do this at all? why not just read from the buffer as it is?
     let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
         Ok(slice) => slice,
         Err(err) => {

@@ -84,7 +84,6 @@ pub unsafe fn try_encode_as_pointer(str: &*mut PyObject, buffer: &mut PyBytesBuf
             let position = (*entry.get()) as u128;
             let predicted_pointer_length = pointer_flag.len() + predict_encoded_number_length(position);
             let predicted_str_length = 1 + str_len as usize + predict_encoded_number_length(str_len as u128);
-            // todo update this in the python as well
             if predicted_pointer_length <= predicted_str_length {
                 buffer.extend_from_slice(pointer_flag)?;
                 encode_number::<NUMBER_BASE>(buffer, position)?;

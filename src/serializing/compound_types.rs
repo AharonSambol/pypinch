@@ -57,7 +57,6 @@ unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, s
     };
     let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &[NUMBER_BASE as u8 - 1])?;
     if !encoded_as_pointer {
-        // TODO: most keys are is_compact_ascii but now thats a byte longer...
         *str_count += 1;
         if is_compact_ascii {
             encode_number::<{ NUMBER_BASE - 1 }>(buffer, 1 + len as u128)?;
