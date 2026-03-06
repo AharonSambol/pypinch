@@ -19,7 +19,7 @@
         {
             safe_get!($buf, $idx, crate::utils::consts::UNEXPECTED_END_OF_INPUT)
         }
-    }
+    };
     ($buf:expr, $idx:expr, $reason:expr) => {
         {
             #[allow(unused_imports)]
