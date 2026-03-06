@@ -17,12 +17,17 @@
 #[macro_export] macro_rules! safe_get {
     ($buf:expr, $idx:expr) => {
         {
+            safe_get!($buf, $idx, crate::utils::consts::UNEXPECTED_END_OF_INPUT)
+        }
+    }
+    ($buf:expr, $idx:expr, $reason:expr) => {
+        {
             #[allow(unused_imports)]
             use crate::utils::py_helpers::ToPyErr;
             match $buf.get($idx) {
                 Some(x) => x,
                 None => {
-                    return Err(crate::utils::consts::UNEXPECTED_END_OF_INPUT.to_py_error(
+                    return Err($reason.to_py_error(
                         crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE
                     ))
                 }
