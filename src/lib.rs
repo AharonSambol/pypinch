@@ -1,4 +1,5 @@
 #![allow(static_mut_refs)]
+
 use std::os::raw::c_char;
 use std::ptr;
 
@@ -144,7 +145,7 @@ pub unsafe extern "C" fn load_bytes(
 ) -> *mut PyObject {
     let mut buffer = None;
     let mut use_tuples: bool = false;
-    let mut _stop_gc: bool;
+    let mut stop_gc: bool = false;
     let mut ignore_extra_data: bool = false;
 
     if !kwnames.is_null() {
@@ -159,7 +160,7 @@ pub unsafe extern "C" fn load_bytes(
                 use_tuples = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"stop_gc\0") {
                 let value = *args.offset(nargs + i);
-                _stop_gc = PyObject_IsTrue(value) == 1;
+                stop_gc = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"ignore_extra_data\0") {
                 let value = *args.offset(nargs + i);
                 ignore_extra_data = PyObject_IsTrue(value) == 1;
@@ -186,17 +187,30 @@ pub unsafe extern "C" fn load_bytes(
         *args
     };
 
-
+    let should_enable_gc = if stop_gc {
+        if PyGC_IsEnabled() == 1 {
+            PyGC_Disable();
+            true
+        } else { false }
+    } else { false };
     let mut pointers = FxHashMap::default();
     // TODO: do i need to do this at all? why not just read from the buffer as it is?
     let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
         Ok(slice) => slice,
-        Err(err) => return err,
+        Err(err) => {
+            if should_enable_gc {
+                PyGC_Enable();
+            }
+            return err
+        },
     };
 
     let mut string_cache = StringCache::new();
     let mut pointer = HEADER.len();
     let result = deserialize_object(slice, &mut pointer, &mut pointers, use_tuples, &mut string_cache, &mut 0);
+    if should_enable_gc {
+        PyGC_Enable();
+    }
     match result {
         Ok(result_object) => {
             if !ignore_extra_data && pointer != slice.len() {
