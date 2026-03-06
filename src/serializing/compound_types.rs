@@ -1,11 +1,11 @@
 use std::{ptr, slice};
 
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_Type};
+use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_Type};
 
 use crate::serializing::primitives::try_encode_as_pointer;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize;
-use crate::serializing::serialize::Pointers;
+use crate::serializing::serializing_string_cache::Pointers;
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
 use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
 use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, tuple_get_item};
@@ -55,7 +55,7 @@ unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, s
     } else {
         PyUnicode_AsUTF8AndSize(key, &mut len) as *const u8
     };
-    let encoded_as_pointer = try_encode_as_pointer(&key, buffer, pointers, *str_count, len, &[NUMBER_BASE as u8 - 1])?;
+    let encoded_as_pointer = try_encode_as_pointer(key, buffer, pointers, *str_count, len, &[NUMBER_BASE as u8 - 1])?;
     if !encoded_as_pointer {
         *str_count += 1;
         if is_compact_ascii {
@@ -96,7 +96,7 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
         return buffer.push(EMPTY_LIST_FLAG);
     }
 
-    if is_consistent_type_list(obj, is_list, len) {
+    if len > 1 && is_consistent_type_list(obj, is_list, len) {
         let first_item = if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) };
         if first_item == Py_None() {
             buffer.extend_from_slice(&[CONSISTENT_TYPE_LIST_FLAG, NULL_FLAG])?;
@@ -105,6 +105,29 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
         let first_type = (*first_item).ob_type;
         if first_type == &mut PyBool_Type {
             return encode_bool_list(obj, buffer, is_list, len);
+        } else if first_type == &mut PyDict_Type {
+            // TODO: let first_type = (*if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) }).ob_type;
+            //
+            // unsafe fn get_dict_keys(dict: *mut PyObject) -> Vec<*mut PyObject> {
+            //     let mut pos: Py_ssize_t = 0;
+            //     let mut key: *mut PyObject = ptr::null_mut();
+            //     let mut value: *mut PyObject = ptr::null_mut();
+            //     let mut keys = vec![];
+            //     while PyDict_Next(dict, &mut pos, &mut key, &mut value) != 0 {
+            //         keys.push(key);
+            //     }
+            //     keys
+            // }
+            // let first_dict_keys = get_dict_keys(first_item);
+            // let a = (1..len).all(|i| {
+            //     let item = if is_list {
+            //         list_get_item(obj, i)
+            //     } else {
+            //         tuple_get_item(obj, i)
+            //     };
+            //     (*item).ob_type == first_type
+            // });
+            // println!("! {}", len);
         }
         // todo else if first_type == &mut PyLong_Type {
             // buffer.push(CONSISTENT_TYPE_LIST_FLAG);

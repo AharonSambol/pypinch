@@ -2,7 +2,7 @@ use std::ffi::c_char;
 use pyo3_ffi::{Py_DECREF, Py_False, Py_INCREF, Py_None, Py_True, PyBytes_FromStringAndSize, PyFloat_FromDouble, PyNumber_Negative, PyObject};
 use rustc_hash::FxHashMap;
 
-use crate::deserializing::string_cache::StringCache;
+use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t, decode_number_usize};
 use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::{raise_mem_error_if_null, safe_get};

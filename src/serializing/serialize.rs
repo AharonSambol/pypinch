@@ -1,15 +1,12 @@
 use pyo3_ffi::*;
-use rustc_hash::FxHashMap;
 use crate::serializing::number_encoding::encode_python_int;
 use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE, TRUE_FLAG};
 use crate::utils::py_helpers::ToPyErr;
 use pyo3_ffi::{PyBool_Type, PyBytes_Type, PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyObject, PyTuple_Type, PyUnicode_Type};
 use crate::serializing::{compound_types, primitives};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
+use crate::serializing::serializing_string_cache::Pointers;
 use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
-
-pub type Pointers = FxHashMap<*mut PyObject, usize>;
-
 
 
 // todo: all_str_keys=False - if true store at the start a flag and then store all dicts without key types

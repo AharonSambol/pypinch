@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use crate::deserializing::compound_types::{decode_dict, decode_list, decode_str_key_dict};
 use crate::deserializing::consistent_typed_list::decode_consistent_type_list;
 use crate::deserializing::primitives::{decode_bytes, decode_f64, decode_false, decode_negative_int, decode_null, decode_pointer, decode_string, decode_true};
-use crate::deserializing::string_cache::StringCache;
+use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::deserializing::utils::decode_large_number;
 use crate::{raise_mem_error_if_null, safe_get, safe_new_py_dict, safe_new_py_list};
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};

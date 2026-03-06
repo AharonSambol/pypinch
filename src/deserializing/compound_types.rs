@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::decode_string;
-use crate::deserializing::string_cache::StringCache;
+use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
 use crate::utils::consts::{CORRUPTED_DATA, MIGHT_BE_ASCII, NUMBER_BASE};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};

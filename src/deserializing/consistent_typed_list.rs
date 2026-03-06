@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{raise_mem_error_if_null, safe_get, safe_new_py_list};
 use crate::deserializing::primitives::{decode_f64, decode_string};
-use crate::deserializing::string_cache::StringCache;
+use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::deserializing::utils::{decode_large_number, decode_number_py_ssize_t};
 use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, FLOAT_FLAG, INT_FLAG, LEFTMOST_BIT_MASK, MIGHT_BE_ASCII, NEGATIVE_NUMBER_SIGN, NULL_FLAG, NUMBER_BASE, STR_FLAG};
 use crate::utils::py_helpers::ToPyErr;

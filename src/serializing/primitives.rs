@@ -3,7 +3,7 @@ use std::collections::hash_map::Entry;
 use std::slice;
 use crate::raise_mem_error_if_null;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
-use crate::serializing::serialize::Pointers;
+use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{encode_number, predict_encoded_number_length};
 use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE, POINTER_FLAG, STR_FLAG};
 use crate::utils::wrappers::is_ascii;
@@ -41,7 +41,7 @@ pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poin
             return buffer.push(EMPTY_STR_FLAG);
         }
         if try_encode_as_pointer(
-            &obj,
+            obj,
             buffer,
             pointers,
             *str_count,
@@ -65,7 +65,7 @@ pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poin
         return buffer.push(EMPTY_STR_FLAG);
     }
 
-    if try_encode_as_pointer(&obj, buffer, pointers, *str_count, len, &[POINTER_FLAG])? {
+    if try_encode_as_pointer(obj, buffer, pointers, *str_count, len, &[POINTER_FLAG])? {
         return Ok(());
     }
     *str_count += 1;
@@ -78,8 +78,8 @@ pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poin
 }
 
 #[inline(always)]
-pub unsafe fn try_encode_as_pointer(str: &*mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: usize, str_len: Py_ssize_t, pointer_flag: &[u8]) -> Result<bool, *mut PyObject> {
-    match pointers.entry(*str) {
+pub unsafe fn try_encode_as_pointer(str: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: usize, str_len: Py_ssize_t, pointer_flag: &[u8]) -> Result<bool, *mut PyObject> {
+    match pointers.entry(PyStringKey(str)) {
         Entry::Occupied(entry) => {
             let position = (*entry.get()) as u128;
             let predicted_pointer_length = pointer_flag.len() + predict_encoded_number_length(position);

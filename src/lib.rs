@@ -7,7 +7,7 @@ use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
 use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::deserializing::deserialize::deserialize_object;
-use crate::deserializing::string_cache::StringCache;
+use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, SERIALIZATION_ERROR_TYPE};
