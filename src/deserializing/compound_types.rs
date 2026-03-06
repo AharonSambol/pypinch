@@ -6,7 +6,7 @@ use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::decode_string;
 use crate::deserializing::string_cache::StringCache;
 use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
-use crate::utils::consts::{MIGHT_BE_ASCII, NUMBER_BASE};
+use crate::utils::consts::{CORRUPTED_DATA, MIGHT_BE_ASCII, NUMBER_BASE};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 #[inline(always)]
@@ -62,8 +62,7 @@ unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mu
     if *safe_get!(buf, *ptr) == NUMBER_BASE as u8 - 1 {
         *ptr += 1;
         let position = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
-        // TODO: this can cause panic
-        let res = pointers[&position];
+        let res = *safe_get!(pointers, &position, CORRUPTED_DATA);
         Py_INCREF(res);
         Ok(res)
     } else {

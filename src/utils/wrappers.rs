@@ -108,7 +108,7 @@ pub unsafe fn is_gc_enabled() -> bool {
 pub unsafe fn gc_enabled() {
     #[cfg(Py_3_10)]
     {
-        PyGC_Enable()
+        PyGC_Enable();
     }
 
     #[cfg(not(Py_3_10))]
@@ -119,7 +119,7 @@ pub unsafe fn gc_enabled() {
 pub unsafe fn gc_disable() {
     #[cfg(Py_3_10)]
     {
-        PyGC_Disable()
+        PyGC_Disable();
     }
 
     #[cfg(not(Py_3_10))]

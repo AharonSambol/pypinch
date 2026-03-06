@@ -108,12 +108,10 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
             return encode_number::<NUMBER_BASE>(buffer, len as u128);
         }
         let first_type = (*first_item).ob_type;
-        if first_type == &mut PyUnicode_Type {
-            // todo?
-            // don't do anything special
-        } else if first_type == &mut PyBool_Type {
+        if first_type == &mut PyBool_Type {
             return encode_bool_list(obj, buffer, is_list, len);
-        } else if first_type == &mut PyLong_Type {
+        }
+        // todo else if first_type == &mut PyLong_Type {
             // buffer.push(CONSISTENT_TYPE_LIST_FLAG);
             // buffer.push(INT_FLAG);
             // encode_number::<NUMBER_BASE>(buffer, len as u128);
@@ -134,7 +132,7 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
             //     }
             // }
             // return Ok(())
-        }
+        // }
     }
 
     serialize_normal_list(obj, buffer, pointers, is_list, len, str_count)
