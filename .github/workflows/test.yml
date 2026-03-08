@@ -27,7 +27,7 @@ jobs:
 
     - name: Build and install Rust extension
       run: |
-        maturin build --out dist
+        maturin build --out dist --interpreter python
         pip install --no-index --find-links=dist pypinch
 
     - name: Run Tests (Rust Backend)
