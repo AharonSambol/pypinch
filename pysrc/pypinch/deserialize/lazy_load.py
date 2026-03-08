@@ -8,7 +8,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, \
     ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, EMPTY_STR_FLAG, \
-    EMPTY_BYTES_FLAG, TRUE_FLAG, FALSE_FLAG
+    EMPTY_BYTES_FLAG, TRUE_FLAG, FALSE_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII
 from pypinch.deserialize.deserialize import deserialize_object, deserialize_str
 
 from pypinch.exceptions import DeserializationError
@@ -20,6 +20,32 @@ INDEX_OUT_OF_RANGE_TEMPLATE = "Index out of range, index is `{}` but list is of 
 KEY_NOT_IN_DICT_TEMPLATE = "Key not found, key: `{}` (type `{}`)"
 
 
+class PointersHolder:
+    def __init__(self, buffer: bytes):
+        self.buffer = buffer
+        self.str_posses = []
+
+    def __getitem__(self, item):
+        if type(self.str_posses[item]) is str:
+            return self.str_posses[item]
+
+        pointer = self.str_posses[item]
+        if type(pointer) is tuple:
+            base = NUMBER_BASE - 1
+            pointer = pointer[0]
+        else:
+            base = NUMBER_BASE
+        length, pointer = decode_number(self.buffer, pointer, base=base)
+        return self.buffer[
+            #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+            pointer + (self.buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
+            :pointer + length
+        ].decode()
+
+    def append(self, string: str) -> None:
+        self.str_posses.append(string)
+
+
 def lazy_load_bytes(
     buffer: ByteLike,
     path_to_load: List[Union[str, List[int]]],
@@ -29,7 +55,7 @@ def lazy_load_bytes(
     # ignore_extra_data: bool = False
 ) -> ObjType:
     try:
-        return lazy_deserialize_object(buffer, len(HEADER), path_to_load, Settings(use_tuples=False, pointers=[]))
+        return lazy_deserialize_object(buffer, len(HEADER), path_to_load, Settings(use_tuples=False, pointers=PointersHolder(buffer)))
     except DeserializationError:
         raise
     except MemoryError:
@@ -68,6 +94,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
         if flag == DICT_FLAG:
             length, pointer = decode_number(buffer, pointer)
             for _ in range(length):
+                # TODO: check char char if it matches indexer and the moment it doesnt skip all the rest of the chars
                 key, pointer = deserialize_object(buffer, pointer, settings)
                 if key == indexer:
                     return lazy_deserialize_object(buffer, pointer, path_to_load, settings)
@@ -103,21 +130,19 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
             if buffer[pointer] == NUMBER_BASE - 1:
                 pointer = skip_number(buffer, pointer + 1)
             else:
-                _, pointer = deserialize_str(buffer, pointer, settings, base=NUMBER_BASE - 1)
+                pointer = skip_string(buffer, pointer, settings, base=NUMBER_BASE - 1)
             pointer = skip_object(buffer, pointer, settings)
         return pointer
     elif flag == ASCII_STR_FLAG:
-        _, pointer = deserialize_str(buffer, pointer, settings)
-        return pointer
+        return skip_string(buffer, pointer, settings)
     elif flag == STR_FLAG:
-        _, pointer = deserialize_str(buffer, pointer, settings)
-        return pointer
+        return skip_string(buffer, pointer, settings)
     elif flag == DICT_FLAG:
         length, pointer = decode_number(buffer, pointer)
         for _ in range(length):
             if buffer[pointer] == STR_FLAG:
                 # fast path
-                _, pointer = deserialize_str(buffer, pointer + 1, settings)
+                pointer = skip_string(buffer, pointer + 1, settings)
             else:
                 pointer = skip_object(buffer, pointer, settings)
             pointer = skip_object(buffer, pointer, settings)
@@ -153,7 +178,7 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
             return pointer
         elif typ_flag == STR_FLAG:
             for _ in range(length):
-                _, pointer = deserialize_str(buffer, pointer, settings)
+                pointer = skip_string(buffer, pointer, settings)
             return pointer
         elif typ_flag == FLOAT_FLAG:
             return pointer + BYTES_IN_DOUBLE * length
@@ -281,7 +306,7 @@ def lazy_load_bytes_list(buffer: bytes, index: int, pointer: int) -> bytes:
 
 def lazy_load_str_list(buffer: bytes, index: int, pointer: int, settings: Settings) -> str:
     for _ in range(index):
-        _, pointer = deserialize_str(buffer, pointer, settings=settings)
+        pointer = skip_string(buffer, pointer, settings)
     res, _ = deserialize_str(buffer, pointer, settings)
     return res
 
@@ -290,3 +315,11 @@ def lazy_load_float_list(buffer: bytes, index: int, pointer: int) -> float:
     pointer += BYTES_IN_DOUBLE * index
     return struct.unpack(BIG_ENDIAN_DOUBLE_FORMAT, buffer[pointer:pointer + BYTES_IN_DOUBLE])[0]
 
+
+def skip_string(buffer: bytes, pointer: int, settings: Settings, base: int = NUMBER_BASE) -> int:
+    if base == NUMBER_BASE:
+        settings.pointers.str_posses.append(pointer)
+    else:
+        settings.pointers.str_posses.append((pointer,))
+    length, pointer = decode_number(buffer, pointer, base=base)
+    return pointer + length
