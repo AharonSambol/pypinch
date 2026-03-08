@@ -22,3 +22,12 @@ def decode_number(buffer: ByteLike, pointer: int, base: int = NUMBER_BASE) -> Tu
         power *= base
         pointer += 1
     return res, pointer + 1
+
+
+def skip_number(buffer: ByteLike, pointer: int) -> int:
+    if buffer[pointer] != ENDING_FLAG:
+        return pointer + 1
+    pointer += 1
+    while buffer[pointer] != ENDING_FLAG:
+        pointer += 1
+    return pointer + 1

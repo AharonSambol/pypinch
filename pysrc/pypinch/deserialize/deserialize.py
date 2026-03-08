@@ -47,7 +47,7 @@ def load_bytes(
             gc.unfreeze()
 
 
-def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjType, int):
+def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple[ObjType, int]:
     flag = buffer[pointer]
     pointer += 1
     if flag < len(FIRST_FLAGS_LIST):
@@ -126,7 +126,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
             res_list = typing.cast(List[bytes], [None] * length)
             for i in range(length):
                 bytes_length, pointer = decode_number(buffer, pointer)
-                res_list[i] = bytes(buffer[pointer:pointer + bytes_length])
+                res_list[i] = buffer[pointer:pointer + bytes_length]
                 pointer += bytes_length
             return res_list, pointer
         elif typ_flag == STR_FLAG:
@@ -151,7 +151,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
         return num, pointer + BYTES_IN_DOUBLE
     elif flag == BYTES_FLAG:
         length, pointer = decode_number(buffer, pointer)
-        return bytes(buffer[pointer:pointer + length]), pointer + length
+        return buffer[pointer:pointer + length], pointer + length
     elif flag == POINTER_FLAG:
         position, pointer = decode_number(buffer, pointer)
         return settings.pointers[position], pointer

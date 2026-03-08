@@ -1,5 +1,7 @@
 import os
 
+from .deserialize.lazy_load import lazy_load_bytes
+
 FORCE_PYTHON = os.environ.get("PYPINCH_FORCE_PYTHON")
 
 _pypinch = None
@@ -19,5 +21,6 @@ else:
     from .serialize.serialize import dump_bytes
     from .deserialize.deserialize import load_bytes
 
+lazy_unpinch = lazy_load_bytes
 pinch = dump_bytes
 unpinch = load_bytes
