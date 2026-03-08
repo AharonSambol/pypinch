@@ -128,13 +128,13 @@ pub unsafe fn gc_disable() {
 
 #[inline(always)]
 pub unsafe fn py_unicode_data(obj: *mut PyObject) -> *const u8 {
-    #[cfg(Py_3_14)]
+    #[cfg(PyPy)]
     {
         // TODO: maybe can use PyUnicode_READ & PyUnicode_WRITE
         PyUnicode_AsUTF8(obj) as *const u8
     }
 
-    #[cfg(not(Py_3_14))]
+    #[cfg(not(PyPy))]
     {
         PyUnicode_DATA(obj) as *const u8
     }

@@ -19,7 +19,7 @@ impl<'a> StringCache<'a> {
         }
 
         let py_str = {
-            #[cfg(Py_3_14)]
+            #[cfg(PyPy)]
             {
                 raise_mem_error_if_null!(PyUnicode_FromStringAndSize(
                     buf_slice.as_ptr() as *const c_char,
@@ -27,7 +27,7 @@ impl<'a> StringCache<'a> {
                 ))
             }
 
-            #[cfg(not(Py_3_14))]
+            #[cfg(not(PyPy))]
             {
                 if IS_ASCII {
                     let py_str = raise_mem_error_if_null!(PyUnicode_New(buf_slice.len() as Py_ssize_t, 127));
