@@ -32,4 +32,5 @@ def test__dump_dict_w_tuple_key__serialization_error():
         assert True
     except:
         assert False
-    assert False
+    else:
+        assert False
