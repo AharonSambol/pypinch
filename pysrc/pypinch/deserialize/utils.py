@@ -22,16 +22,3 @@ def decode_number(buffer: ByteLike, pointer: int, base: int = NUMBER_BASE) -> Tu
         power *= base
         pointer += 1
     return res, pointer + 1
-
-
-def decode_number_from_bytearray(num: bytearray, pointer: int, base: int = NUMBER_BASE) -> Tuple[int, int]:
-    if num[pointer] != ENDING_FLAG:
-        return num[pointer], pointer + 1
-    power = 1
-    res = 0
-    pointer += 1
-    while num[pointer] != ENDING_FLAG:
-        res += num[pointer] * power
-        power *= base
-        pointer += 1
-    return res, pointer + 1
