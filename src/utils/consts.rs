@@ -28,6 +28,7 @@ pub const DICT_FLAG: u8 = 16;
 pub const STR_KEY_DICT_FLAG: u8 = 17;
 pub const POINTER_FLAG: u8 = 18;
 pub const ASCII_STR_FLAG: u8 = 19;
+pub const LIST_OF_STRUCTURED_DICTS_FLAG: u8 = 20;
 
 pub const AMOUNT_OF_USED_FLAGS: u8 = 30; // for future flags
 

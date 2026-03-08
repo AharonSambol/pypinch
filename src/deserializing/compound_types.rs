@@ -1,4 +1,4 @@
-use pyo3_ffi::{Py_DECREF, Py_INCREF, PyDict_SetItem, PyObject};
+use pyo3_ffi::{Py_DECREF, Py_INCREF, Py_ssize_t, PyDict_SetItem, PyObject};
 use rustc_hash::FxHashMap;
 
 use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
@@ -89,4 +89,47 @@ pub unsafe fn decode_dict<'a>(
         Py_DECREF(value);
     }
     Ok(dict)
+}
+
+pub unsafe fn decode_list_of_structured_dicts<'a>(
+    buf: &'a [u8],
+    ptr: &mut usize,
+    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    use_tuples: bool,
+    string_cache: &mut StringCache<'a>,
+    str_count: &mut usize,
+) -> Result<*mut PyObject, *mut PyObject> {
+    let list_len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
+    let list = safe_new_py_list!(list_len, use_tuples);
+
+    // first dict:
+    let dict_len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
+    let first_dict = safe_new_py_dict!();
+    let mut keys = Vec::with_capacity(dict_len);
+    for _ in 0..dict_len {
+        let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+        let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+        PyDict_SetItem(first_dict, key, value);
+        Py_DECREF(value);
+        keys.push(key);
+    }
+    if use_tuples { tuple_set_item(list, 0, first_dict); } else { list_set_item(list, 0, first_dict); }
+
+    // the rest of the dicts:
+    for i in 1usize..list_len as usize {
+        let dict = safe_new_py_dict!();
+        for key_index in 0..dict_len {
+            let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+            PyDict_SetItem(dict, keys[key_index], value);
+            Py_DECREF(value);
+        }
+        if use_tuples { tuple_set_item(list, i as Py_ssize_t, dict); } else { list_set_item(list, i as Py_ssize_t, dict); }
+    }
+
+    // free the keys - PyDict_SetItem doesnt steal the reference
+    for key in keys {
+        Py_DECREF(key);
+    }
+
+    Ok(list)
 }

@@ -1,13 +1,12 @@
 use std::{ptr, slice};
-
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyLong_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_Type};
-
+use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH};
+use rustc_hash::FxHashMap;
 use crate::serializing::primitives::try_encode_as_pointer;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
-use crate::serializing::serialize;
-use crate::serializing::serializing_string_cache::Pointers;
+use crate::serializing::{serialize};
+use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
-use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
+use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
 use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, tuple_get_item};
 
 #[inline(always)]
@@ -106,28 +105,9 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
         if first_type == &mut PyBool_Type {
             return encode_bool_list(obj, buffer, is_list, len);
         } else if first_type == &mut PyDict_Type {
-            // TODO: let first_type = (*if is_list { list_get_item(obj, 0) } else { tuple_get_item(obj, 0) }).ob_type;
-            //
-            // unsafe fn get_dict_keys(dict: *mut PyObject) -> Vec<*mut PyObject> {
-            //     let mut pos: Py_ssize_t = 0;
-            //     let mut key: *mut PyObject = ptr::null_mut();
-            //     let mut value: *mut PyObject = ptr::null_mut();
-            //     let mut keys = vec![];
-            //     while PyDict_Next(dict, &mut pos, &mut key, &mut value) != 0 {
-            //         keys.push(key);
-            //     }
-            //     keys
-            // }
-            // let first_dict_keys = get_dict_keys(first_item);
-            // let a = (1..len).all(|i| {
-            //     let item = if is_list {
-            //         list_get_item(obj, i)
-            //     } else {
-            //         tuple_get_item(obj, i)
-            //     };
-            //     (*item).ob_type == first_type
-            // });
-            // println!("! {}", len);
+            if encode_structured_list(obj, buffer, pointers, str_count, is_list, len, first_item)? {
+                return Ok(())
+            }
         }
         // todo else if first_type == &mut PyLong_Type {
             // buffer.push(CONSISTENT_TYPE_LIST_FLAG);
@@ -154,6 +134,86 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
     }
 
     serialize_normal_list(obj, buffer, pointers, is_list, len, str_count)
+}
+
+unsafe fn get_dict_keys(dict: *mut PyObject) -> Pointers {
+    let mut pos: Py_ssize_t = 0;
+    let mut key: *mut PyObject = ptr::null_mut();
+    let mut value: *mut PyObject = ptr::null_mut();
+    let mut keys = FxHashMap::default();
+
+    while PyDict_Next(dict, &mut pos, &mut key, &mut value) != 0 {
+        keys.insert(PyStringKey(key), pos as usize - 1);
+    }
+    keys
+}
+unsafe fn compare_dict_keys(dict: *mut PyObject, expected_keys: &Pointers) -> bool {
+    let mut pos: Py_ssize_t = 0;
+    let mut key: *mut PyObject = ptr::null_mut();
+    let mut value: *mut PyObject = ptr::null_mut();
+    let keys_count = PyDict_Size(dict);
+    if keys_count as usize != expected_keys.len() { return false; }
+    while PyDict_Next(dict, &mut pos, &mut key, &mut value) != 0 {
+        if !expected_keys.contains_key(&PyStringKey(key)) {
+            return false
+        }
+    }
+    true
+}
+
+unsafe fn encode_structured_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize, is_list: bool, len: isize, first_item: *mut PyObject) -> Result<bool, *mut PyObject> {
+    let first_dict_keys = get_dict_keys(first_item);
+    let len_of_dicts = first_dict_keys.len();
+
+    if len_of_dicts == 0 {
+        // todo: fast path for if the dict is empty
+    }
+    let all_same_structure = (1..len).all(|i| {
+        let item = if is_list {
+            list_get_item(obj, i)
+        } else {
+            tuple_get_item(obj, i)
+        };
+        compare_dict_keys(item, &first_dict_keys)
+    });
+
+    if !all_same_structure {
+        return Ok(false);
+    }
+    buffer.push(LIST_OF_STRUCTURED_DICTS_FLAG)?;
+    encode_number::<NUMBER_BASE>(buffer, len as u128)?;
+    encode_number::<NUMBER_BASE>(buffer, first_dict_keys.len() as u128)?;
+
+    // first dict - normal (for structure)
+    let mut pos = 0;
+    let mut key: *mut PyObject = ptr::null_mut();
+    let mut val: *mut PyObject = ptr::null_mut();
+    while PyDict_Next(first_item, &mut pos, &mut key, &mut val) != 0 {
+        serialize::serialize(key, buffer, pointers, str_count)?;
+        serialize::serialize(val, buffer, pointers, str_count)?;
+    }
+
+    let mut values = Vec::with_capacity(len_of_dicts);
+    values.set_len(len_of_dicts);
+    for i in 1..len {
+        let inner_dict = if is_list {
+            list_get_item(obj, i)
+        } else {
+            tuple_get_item(obj, i)
+        };
+
+        let mut pos = 0;
+        let mut key: *mut PyObject = ptr::null_mut();
+        let mut val: *mut PyObject = ptr::null_mut();
+        while PyDict_Next(inner_dict, &mut pos, &mut key, &mut val) != 0 {
+            values[first_dict_keys[&PyStringKey(key)]] = val;
+        }
+
+        for val in &values {
+            serialize::serialize(*val, buffer, pointers, str_count)?;
+        }
+    }
+    return Ok(true);
 }
 
 #[inline(always)]

@@ -39,4 +39,3 @@ pub unsafe fn serialize(
         Err(format!("Unexpected type: {:?}", (*typ).tp_name).to_py_error(SERIALIZATION_ERROR_TYPE))
     }
 }
-
