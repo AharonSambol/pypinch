@@ -1,12 +1,13 @@
 use std::{ptr, slice};
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyObject, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH};
+use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyObject, PyTuple_Type, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_Type};
 use rustc_hash::FxHashMap;
-use crate::serializing::primitives::try_encode_as_pointer;
+use crate::serializing::primitives::{serialize_str, try_encode_as_pointer};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::{serialize};
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
-use crate::serializing::utils::{all_dict_keys_are_str, encode_number};
+use crate::serializing::utils::{all_dict_keys_are_str, encode_number, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
+use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, tuple_get_item};
 
 #[inline(always)]
@@ -38,6 +39,9 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poi
     let mut key: *mut PyObject = ptr::null_mut();
     let mut val: *mut PyObject = ptr::null_mut();
     while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
+        if (*key).ob_type == &mut PyTuple_Type {
+            return Err("invalid type for dict key: tuple".to_py_error(SERIALIZATION_ERROR_TYPE));
+        }
         serialize::serialize(key, buffer, pointers, str_count)?;
         serialize::serialize(val, buffer, pointers, str_count)?;
     }
@@ -136,16 +140,19 @@ pub unsafe fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointe
     serialize_normal_list(obj, buffer, pointers, is_list, len, str_count)
 }
 
-unsafe fn get_dict_keys(dict: *mut PyObject) -> Pointers {
+unsafe fn get_dict_keys(dict: *mut PyObject) -> Option<Pointers> {
     let mut pos: Py_ssize_t = 0;
     let mut key: *mut PyObject = ptr::null_mut();
     let mut value: *mut PyObject = ptr::null_mut();
     let mut keys = FxHashMap::default();
 
     while PyDict_Next(dict, &mut pos, &mut key, &mut value) != 0 {
+        if (*key).ob_type != &mut PyUnicode_Type {
+            return None;
+        }
         keys.insert(PyStringKey(key), pos as usize - 1);
     }
-    keys
+    Some(keys)
 }
 unsafe fn compare_dict_keys(dict: *mut PyObject, expected_keys: &Pointers) -> bool {
     let mut pos: Py_ssize_t = 0;
@@ -162,7 +169,10 @@ unsafe fn compare_dict_keys(dict: *mut PyObject, expected_keys: &Pointers) -> bo
 }
 
 unsafe fn encode_structured_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize, is_list: bool, len: isize, first_item: *mut PyObject) -> Result<bool, *mut PyObject> {
-    let first_dict_keys = get_dict_keys(first_item);
+    let first_dict_keys = match get_dict_keys(first_item) {
+        Some(keys) => keys,
+        None => return Ok(false),
+    };
     let len_of_dicts = first_dict_keys.len();
 
     if len_of_dicts == 0 {
@@ -189,7 +199,7 @@ unsafe fn encode_structured_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer,
     let mut key: *mut PyObject = ptr::null_mut();
     let mut val: *mut PyObject = ptr::null_mut();
     while PyDict_Next(first_item, &mut pos, &mut key, &mut val) != 0 {
-        serialize::serialize(key, buffer, pointers, str_count)?;
+        serialize_str(key, buffer, pointers, str_count)?;
         serialize::serialize(val, buffer, pointers, str_count)?;
     }
 

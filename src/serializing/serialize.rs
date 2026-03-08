@@ -1,7 +1,7 @@
 use pyo3_ffi::*;
 use crate::serializing::number_encoding::encode_python_int;
 use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE, TRUE_FLAG};
-use crate::utils::py_helpers::ToPyErr;
+use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use pyo3_ffi::{PyBool_Type, PyBytes_Type, PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyObject, PyTuple_Type, PyUnicode_Type};
 use crate::serializing::{compound_types, primitives};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
@@ -36,6 +36,6 @@ pub unsafe fn serialize(
     } else if obj == Py_None() {
         buffer.push(NULL_FLAG)
     } else {
-        Err(format!("Unexpected type: {:?}", (*typ).tp_name).to_py_error(SERIALIZATION_ERROR_TYPE))
+        Err(format!("Unexpected type: {}", pretty_type(obj)).to_py_error(SERIALIZATION_ERROR_TYPE))
     }
 }

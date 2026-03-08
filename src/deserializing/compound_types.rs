@@ -5,8 +5,9 @@ use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::decode_string;
 use crate::deserializing::deserializing_string_cache::StringCache;
-use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize};
+use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize, DESERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::{CORRUPTED_DATA, MIGHT_BE_ASCII, NUMBER_BASE};
+use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 #[inline(always)]
@@ -84,7 +85,9 @@ pub unsafe fn decode_dict<'a>(
     for _ in 0..len {
         let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
-        PyDict_SetItem(dict, key, value);
+        if PyDict_SetItem(dict, key, value) != 0 {
+            return Err(format!("invalid type for a key: {}", pretty_type(key)).to_py_error(DESERIALIZATION_ERROR_TYPE));
+        }
         Py_DECREF(key);
         Py_DECREF(value);
     }

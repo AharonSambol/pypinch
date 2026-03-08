@@ -1,6 +1,6 @@
 use std::{ptr, slice};
-use std::ffi::CString;
-use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString};
+use std::ffi::{CStr, CString};
+use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_Type, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString};
 
 use crate::{py_string_format, raise_mem_error_if_null};
 
@@ -43,6 +43,23 @@ pub unsafe fn import_object_from_python(module_name: &str, object_name: &str) ->
 
     Py_DECREF(module);
     object
+}
+
+pub unsafe fn pretty_type(object: *mut PyObject) -> String {
+    let type_ptr = PyObject_Type(object);
+    if type_ptr.is_null() { return "Error".to_string(); }
+
+    let repr_ptr = PyObject_Repr(type_ptr);
+    Py_DECREF(type_ptr);
+
+    if repr_ptr.is_null() { return "Error".to_string(); }
+
+    let c_ptr = PyUnicode_AsUTF8(repr_ptr);
+    let result = CStr::from_ptr(c_ptr).to_string_lossy().into_owned();
+
+    Py_DECREF(repr_ptr);
+
+    result
 }
 
 pub trait ToPyErr<T> {
