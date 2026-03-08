@@ -1,4 +1,5 @@
 use pyo3_ffi::*;
+
 #[inline(always)]
 pub unsafe fn get_tuple_size(obj: *mut PyObject) -> isize {
     #[cfg(PyPy)]
@@ -123,4 +124,17 @@ pub unsafe fn gc_disable() {
 
     #[cfg(not(Py_3_10))]
     {} // no support :(
+}
+
+#[inline(always)]
+pub unsafe fn py_unicode_data(obj: *mut PyObject) -> *const u8 {
+    #[cfg(Py_3_14)]
+    {
+        PyUnicode_AsUTF8(obj)
+    }
+
+    #[cfg(not(Py_3_14))]
+    {
+        PyUnicode_DATA(obj) as *mut u8
+    }
 }

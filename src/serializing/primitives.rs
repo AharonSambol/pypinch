@@ -6,8 +6,7 @@ use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{encode_number, predict_encoded_number_length};
 use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE, POINTER_FLAG, STR_FLAG};
-use crate::utils::py_helpers::py_unicode_data;
-use crate::utils::wrappers::is_ascii;
+use crate::utils::wrappers::{is_ascii, py_unicode_data};
 
 #[inline(always)]
 pub unsafe fn serialize_bytes(obj: *mut PyObject, buffer: &mut PyBytesBuffer) -> Result<(), *mut PyObject> {

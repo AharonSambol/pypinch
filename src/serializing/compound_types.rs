@@ -7,8 +7,8 @@ use crate::serializing::serialize;
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
-use crate::utils::py_helpers::{py_unicode_data, ToPyErr};
-use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, tuple_get_item};
+use crate::utils::py_helpers::{ToPyErr};
+use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, py_unicode_data, tuple_get_item};
 
 #[inline(always)]
 pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject>{
