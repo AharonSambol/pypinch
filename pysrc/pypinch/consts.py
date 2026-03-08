@@ -33,14 +33,10 @@ DICT_FLAG = 16
 STR_KEY_DICT_FLAG = 17
 POINTER_FLAG = 18
 ASCII_STR_FLAG = 19
+LIST_OF_STRUCTURED_DICTS_FLAG = 20
 
 AMOUNT_OF_USED_FLAGS = 30   # for future flags
-# # SMALL_INTS = {i: bytes([x])[0] for i, x in enumerate(nums)}
-# # REVERSE_SMALL_INTS = {v: k for k, v in SMALL_INTS.items()}
-#
-# SMALL_INTS = [bytes([x])[0] for x in range()]
-# FIRST_SMALL_INT = SMALL_INTS[0]
-# # REVERSE_SMALL_INTS = [None if i < FIRST_SMALL_INT else i - FIRST_SMALL_INT for i in range(255)]
+
 ENCODED_NUMBER_LIMITS = [
     254,
     255,

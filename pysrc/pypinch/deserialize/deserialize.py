@@ -9,7 +9,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, \
-    INVALID_UTF_8_START_BYTE_COMPACT_ASCII, ASCII_STR_FLAG
+    INVALID_UTF_8_START_BYTE_COMPACT_ASCII, ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG
 
 from pypinch.exceptions import DeserializationError
 from pypinch.deserialize.settings import Settings
@@ -155,9 +155,27 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> (ObjT
     elif flag == POINTER_FLAG:
         position, pointer = decode_number(buffer, pointer)
         return settings.pointers[position], pointer
-    elif flag == INT_FLAG:
-        raise DeserializationError("unexpected flag")
-    elif flag == BOOL_FLAG:
+    elif flag == LIST_OF_STRUCTURED_DICTS_FLAG:
+        list_length, pointer = decode_number(buffer, pointer)
+        dict_length, pointer = decode_number(buffer, pointer)
+        res_list = typing.cast(List[typing.Dict], [None] * list_length)
+        # first dict:
+        first_dict = {}
+        keys = typing.cast(List[str], [None] * dict_length)
+        for i in range(dict_length):
+            k, pointer = deserialize_object(buffer, pointer, settings)
+            v, pointer = deserialize_object(buffer, pointer, settings)
+            first_dict[k] = v
+            keys[i] = k
+        res_list[0] = first_dict
+        # rest of the dicts:
+        for list_idx in range(1, list_length):
+            dct = {}
+            for i, key in enumerate(keys):
+                dct[key], pointer = deserialize_object(buffer, pointer, settings)
+            res_list[list_idx] = dct
+        return res_list, pointer
+    elif flag < AMOUNT_OF_USED_FLAGS:
         raise DeserializationError("unexpected flag")
     else:
         return flag - AMOUNT_OF_USED_FLAGS, pointer

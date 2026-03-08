@@ -40,7 +40,7 @@ pub unsafe fn serialize_dict(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poi
     let mut val: *mut PyObject = ptr::null_mut();
     while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
         if (*key).ob_type == &mut PyTuple_Type {
-            return Err("invalid type for dict key: tuple".to_py_error(SERIALIZATION_ERROR_TYPE));
+            return Err("Invalid type for dict key: tuple".to_py_error(SERIALIZATION_ERROR_TYPE));
         }
         serialize::serialize(key, buffer, pointers, str_count)?;
         serialize::serialize(val, buffer, pointers, str_count)?;
@@ -174,10 +174,6 @@ unsafe fn encode_structured_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer,
         None => return Ok(false),
     };
     let len_of_dicts = first_dict_keys.len();
-
-    if len_of_dicts == 0 {
-        // todo: fast path for if the dict is empty
-    }
     let all_same_structure = (1..len).all(|i| {
         let item = if is_list {
             list_get_item(obj, i)

@@ -1,6 +1,6 @@
 import pytest
 
-from pypinch.exceptions import DeserializationError
+from pypinch.exceptions import DeserializationError, SerializationError
 import pypinch
 
 
@@ -20,6 +20,16 @@ def test__load_invalid_data__dies_gracefully(data: bytes):
     try:
         pypinch.load_bytes(data)
     except DeserializationError:
-        return True
+        assert True
     except:
         assert False
+
+
+def test__dump_dict_w_tuple_key__serialization_error():
+    try:
+        pypinch.dump_bytes({(1, 2): 4})
+    except SerializationError:
+        assert True
+    except:
+        assert False
+    assert False

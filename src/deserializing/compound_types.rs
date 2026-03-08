@@ -86,7 +86,7 @@ pub unsafe fn decode_dict<'a>(
         let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         if PyDict_SetItem(dict, key, value) != 0 {
-            return Err(format!("invalid type for a key: {}", pretty_type(key)).to_py_error(DESERIALIZATION_ERROR_TYPE));
+            return Err(format!("Invalid type for a key: {}", pretty_type(key)).to_py_error(DESERIALIZATION_ERROR_TYPE));
         }
         Py_DECREF(key);
         Py_DECREF(value);

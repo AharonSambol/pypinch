@@ -9,7 +9,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, \
     POINTER_FLAG, HEADER, \
     BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, \
-    ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+    ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_OF_STRUCTURED_DICTS_FLAG
 from pypinch.exceptions import SerializationError
 from pypinch.serialize.settings import Settings
 from pypinch.serialize.utils import encode_number
@@ -42,7 +42,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
         if len(obj) == 0:
             buffer.append(EMPTY_STR_FLAG)
             return
-        if prev_pos := settings.pointers.get(obj):
+        if (prev_pos := settings.pointers.get(obj)) is not None:
             predicted_pointer_length = bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
             predicted_str_length = len(obj) + bisect.bisect_left(ENCODED_NUMBER_LIMITS, len(obj))
             if predicted_pointer_length <= predicted_str_length:
@@ -107,6 +107,28 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
                         byte = number_of_bits = 0
                 if number_of_bits:
                     buffer.append(byte << (NUMBER_OF_BITS_IN_BYTE - number_of_bits))
+            elif first_type is dict:
+                first_keys = obj[0].keys()
+                if (
+                    all(type(k) is str for k in first_keys)
+                    and all(len(x) == len(first_keys) for x in obj[1:])
+                    and all(x.keys() == first_keys for x in obj[1:])
+                ):
+                    buffer.append(LIST_OF_STRUCTURED_DICTS_FLAG)
+                    encode_number(buffer, len(obj))
+                    encode_number(buffer, len(first_keys))
+
+                    # first dict:
+                    for k, v in obj[0].items():
+                        serialize_object_with_type(buffer, k, settings)
+                        serialize_object_with_type(buffer, v, settings)
+
+                    # the rest:
+                    for item in obj[1:]:
+                        for key in first_keys:
+                            serialize_object_with_type(buffer, item[key], settings)
+                else:
+                    serialize_normal_list(buffer, obj, settings)
             else:
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 try:
@@ -128,7 +150,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(STR_KEY_DICT_FLAG)
             encode_number(buffer, len(obj))
             for k, v in obj.items():
-                if prev_pos := settings.pointers.get(k):
+                if (prev_pos := settings.pointers.get(k)) is not None:
                     predicted_digits = 1 + bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
                     if predicted_digits <= len(obj):
                         buffer.append(NUMBER_BASE - 1)
@@ -142,6 +164,8 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(DICT_FLAG)
             encode_number(buffer, len(obj))
             for k, v in obj.items():
+                if type(k) is tuple:
+                    raise SerializationError("Invalid type for dict key: tuple")
                 serialize_object_with_type(buffer, k, settings)
                 serialize_object_with_type(buffer, v, settings)
     elif typ is float:
@@ -173,7 +197,7 @@ def is_consistent_type_list(obj: Union[List, Tuple]) -> bool:
     if len(obj) <= 1:
         return False
     first_type = type(obj[0])
-    if first_type in [list, dict, tuple, str]:
+    if first_type in [list, tuple, str]:
         return False
     return all(type(x) is first_type for x in obj)
 
@@ -214,6 +238,8 @@ def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Set
             buffer.append(DICT_FLAG)
             encode_number(buffer, len(obj))
             for k, v in obj.items():
+                if type(k) is tuple:
+                    raise SerializationError("Invalid type for dict key: tuple")
                 serialize_object_with_type(buffer, k, settings)
                 serialize_object_with_type(buffer, v, settings)
     elif typ is float:

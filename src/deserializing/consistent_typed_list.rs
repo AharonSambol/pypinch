@@ -32,7 +32,7 @@ pub unsafe fn decode_consistent_type_list<'a>(
         STR_FLAG => decode_str_list(use_tuples, buf, ptr, pointers, string_cache, str_count, len),
         FLOAT_FLAG => decode_floats_list(use_tuples, buf, ptr, len),
         _ => {
-            return Err("unexpected consistent list type".to_py_error(PyExc_TypeError));
+            return Err("Unexpected consistent list type".to_py_error(PyExc_TypeError));
         }
     }
 }

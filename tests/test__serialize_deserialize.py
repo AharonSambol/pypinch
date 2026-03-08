@@ -58,6 +58,8 @@ ALL_TYPES_OF_OBJECTS = [
     ([1, "asdg", b"234sa", 4.5, [1, 2, 3, 4, 5], False, [], None],),
 
     ({"a": "sdgaeiogn", "waegw": 123, "sdagweg": list(range(10)), "aegsag": {"asdg": 235, "Asg": b"asg"}},),
+    ({"a": "sdgaeiogn", 1: "123"},),
+    ({"": "", "\"": None},),
     ({1: "afdbda", "ar": "23wesd", False: 23453, 1234: 12324356, "": {"sgdfn32rwefsdvre": 34}},),
 
     ({"a": "sdgaeiogn", "content": b"1243567" * 1024 * 1024 * 50, "sdagweg": list(range(10)),
