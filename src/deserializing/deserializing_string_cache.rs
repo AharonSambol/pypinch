@@ -1,7 +1,8 @@
 use std::ffi::c_char;
-use pyo3_ffi::{Py_INCREF, Py_ssize_t, PyObject, PyUnicode_DATA, PyUnicode_FromStringAndSize, PyUnicode_New};
+use pyo3_ffi::{Py_INCREF, Py_ssize_t, PyObject, PyUnicode_FromStringAndSize, PyUnicode_New};
 use rustc_hash::FxHashMap;
 use crate::raise_mem_error_if_null;
+use crate::utils::py_helpers::py_unicode_data;
 
 pub struct StringCache<'a> {
     cache: FxHashMap<&'a [u8], *mut PyObject>,
@@ -21,7 +22,7 @@ impl<'a> StringCache<'a> {
         let py_str = if IS_ASCII {
             let py_str = raise_mem_error_if_null!(PyUnicode_New(buf_slice.len() as Py_ssize_t, 127));
 
-            let dest_ptr = PyUnicode_DATA(py_str) as *mut u8;
+            let dest_ptr = py_unicode_data(py_str);
 
             std::ptr::copy_nonoverlapping(buf_slice.as_ptr(), dest_ptr, buf_slice.len());
             py_str

@@ -1,13 +1,13 @@
 use std::{ptr, slice};
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyObject, PyTuple_Type, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH, PyUnicode_Type};
+use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyObject, PyTuple_Type, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH, PyUnicode_Type};
 use rustc_hash::FxHashMap;
 use crate::serializing::primitives::{serialize_str, try_encode_as_pointer};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
-use crate::serializing::{serialize};
+use crate::serializing::serialize;
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
-use crate::utils::py_helpers::ToPyErr;
+use crate::utils::py_helpers::{py_unicode_data, ToPyErr};
 use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, tuple_get_item};
 
 #[inline(always)]
@@ -54,7 +54,7 @@ unsafe fn encode_dict_key(buffer: &mut PyBytesBuffer, pointers: &mut Pointers, s
     let is_compact_ascii = is_ascii(key);
     let data = if is_compact_ascii {
         len = PyUnicode_GET_LENGTH(key);
-        PyUnicode_DATA(key) as *const u8
+        py_unicode_data(key)
     } else {
         PyUnicode_AsUTF8AndSize(key, &mut len) as *const u8
     };

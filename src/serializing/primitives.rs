@@ -1,4 +1,4 @@
-use pyo3_ffi::{Py_ssize_t, PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_DATA, PyUnicode_GET_LENGTH};
+use pyo3_ffi::{Py_ssize_t, PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH};
 use std::collections::hash_map::Entry;
 use std::slice;
 use crate::raise_mem_error_if_null;
@@ -6,6 +6,7 @@ use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{encode_number, predict_encoded_number_length};
 use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE, POINTER_FLAG, STR_FLAG};
+use crate::utils::py_helpers::py_unicode_data;
 use crate::utils::wrappers::is_ascii;
 
 #[inline(always)]
@@ -51,7 +52,7 @@ pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poin
             return Ok(());
         }
         // Skip the PyASCIIObject header
-        let data_ptr = PyUnicode_DATA(obj) as *const u8;
+        let data_ptr = py_unicode_data(obj);
 
         *str_count += 1;
         buffer.push(ASCII_STR_FLAG)?;

@@ -1,5 +1,4 @@
 use pyo3_ffi::*;
-
 #[inline(always)]
 pub unsafe fn get_tuple_size(obj: *mut PyObject) -> isize {
     #[cfg(PyPy)]

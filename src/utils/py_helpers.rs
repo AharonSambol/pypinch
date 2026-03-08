@@ -1,6 +1,6 @@
 use std::{ptr, slice};
 use std::ffi::{CStr, CString};
-use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_Type, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString};
+use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_Type, PyUnicode_1BYTE_DATA, PyUnicode_1BYTE_KIND, PyUnicode_2BYTE_DATA, PyUnicode_2BYTE_KIND, PyUnicode_4BYTE_DATA, PyUnicode_4BYTE_KIND, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, PyUnicode_KIND};
 
 use crate::{py_string_format, raise_mem_error_if_null};
 
@@ -75,5 +75,15 @@ impl ToPyErr<String> for String {
 impl ToPyErr<&str> for &str {
     unsafe fn to_py_error(&self, typ: *mut PyObject) -> *mut PyObject {
         self.to_string().to_py_error(typ)
+    }
+}
+
+#[inline(always)]
+pub unsafe fn py_unicode_data(obj: *mut PyObject) -> *mut u8 {
+    match PyUnicode_KIND(obj) {
+        PyUnicode_1BYTE_KIND => PyUnicode_1BYTE_DATA(obj) as *mut u8,
+        PyUnicode_2BYTE_KIND => PyUnicode_2BYTE_DATA(obj) as *mut u8,
+        PyUnicode_4BYTE_KIND => PyUnicode_4BYTE_DATA(obj) as *mut u8,
+        _ => unreachable!(),
     }
 }
