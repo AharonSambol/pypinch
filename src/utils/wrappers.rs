@@ -127,19 +127,6 @@ pub fn gc_disable() {
 }
 
 #[inline(always)]
-pub fn call_no_args(method: *mut PyObject) -> *mut PyObject {
-    #[cfg(Py_3_9)]
-    unsafe {
-        PyObject_CallNoArgs(method)
-    }
-
-    #[cfg(not(Py_3_9))]
-    {
-        PyObject_CallObject(method, std::ptr::null_mut())
-    }
-}
-
-#[inline(always)]
 pub fn py_unicode_data(obj: *mut PyObject) -> *const u8 {
     #[cfg(PyPy)]
     unsafe {
