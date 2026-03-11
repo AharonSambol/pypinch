@@ -1,8 +1,11 @@
-use std::ffi::{c_long, c_ulonglong};
-use pyo3_ffi::{Py_DECREF, Py_ssize_t, PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject};
-use std::ptr;
-use crate::{raise_mem_error_if_null, safe_get};
 use crate::utils::consts::ENDING_FLAG;
+use crate::{raise_mem_error_if_null, safe_get};
+use pyo3_ffi::{
+    PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject,
+    Py_DECREF, Py_ssize_t,
+};
+use std::ffi::{c_long, c_ulonglong};
+use std::ptr;
 
 pub static mut DESERIALIZATION_ERROR_TYPE: *mut PyObject = ptr::null_mut();
 
@@ -61,14 +64,16 @@ pub fn decode_large_number<const BASE: u128>(
     let byte = *safe_get!(buf, *ptr);
     *ptr += 1;
     if byte != ENDING_FLAG {
-        return Ok(raise_mem_error_if_null!(unsafe { PyLong_FromLong(byte as c_long) }));
+        return Ok(raise_mem_error_if_null!(unsafe {
+            PyLong_FromLong(byte as c_long)
+        }));
     }
 
     let mut num_length = 1;
     let mut temp_ptr = 0;
     loop {
         if *safe_get!(buf, *ptr + temp_ptr) == ENDING_FLAG {
-            break
+            break;
         }
         num_length += 1;
         temp_ptr += 1;
@@ -78,12 +83,9 @@ pub fn decode_large_number<const BASE: u128>(
         *ptr -= 1;
         let res = decode_number_c_ulonglong::<BASE>(buf, ptr)?;
         unsafe {
-            return Ok(raise_mem_error_if_null!(
-                PyLong_FromUnsignedLongLong(res)
-            ));
+            return Ok(raise_mem_error_if_null!(PyLong_FromUnsignedLongLong(res)));
         }
     }
-
 
     let mut res: u128 = BASE;
     let mut mul: u128 = 1;

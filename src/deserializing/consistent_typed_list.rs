@@ -1,12 +1,18 @@
 use std::ffi::c_char;
 
-use pyo3_ffi::{PyBytes_FromStringAndSize, PyExc_TypeError, PyObject, Py_False, Py_INCREF, Py_None, Py_True, Py_ssize_t};
+use pyo3_ffi::{
+    PyBytes_FromStringAndSize, PyExc_TypeError, PyObject, Py_False, Py_INCREF, Py_None, Py_True,
+    Py_ssize_t,
+};
 use rustc_hash::FxHashMap;
 
 use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::deserializing::primitives::{decode_f64, decode_string};
 use crate::deserializing::utils::decode_number_py_ssize_t;
-use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, FLOAT_FLAG, LEFTMOST_BIT_MASK, MIGHT_BE_ASCII, NULL_FLAG, NUMBER_BASE, STR_FLAG};
+use crate::utils::consts::{
+    BOOL_FLAG, BYTES_FLAG, FLOAT_FLAG, LEFTMOST_BIT_MASK, MIGHT_BE_ASCII, NULL_FLAG, NUMBER_BASE,
+    STR_FLAG,
+};
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 use crate::{raise_mem_error_if_null, safe_get, safe_new_py_list};
@@ -30,13 +36,16 @@ pub fn decode_consistent_type_list<'a>(
         BYTES_FLAG => decode_bytes_list(use_tuples, buf, ptr, len),
         STR_FLAG => decode_str_list(use_tuples, buf, ptr, pointers, string_cache, str_count, len),
         FLOAT_FLAG => decode_floats_list(use_tuples, buf, ptr, len),
-        _ => {
-            Err("Unexpected consistent list type".to_py_error(unsafe { PyExc_TypeError }))
-        }
+        _ => Err("Unexpected consistent list type".to_py_error(unsafe { PyExc_TypeError })),
     }
 }
 
-fn decode_floats_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
+fn decode_floats_list(
+    use_tuples: bool,
+    buf: &[u8],
+    ptr: &mut usize,
+    len: Py_ssize_t,
+) -> Result<*mut PyObject, *mut PyObject> {
     let list = safe_new_py_list!(len, use_tuples);
     for i in 0..len {
         let py_float = decode_f64(buf, ptr)?;
@@ -56,7 +65,7 @@ fn decode_str_list<'a>(
     pointers: &mut FxHashMap<usize, *mut PyObject>,
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
-    len: Py_ssize_t
+    len: Py_ssize_t,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let list = safe_new_py_list!(len, use_tuples);
     for i in 0..len {
@@ -76,7 +85,12 @@ fn decode_str_list<'a>(
     Ok(list)
 }
 
-fn decode_bytes_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
+fn decode_bytes_list(
+    use_tuples: bool,
+    buf: &[u8],
+    ptr: &mut usize,
+    len: Py_ssize_t,
+) -> Result<*mut PyObject, *mut PyObject> {
     let list = safe_new_py_list!(len, use_tuples);
     for i in 0..len {
         let bytes_len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;

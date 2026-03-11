@@ -1,7 +1,9 @@
 use std::ptr;
 
-use pyo3_ffi::{_PyBytes_Resize, PyBytes_AS_STRING, PyBytes_FromStringAndSize, PyErr_NoMemory, PyObject};
 use crate::raise_mem_error_if_null;
+use pyo3_ffi::{
+    PyBytes_AS_STRING, PyBytes_FromStringAndSize, PyErr_NoMemory, PyObject, _PyBytes_Resize,
+};
 
 pub struct PyBytesBuffer {
     obj: *mut PyObject,
@@ -35,9 +37,7 @@ impl PyBytesBuffer {
         }
 
         self.cap = required.max(self.cap * 2);
-        unsafe {
-            _PyBytes_Resize(&mut self.obj, self.cap as isize) >= 0
-        }
+        unsafe { _PyBytes_Resize(&mut self.obj, self.cap as isize) >= 0 }
     }
 
     #[inline]
@@ -60,11 +60,7 @@ impl PyBytesBuffer {
         }
 
         unsafe {
-            ptr::copy_nonoverlapping(
-                slice.as_ptr(),
-                self.data_ptr().add(self.len),
-                slice.len(),
-            );
+            ptr::copy_nonoverlapping(slice.as_ptr(), self.data_ptr().add(self.len), slice.len());
         }
 
         self.len += slice.len();

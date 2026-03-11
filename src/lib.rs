@@ -10,7 +10,9 @@ use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
 use crate::serializing::settings::Settings;
-use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE};
+use crate::serializing::utils::{
+    EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE,
+};
 use crate::utils::consts::HEADER;
 use crate::utils::py_helpers::{
     compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str,
@@ -24,7 +26,6 @@ use rustc_hash::FxHashMap;
 mod deserializing;
 mod serializing;
 mod utils;
-
 
 static mut MODULE_DEF: PyModuleDef = PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
@@ -76,7 +77,7 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
     let iso_format_py_string = CString::new("isoformat").unwrap();
     ISO_FORMAT_FUNC = PyObject_GetAttr(
         (*PyDateTimeAPI()).DateTimeType as *mut PyObject,
-        PyUnicode_FromString(iso_format_py_string.as_ptr())
+        PyUnicode_FromString(iso_format_py_string.as_ptr()),
     );
     if EMPTY_TUPLE.is_null()
         || EMPTY_STRING.is_null()

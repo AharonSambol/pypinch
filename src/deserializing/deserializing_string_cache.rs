@@ -1,7 +1,7 @@
-use std::ffi::c_char;
-use pyo3_ffi::{Py_INCREF, Py_ssize_t, PyObject, PyUnicode_FromStringAndSize, PyUnicode_New};
-use rustc_hash::FxHashMap;
 use crate::raise_mem_error_if_null;
+use pyo3_ffi::{PyObject, PyUnicode_FromStringAndSize, PyUnicode_New, Py_INCREF, Py_ssize_t};
+use rustc_hash::FxHashMap;
+use std::ffi::c_char;
 
 pub struct StringCache<'a> {
     cache: FxHashMap<&'a [u8], *mut PyObject>,
@@ -9,12 +9,19 @@ pub struct StringCache<'a> {
 
 impl<'a> StringCache<'a> {
     pub fn new() -> Self {
-        Self { cache: FxHashMap::default() }
+        Self {
+            cache: FxHashMap::default(),
+        }
     }
 
-    pub fn get_or_create<const IS_ASCII: bool>(&mut self, buf_slice: &'a [u8]) -> Result<*mut PyObject, *mut PyObject> {
+    pub fn get_or_create<const IS_ASCII: bool>(
+        &mut self,
+        buf_slice: &'a [u8],
+    ) -> Result<*mut PyObject, *mut PyObject> {
         if let Some(&py_str) = self.cache.get(buf_slice) {
-            unsafe { Py_INCREF(py_str); }
+            unsafe {
+                Py_INCREF(py_str);
+            }
             return Ok(py_str);
         }
 
@@ -30,7 +37,8 @@ impl<'a> StringCache<'a> {
             #[cfg(not(PyPy))]
             {
                 if IS_ASCII {
-                    let py_str = raise_mem_error_if_null!(PyUnicode_New(buf_slice.len() as Py_ssize_t, 127));
+                    let py_str =
+                        raise_mem_error_if_null!(PyUnicode_New(buf_slice.len() as Py_ssize_t, 127));
 
                     let dest_ptr = pyo3_ffi::PyUnicode_DATA(py_str) as *mut u8;
 

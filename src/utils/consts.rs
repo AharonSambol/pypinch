@@ -6,7 +6,6 @@ pub const INVALID_UTF_8_START_BYTE_COMPACT_ASCII: u8 = 0xfe;
 pub const UNEXPECTED_END_OF_INPUT: &'static str = "Unexpected end of input";
 pub const CORRUPTED_DATA: &'static str = "Corrupted data";
 
-
 pub const EMPTY_STR_FLAG: u8 = 0;
 pub const EMPTY_BYTES_FLAG: u8 = 1;
 pub const TRUE_FLAG: u8 = 2;
@@ -29,7 +28,6 @@ pub const ASCII_STR_FLAG: u8 = 18;
 pub const LIST_OF_STRUCTURED_DICTS_FLAG: u8 = 19;
 
 pub const AMOUNT_OF_USED_FLAGS: u8 = 30; // for future flags
-
 
 pub type IsAscii = u8;
 pub const YES_ASCII: IsAscii = 0;

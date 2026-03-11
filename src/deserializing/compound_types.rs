@@ -1,14 +1,16 @@
-use pyo3_ffi::{Py_DECREF, Py_INCREF, Py_ssize_t, PyDict_SetItem, PyObject};
+use pyo3_ffi::{PyDict_SetItem, PyObject, Py_DECREF, Py_INCREF, Py_ssize_t};
 use rustc_hash::FxHashMap;
 
-use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
 use crate::deserializing::deserialize::deserialize_object;
-use crate::deserializing::primitives::decode_string;
 use crate::deserializing::deserializing_string_cache::StringCache;
-use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize, DESERIALIZATION_ERROR_TYPE};
+use crate::deserializing::primitives::decode_string;
+use crate::deserializing::utils::{
+    decode_number_py_ssize_t, decode_number_usize, DESERIALIZATION_ERROR_TYPE,
+};
 use crate::utils::consts::{CORRUPTED_DATA, MIGHT_BE_ASCII, NUMBER_BASE};
 use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
+use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
 
 #[inline(always)]
 pub fn decode_list<'a>(
@@ -61,15 +63,29 @@ pub fn decode_str_key_dict<'a>(
     Ok(dict)
 }
 
-fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
+fn deserialize_dict_key<'a>(
+    buf: &'a [u8],
+    ptr: &mut usize,
+    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    string_cache: &mut StringCache<'a>,
+    str_count: &mut usize,
+) -> Result<*mut PyObject, *mut PyObject> {
     if *safe_get!(buf, *ptr) == NUMBER_BASE as u8 - 1 {
         *ptr += 1;
         let position = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
         let res = *safe_get!(pointers, &position, CORRUPTED_DATA);
-        unsafe { Py_INCREF(res); }
+        unsafe {
+            Py_INCREF(res);
+        }
         Ok(res)
     } else {
-        decode_string::<MIGHT_BE_ASCII, { NUMBER_BASE - 1 }>(buf, ptr, pointers, string_cache, str_count)
+        decode_string::<MIGHT_BE_ASCII, { NUMBER_BASE - 1 }>(
+            buf,
+            ptr,
+            pointers,
+            string_cache,
+            str_count,
+        )
     }
 }
 
@@ -89,7 +105,8 @@ pub fn decode_dict<'a>(
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         unsafe {
             if PyDict_SetItem(dict, key, value) != 0 {
-                return Err(format!("Invalid type for a key: {}", pretty_type(key)).to_py_error(DESERIALIZATION_ERROR_TYPE));
+                return Err(format!("Invalid type for a key: {}", pretty_type(key))
+                    .to_py_error(DESERIALIZATION_ERROR_TYPE));
             }
             Py_DECREF(key);
             Py_DECREF(value);
@@ -122,24 +139,35 @@ pub fn decode_list_of_structured_dicts<'a>(
         }
         keys.push(key);
     }
-    if use_tuples { tuple_set_item(list, 0, first_dict); } else { list_set_item(list, 0, first_dict); }
+    if use_tuples {
+        tuple_set_item(list, 0, first_dict);
+    } else {
+        list_set_item(list, 0, first_dict);
+    }
 
     // the rest of the dicts:
     for i in 1usize..list_len as usize {
         let dict = safe_new_py_dict!();
         for key_index in 0..dict_len {
-            let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+            let value =
+                deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
             unsafe {
                 PyDict_SetItem(dict, keys[key_index], value);
                 Py_DECREF(value);
             }
         }
-        if use_tuples { tuple_set_item(list, i as Py_ssize_t, dict); } else { list_set_item(list, i as Py_ssize_t, dict); }
+        if use_tuples {
+            tuple_set_item(list, i as Py_ssize_t, dict);
+        } else {
+            list_set_item(list, i as Py_ssize_t, dict);
+        }
     }
 
     // free the keys - PyDict_SetItem doesn't steal the reference
     for key in keys {
-        unsafe { Py_DECREF(key); }
+        unsafe {
+            Py_DECREF(key);
+        }
     }
 
     Ok(list)

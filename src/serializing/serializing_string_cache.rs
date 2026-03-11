@@ -1,6 +1,6 @@
-use std::hash::{Hash, Hasher};
 use pyo3_ffi::{PyObject, PyObject_Hash, PyUnicode_Compare};
 use rustc_hash::FxHashMap;
+use std::hash::{Hash, Hasher};
 
 #[derive(Copy, Clone)]
 pub struct PyStringKey(pub *mut PyObject);
@@ -16,9 +16,7 @@ impl Hash for PyStringKey {
 
 impl PartialEq for PyStringKey {
     fn eq(&self, other: &Self) -> bool {
-        unsafe {
-            PyUnicode_Compare(self.0, other.0) == 0
-        }
+        unsafe { PyUnicode_Compare(self.0, other.0) == 0 }
     }
 }
 

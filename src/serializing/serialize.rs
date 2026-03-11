@@ -7,7 +7,10 @@ use crate::serializing::{compound_types, primitives};
 use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE, TRUE_FLAG};
 use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use pyo3_ffi::*;
-use pyo3_ffi::{PyBool_Type, PyBytes_Type, PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyObject, PyTuple_Type, PyUnicode_Type};
+use pyo3_ffi::{
+    PyBool_Type, PyBytes_Type, PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyObject,
+    PyTuple_Type, PyUnicode_Type,
+};
 // todo: all_str_keys=False - if true store at the start a flag and then store all dicts without key types
 #[inline(always)]
 pub fn serialize(
@@ -16,14 +19,18 @@ pub fn serialize(
     pointers: &mut Pointers,
     str_count: &mut usize,
     settings: &Settings,
-) -> Result<(), *mut PyObject>{
+) -> Result<(), *mut PyObject> {
     unsafe {
         let typ = (*obj).ob_type;
 
         if typ == &mut PyUnicode_Type {
             primitives::serialize_str(obj, buffer, pointers, str_count)
         } else if typ == &mut PyBool_Type {
-            buffer.push(if obj == Py_True() { TRUE_FLAG } else { FALSE_FLAG })
+            buffer.push(if obj == Py_True() {
+                TRUE_FLAG
+            } else {
+                FALSE_FLAG
+            })
         } else if typ == &mut PyLong_Type {
             encode_python_int::<NUMBER_BASE>(obj, buffer)
         } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
@@ -40,9 +47,13 @@ pub fn serialize(
             primitives::serialize_date(obj, buffer, pointers, str_count)
         } else {
             if !settings.serialize_dates && PyDateTime_Check(obj) != 0 {
-                return Err("Unexpected type: datetime, with flag serialize_dates disabled".to_py_error(SERIALIZATION_ERROR_TYPE));
+                return Err(
+                    "Unexpected type: datetime, with flag serialize_dates disabled"
+                        .to_py_error(SERIALIZATION_ERROR_TYPE),
+                );
             }
-            Err(format!("Unexpected type: {}", pretty_type(obj)).to_py_error(SERIALIZATION_ERROR_TYPE))
+            Err(format!("Unexpected type: {}", pretty_type(obj))
+                .to_py_error(SERIALIZATION_ERROR_TYPE))
         }
     }
 }

@@ -155,7 +155,9 @@ pub fn encode_list(
         if unsafe { first_type == &mut PyBool_Type } {
             return encode_bool_list(obj, buffer, is_list, len);
         } else if unsafe { first_type == &mut PyDict_Type } {
-            if encode_structured_list(obj, buffer, pointers, str_count, is_list, len, first_item, settings)? {
+            if encode_structured_list(
+                obj, buffer, pointers, str_count, is_list, len, first_item, settings,
+            )? {
                 return Ok(());
             }
         }
