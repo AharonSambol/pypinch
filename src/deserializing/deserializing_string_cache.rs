@@ -12,13 +12,13 @@ impl<'a> StringCache<'a> {
         Self { cache: FxHashMap::default() }
     }
 
-    pub unsafe fn get_or_create<const IS_ASCII: bool>(&mut self, buf_slice: &'a [u8]) -> Result<*mut PyObject, *mut PyObject> {
+    pub fn get_or_create<const IS_ASCII: bool>(&mut self, buf_slice: &'a [u8]) -> Result<*mut PyObject, *mut PyObject> {
         if let Some(&py_str) = self.cache.get(buf_slice) {
-            Py_INCREF(py_str);
+            unsafe { Py_INCREF(py_str); }
             return Ok(py_str);
         }
 
-        let py_str = {
+        let py_str = unsafe {
             #[cfg(PyPy)]
             {
                 raise_mem_error_if_null!(PyUnicode_FromStringAndSize(

@@ -31,7 +31,7 @@ const ENCODED_NUMBER_LIMITS: [u128; 18] = [
 ];
 
 #[inline(always)]
-pub unsafe fn encode_number<const BASE: u128>(buf: &mut PyBytesBuffer, mut number: u128) -> Result<(), *mut PyObject> {
+pub fn encode_number<const BASE: u128>(buf: &mut PyBytesBuffer, mut number: u128) -> Result<(), *mut PyObject> {
     if number < BASE {
         buf.push(number as u8)
     } else {
@@ -47,20 +47,22 @@ pub unsafe fn encode_number<const BASE: u128>(buf: &mut PyBytesBuffer, mut numbe
 }
 
 #[inline(always)]
-pub unsafe fn all_dict_keys_are_str(obj: *mut PyObject) -> bool {
+pub fn all_dict_keys_are_str(obj: *mut PyObject) -> bool {
     let mut pos = 0;
     let mut key: *mut PyObject = ptr::null_mut();
     let mut val: *mut PyObject = ptr::null_mut();
-    while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
-        if (*key).ob_type != &mut PyUnicode_Type {
-            return false
+    unsafe {
+        while PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
+            if (*key).ob_type != &mut PyUnicode_Type {
+                return false
+            }
         }
     }
     true
 }
 
 #[inline(always)]
-pub unsafe fn predict_encoded_number_length(number: u128) -> usize {
+pub fn predict_encoded_number_length(number: u128) -> usize {
     let mut predicted_digits = 1;
     for limit in ENCODED_NUMBER_LIMITS {
         if number <= limit {

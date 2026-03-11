@@ -27,9 +27,9 @@
             match $buf.get($idx) {
                 Some(x) => x,
                 None => {
-                    return Err($reason.to_py_error(
+                    return Err($reason.to_py_error(unsafe {
                         crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE
-                    ))
+                    }))
                 }
             }
         }
@@ -40,9 +40,15 @@
     ($length:expr, $use_tuples:expr) => {
         {
             let length = $length;
-            let list = if $use_tuples { pyo3_ffi::PyTuple_New(length) } else { pyo3_ffi::PyList_New(length) };
+            let list = unsafe {
+                if $use_tuples {
+                    pyo3_ffi::PyTuple_New(length)
+                } else {
+                    pyo3_ffi::PyList_New(length)
+                }
+            };
             if list.is_null() {
-                return Err(pyo3_ffi::PyErr_NoMemory());
+                return Err(unsafe { pyo3_ffi::PyErr_NoMemory() });
             }
             list
         }
@@ -51,7 +57,7 @@
 
 #[macro_export] macro_rules! safe_new_py_dict {
     () => {
-        {
+        unsafe {
             let dict = pyo3_ffi::PyDict_New();
             if dict.is_null() {
                 return Err(pyo3_ffi::PyErr_NoMemory());
@@ -66,7 +72,7 @@
         {
             let item = $item;
             if item.is_null() {
-                return Err(pyo3_ffi::PyErr_NoMemory());
+                return Err(unsafe { pyo3_ffi::PyErr_NoMemory() });
             }
             item
         }

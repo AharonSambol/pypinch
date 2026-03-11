@@ -1,4 +1,5 @@
 #![allow(static_mut_refs)]
+#![allow(unused_unsafe)]
 
 use std::os::raw::c_char;
 use std::ptr;

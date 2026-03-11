@@ -9,34 +9,36 @@ use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_S
 use crate::utils::wrappers::{is_ascii, py_unicode_data};
 
 #[inline(always)]
-pub unsafe fn serialize_bytes(obj: *mut PyObject, buffer: &mut PyBytesBuffer) -> Result<(), *mut PyObject> {
-    let size = PyBytes_Size(obj);
-    let data = raise_mem_error_if_null!(PyBytes_AsString(obj));
+pub fn serialize_bytes(obj: *mut PyObject, buffer: &mut PyBytesBuffer) -> Result<(), *mut PyObject> {
+    let size = unsafe { PyBytes_Size(obj) };
+    let data = raise_mem_error_if_null!(unsafe { PyBytes_AsString(obj) });
 
     if size == 0 {
         buffer.push(EMPTY_BYTES_FLAG)
     } else {
         buffer.push(BYTES_FLAG)?;
         encode_number::<NUMBER_BASE>(buffer, size as u128)?;
-        buffer.extend_from_slice(slice::from_raw_parts(
-            data as *const u8,
-            size as usize,
-        ))
+        buffer.extend_from_slice(unsafe {
+            slice::from_raw_parts(
+                data as *const u8,
+                size as usize,
+            )
+        })
     }
 }
 
 #[inline(always)]
-pub unsafe fn serialize_float(obj: *mut PyObject, buffer: &mut PyBytesBuffer) -> Result<(), *mut PyObject> {
-    let value = (*(obj as *mut PyFloatObject)).ob_fval;
+pub fn serialize_float(obj: *mut PyObject, buffer: &mut PyBytesBuffer) -> Result<(), *mut PyObject> {
+    let value = unsafe { (*(obj as *mut PyFloatObject)).ob_fval };
     buffer.push(FLOAT_FLAG)?;
     buffer.extend_from_slice(&value.to_be_bytes())
 }
 
 #[inline(always)]
-pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject> {
+pub fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject> {
     let mut len: isize = 0;
     if is_ascii(obj) {
-        let len = PyUnicode_GET_LENGTH(obj) as usize;
+        let len = unsafe { PyUnicode_GET_LENGTH(obj) } as usize;
         if len == 0 {
             return buffer.push(EMPTY_STR_FLAG);
         }
@@ -56,10 +58,12 @@ pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poin
         *str_count += 1;
         buffer.push(ASCII_STR_FLAG)?;
         encode_number::<NUMBER_BASE>(buffer, len as u128)?;
-        return buffer.extend_from_slice(slice::from_raw_parts(data_ptr, len));
+        return buffer.extend_from_slice(unsafe {
+            slice::from_raw_parts(data_ptr, len)
+        });
     }
 
-    let data = PyUnicode_AsUTF8AndSize(obj, &mut len);
+    let data = unsafe { PyUnicode_AsUTF8AndSize(obj, &mut len) };
 
     if len == 0 {   // not sure if this is possible
         return buffer.push(EMPTY_STR_FLAG);
@@ -71,14 +75,16 @@ pub unsafe fn serialize_str(obj: *mut PyObject, buffer: &mut PyBytesBuffer, poin
     *str_count += 1;
     buffer.push(STR_FLAG)?;
     encode_number::<NUMBER_BASE>(buffer, len as u128)?;
-    buffer.extend_from_slice(slice::from_raw_parts(
-        data as *const u8,
-        len as usize,
-    ))
+    buffer.extend_from_slice(unsafe {
+        slice::from_raw_parts(
+            data as *const u8,
+            len as usize,
+        )
+    })
 }
 
 #[inline(always)]
-pub unsafe fn try_encode_as_pointer(str: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: usize, str_len: Py_ssize_t, pointer_flag: &[u8]) -> Result<bool, *mut PyObject> {
+pub fn try_encode_as_pointer(str: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: usize, str_len: Py_ssize_t, pointer_flag: &[u8]) -> Result<bool, *mut PyObject> {
     match pointers.entry(PyStringKey(str)) {
         Entry::Occupied(entry) => {
             let position = (*entry.get()) as u128;

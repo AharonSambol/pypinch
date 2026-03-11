@@ -12,7 +12,7 @@ use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 #[inline(always)]
-pub unsafe fn decode_consistent_type_list<'a>(
+pub fn decode_consistent_type_list<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
@@ -32,12 +32,12 @@ pub unsafe fn decode_consistent_type_list<'a>(
         STR_FLAG => decode_str_list(use_tuples, buf, ptr, pointers, string_cache, str_count, len),
         FLOAT_FLAG => decode_floats_list(use_tuples, buf, ptr, len),
         _ => {
-            return Err("Unexpected consistent list type".to_py_error(PyExc_TypeError));
+            return Err("Unexpected consistent list type".to_py_error(unsafe { PyExc_TypeError }));
         }
     }
 }
 
-unsafe fn decode_floats_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
+fn decode_floats_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
     let list = safe_new_py_list!(len, use_tuples);
     for i in 0..len {
         let py_float = decode_f64(buf, ptr)?;
@@ -50,7 +50,7 @@ unsafe fn decode_floats_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len:
     Ok(list)
 }
 
-unsafe fn decode_str_list<'a>(
+fn decode_str_list<'a>(
     use_tuples: bool,
     buf: &'a [u8],
     ptr: &mut usize,
@@ -77,14 +77,16 @@ unsafe fn decode_str_list<'a>(
     Ok(list)
 }
 
-unsafe fn decode_bytes_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
+fn decode_bytes_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
     let list = safe_new_py_list!(len, use_tuples);
     for i in 0..len {
         let bytes_len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
-        let bytes = raise_mem_error_if_null!(PyBytes_FromStringAndSize(
-            buf.as_ptr().add(*ptr) as *const c_char,
-            bytes_len,
-        ));
+        let bytes = unsafe {
+            raise_mem_error_if_null!(PyBytes_FromStringAndSize(
+                buf.as_ptr().add(*ptr) as *const c_char,
+                bytes_len,
+            ))
+        };
         if use_tuples {
             tuple_set_item(list, i, bytes);
         } else {
@@ -95,20 +97,20 @@ unsafe fn decode_bytes_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: 
     Ok(list)
 }
 
-unsafe fn decode_int_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
+fn decode_int_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
     let list = safe_new_py_list!(len, use_tuples);
     for i in 0..len {
         let is_negative_number = *safe_get!(buf, *ptr) == NEGATIVE_NUMBER_SIGN as u8;
         if is_negative_number {
             *ptr += 1;
             let num = decode_large_number::<{ NUMBER_BASE - 1 }>(buf, ptr)?;
-            let negative_num = raise_mem_error_if_null!(PyNumber_Negative(num));
+            let negative_num = raise_mem_error_if_null!(unsafe { PyNumber_Negative(num) });
             if use_tuples {
                 tuple_set_item(list, i, negative_num);
             } else {
                 list_set_item(list, i, negative_num);
             }
-            Py_DECREF(num);
+            unsafe { Py_DECREF(num) };
         } else {
             let num = decode_large_number::<{ NUMBER_BASE - 1 }>(buf, ptr)?;
             if use_tuples {
@@ -121,11 +123,11 @@ unsafe fn decode_int_list(use_tuples: bool, buf: &[u8], ptr: &mut usize, len: Py
     Ok(list)
 }
 
-unsafe fn decode_null_list(use_tuples: bool, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
-    let none = Py_None();
+fn decode_null_list(use_tuples: bool, len: Py_ssize_t) -> Result<*mut PyObject, *mut PyObject> {
+    let none = unsafe { Py_None() };
     let list = safe_new_py_list!(len, use_tuples);
     for i in 0..len {
-        Py_INCREF(none);
+        unsafe { Py_INCREF(none) };
         if use_tuples {
             tuple_set_item(list, i, none);
         } else {
@@ -135,7 +137,7 @@ unsafe fn decode_null_list(use_tuples: bool, len: Py_ssize_t) -> Result<*mut PyO
     Ok(list)
 }
 
-pub unsafe fn decode_bool_list(
+pub fn decode_bool_list(
     use_tuples: bool,
     buf: &[u8],
     ptr: &mut usize,
@@ -150,12 +152,12 @@ pub unsafe fn decode_bool_list(
     let list = safe_new_py_list!(length, use_tuples);
 
     let mut pos = 0;
-    let table = [Py_True(), Py_False()];
+    let table = unsafe { [Py_True(), Py_False()] };
     for i in 0..amount_of_bytes {
         let mut byte = *safe_get!(buf, *ptr + i);
         for _ in 0..8 {
             let obj = table[((byte & LEFTMOST_BIT_MASK) == 0) as usize];
-            Py_INCREF(obj);
+            unsafe { Py_INCREF(obj) };
             if use_tuples {
                 tuple_set_item(list, pos, obj);
             } else {

@@ -11,7 +11,7 @@ use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 
 #[inline(always)]
-pub unsafe fn decode_list<'a>(
+pub fn decode_list<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
@@ -39,7 +39,7 @@ pub unsafe fn decode_list<'a>(
 }
 
 #[inline(always)]
-pub unsafe fn decode_str_key_dict<'a>(
+pub fn decode_str_key_dict<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
@@ -52,19 +52,21 @@ pub unsafe fn decode_str_key_dict<'a>(
     for _ in 0..len {
         let key = deserialize_dict_key(buf, ptr, pointers, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
-        PyDict_SetItem(dict, key, value);
-        Py_DECREF(key);
-        Py_DECREF(value);
+        unsafe {
+            PyDict_SetItem(dict, key, value);
+            Py_DECREF(key);
+            Py_DECREF(value);
+        }
     }
     Ok(dict)
 }
 
-unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
+fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mut FxHashMap<usize, *mut PyObject>, string_cache: &mut StringCache<'a>, str_count: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
     if *safe_get!(buf, *ptr) == NUMBER_BASE as u8 - 1 {
         *ptr += 1;
         let position = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
         let res = *safe_get!(pointers, &position, CORRUPTED_DATA);
-        Py_INCREF(res);
+        unsafe { Py_INCREF(res); }
         Ok(res)
     } else {
         decode_string::<MIGHT_BE_ASCII, { NUMBER_BASE - 1 }>(buf, ptr, pointers, string_cache, str_count)
@@ -72,7 +74,7 @@ unsafe fn deserialize_dict_key<'a>(buf: &'a [u8], ptr: &mut usize, pointers: &mu
 }
 
 #[inline(always)]
-pub unsafe fn decode_dict<'a>(
+pub fn decode_dict<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
@@ -85,16 +87,18 @@ pub unsafe fn decode_dict<'a>(
     for _ in 0..len {
         let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
-        if PyDict_SetItem(dict, key, value) != 0 {
-            return Err(format!("Invalid type for a key: {}", pretty_type(key)).to_py_error(DESERIALIZATION_ERROR_TYPE));
+        unsafe {
+            if PyDict_SetItem(dict, key, value) != 0 {
+                return Err(format!("Invalid type for a key: {}", pretty_type(key)).to_py_error(DESERIALIZATION_ERROR_TYPE));
+            }
+            Py_DECREF(key);
+            Py_DECREF(value);
         }
-        Py_DECREF(key);
-        Py_DECREF(value);
     }
     Ok(dict)
 }
 
-pub unsafe fn decode_list_of_structured_dicts<'a>(
+pub fn decode_list_of_structured_dicts<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
@@ -112,8 +116,10 @@ pub unsafe fn decode_list_of_structured_dicts<'a>(
     for _ in 0..dict_len {
         let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
         let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
-        PyDict_SetItem(first_dict, key, value);
-        Py_DECREF(value);
+        unsafe {
+            PyDict_SetItem(first_dict, key, value);
+            Py_DECREF(value);
+        }
         keys.push(key);
     }
     if use_tuples { tuple_set_item(list, 0, first_dict); } else { list_set_item(list, 0, first_dict); }
@@ -123,15 +129,17 @@ pub unsafe fn decode_list_of_structured_dicts<'a>(
         let dict = safe_new_py_dict!();
         for key_index in 0..dict_len {
             let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
-            PyDict_SetItem(dict, keys[key_index], value);
-            Py_DECREF(value);
+            unsafe {
+                PyDict_SetItem(dict, keys[key_index], value);
+                Py_DECREF(value);
+            }
         }
         if use_tuples { tuple_set_item(list, i as Py_ssize_t, dict); } else { list_set_item(list, i as Py_ssize_t, dict); }
     }
 
     // free the keys - PyDict_SetItem doesnt steal the reference
     for key in keys {
-        Py_DECREF(key);
+        unsafe { Py_DECREF(key); }
     }
 
     Ok(list)

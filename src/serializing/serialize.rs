@@ -11,31 +11,33 @@ use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 
 // todo: all_str_keys=False - if true store at the start a flag and then store all dicts without key types
 #[inline(always)]
-pub unsafe fn serialize(
+pub fn serialize(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
     str_count: &mut usize,
 ) -> Result<(), *mut PyObject>{
-    let typ = (*obj).ob_type;
+    unsafe {
+        let typ = (*obj).ob_type;
 
-    if typ == &mut PyUnicode_Type {
-        primitives::serialize_str(obj, buffer, pointers, str_count)
-    } else if typ == &mut PyBool_Type {
-        buffer.push(if obj == Py_True() { TRUE_FLAG } else { FALSE_FLAG })
-    } else if typ == &mut PyLong_Type {
-        encode_python_int::<NUMBER_BASE>(obj, buffer)
-    } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
-        compound_types::encode_list(obj, buffer, pointers, str_count, typ)
-    } else if typ == &mut PyDict_Type {
-        compound_types::serialize_dict(obj, buffer, pointers, str_count)
-    } else if typ == &mut PyFloat_Type {
-        primitives::serialize_float(obj, buffer)
-    } else if typ == &mut PyBytes_Type {
-        primitives::serialize_bytes(obj, buffer)
-    } else if obj == Py_None() {
-        buffer.push(NULL_FLAG)
-    } else {
-        Err(format!("Unexpected type: {}", pretty_type(obj)).to_py_error(SERIALIZATION_ERROR_TYPE))
+        if typ == &mut PyUnicode_Type {
+            primitives::serialize_str(obj, buffer, pointers, str_count)
+        } else if typ == &mut PyBool_Type {
+            buffer.push(if obj == Py_True() { TRUE_FLAG } else { FALSE_FLAG })
+        } else if typ == &mut PyLong_Type {
+            encode_python_int::<NUMBER_BASE>(obj, buffer)
+        } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
+            compound_types::encode_list(obj, buffer, pointers, str_count, typ)
+        } else if typ == &mut PyDict_Type {
+            compound_types::serialize_dict(obj, buffer, pointers, str_count)
+        } else if typ == &mut PyFloat_Type {
+            primitives::serialize_float(obj, buffer)
+        } else if typ == &mut PyBytes_Type {
+            primitives::serialize_bytes(obj, buffer)
+        } else if obj == Py_None() {
+            buffer.push(NULL_FLAG)
+        } else {
+            Err(format!("Unexpected type: {}", pretty_type(obj)).to_py_error(SERIALIZATION_ERROR_TYPE))
+        }
     }
 }

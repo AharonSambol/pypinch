@@ -30,7 +30,7 @@ macro_rules! _decode_number {
 }
 
 #[inline(always)]
-pub unsafe fn decode_number_usize<const BASE: u128>(
+pub fn decode_number_usize<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> Result<usize, *mut PyObject> {
@@ -38,7 +38,7 @@ pub unsafe fn decode_number_usize<const BASE: u128>(
 }
 
 #[inline(always)]
-pub unsafe fn decode_number_py_ssize_t<const BASE: u128>(
+pub fn decode_number_py_ssize_t<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> Result<Py_ssize_t, *mut PyObject> {
@@ -46,7 +46,7 @@ pub unsafe fn decode_number_py_ssize_t<const BASE: u128>(
 }
 
 #[inline(always)]
-pub unsafe fn decode_number_c_ulonglong<const BASE: u128>(
+pub fn decode_number_c_ulonglong<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> Result<c_ulonglong, *mut PyObject> {
@@ -54,14 +54,14 @@ pub unsafe fn decode_number_c_ulonglong<const BASE: u128>(
 }
 
 #[inline(always)]
-pub unsafe fn decode_large_number<const BASE: u128>(
+pub fn decode_large_number<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let b = *safe_get!(buf, *ptr);
     *ptr += 1;
     if b != ENDING_FLAG {
-        return Ok(raise_mem_error_if_null!(PyLong_FromLong(b as c_long)));
+        return Ok(raise_mem_error_if_null!(unsafe { PyLong_FromLong(b as c_long) }));
     }
 
     let mut num_length = 1;
@@ -76,9 +76,12 @@ pub unsafe fn decode_large_number<const BASE: u128>(
     let bytes_in_c_ulonglong = c_ulonglong::BITS / 8;
     if num_length <= bytes_in_c_ulonglong {
         *ptr -= 1;
-        return Ok(raise_mem_error_if_null!(
-            PyLong_FromUnsignedLongLong(decode_number_c_ulonglong::<BASE>(buf, ptr)?)
-        ));
+        let res = decode_number_c_ulonglong::<BASE>(buf, ptr)?;
+        unsafe {
+            return Ok(raise_mem_error_if_null!(
+                PyLong_FromUnsignedLongLong(res)
+            ));
+        }
     }
 
 
@@ -91,30 +94,31 @@ pub unsafe fn decode_large_number<const BASE: u128>(
         mul *= BASE;
     }
 
+    unsafe {
+        let mut result = raise_mem_error_if_null!(PyLong_FromUnsignedLongLong(res as c_ulonglong));
+        let mut mul = raise_mem_error_if_null!(PyLong_FromUnsignedLongLong(mul as c_ulonglong));
+        let base_as_long = raise_mem_error_if_null!(PyLong_FromLong(BASE as c_long));
 
-    let mut result = raise_mem_error_if_null!(PyLong_FromUnsignedLongLong(res as c_ulonglong));
-    let mut mul = raise_mem_error_if_null!(PyLong_FromUnsignedLongLong(mul as c_ulonglong));
-    let base_as_long = raise_mem_error_if_null!(PyLong_FromLong(BASE as c_long));
+        loop {
+            let v = *safe_get!(buf, *ptr);
+            *ptr += 1;
+            if v == ENDING_FLAG {
+                Py_DECREF(mul);
+                Py_DECREF(base_as_long);
 
-    loop {
-        let v = *safe_get!(buf, *ptr);
-        *ptr += 1;
-        if v == ENDING_FLAG {
+                return Ok(result);
+            }
+            let cur_byte_as_long = raise_mem_error_if_null!(PyLong_FromLong(v as c_long));
+            let tmp = raise_mem_error_if_null!(PyNumber_Multiply(cur_byte_as_long, mul));
+            Py_DECREF(cur_byte_as_long);
+            let new_result = raise_mem_error_if_null!(PyNumber_Add(result, tmp));
+            Py_DECREF(tmp);
+            Py_DECREF(result);
+            result = new_result;
+
+            let tmp = raise_mem_error_if_null!(PyNumber_Multiply(mul, base_as_long));
             Py_DECREF(mul);
-            Py_DECREF(base_as_long);
-
-            return Ok(result);
+            mul = tmp;
         }
-        let cur_byte_as_long = raise_mem_error_if_null!(PyLong_FromLong(v as c_long));
-        let tmp = raise_mem_error_if_null!(PyNumber_Multiply(cur_byte_as_long, mul));
-        Py_DECREF(cur_byte_as_long);
-        let new_result = raise_mem_error_if_null!(PyNumber_Add(result, tmp));
-        Py_DECREF(tmp);
-        Py_DECREF(result);
-        result = new_result;
-
-        let tmp = raise_mem_error_if_null!(PyNumber_Multiply(mul, base_as_long));
-        Py_DECREF(mul);
-        mul = tmp;
     }
 }
