@@ -4,16 +4,15 @@ from typing import List, Union, Any
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, \
-    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
+    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, \
     ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, EMPTY_STR_FLAG, \
     EMPTY_BYTES_FLAG, TRUE_FLAG, FALSE_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII
 from pypinch.deserialize.deserialize import deserialize_object, deserialize_str
-
-from pypinch.exceptions import DeserializationError
 from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number, skip_number
+from pypinch.exceptions import DeserializationError
 
 UNEXPECTED_END_MESSAGE_TEMPLATE = lambda path_to_load, got: f"Invalid path, expected `{'list' if type(path_to_load[0]) is list else 'dict'}` but found `{got}`"
 INDEX_OUT_OF_RANGE_TEMPLATE = "Index out of range, index is `{}` but list is of len `{}`"
@@ -161,13 +160,6 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
         length, pointer = decode_number(buffer, pointer + 1)
         if typ_flag == NULL_FLAG:
             return pointer
-        elif typ_flag == INT_FLAG:
-            for _ in range(length):
-                if buffer[pointer] == NUMBER_BASE - 1:
-                    pointer = skip_number(buffer, pointer + 1)
-                else:
-                    pointer = skip_number(buffer, pointer)
-            return pointer
         elif typ_flag == BOOL_FLAG:
             length_in_bytes = (length + 7) >> 3
             return pointer + length_in_bytes
@@ -223,8 +215,6 @@ def lazy_deserialize_consistent_type_list(buffer: bytes, index: int, path_to_loa
 
     if typ_flag == NULL_FLAG:
         return None
-    elif typ_flag == INT_FLAG:
-        return lazy_load_int_list(buffer, index, pointer)
     elif typ_flag == BOOL_FLAG:
         return lazy_load_bool_list(buffer, index, pointer, length)
     elif typ_flag == BYTES_FLAG:
@@ -242,7 +232,6 @@ def flag_to_type_name(flag: int) -> str:
         return "int"
     if res := {
         NULL_FLAG: "None",
-        INT_FLAG: "int",
         BOOL_FLAG: "bool",
         BYTES_FLAG: "bytes",
         STR_FLAG: "str",

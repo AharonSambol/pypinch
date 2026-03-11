@@ -6,7 +6,7 @@ from typing import Union, List, Tuple
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
-    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, \
+    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, BOOL_FLAG, \
     POINTER_FLAG, HEADER, \
     BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, \
     ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_OF_STRUCTURED_DICTS_FLAG
@@ -83,17 +83,6 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 buffer.append(NULL_FLAG)
                 encode_number(buffer, len(obj))
-            elif first_type is int:
-                # no longer have the flag to distinguish between positive and negative numbers so do this instead
-                buffer.append(CONSISTENT_TYPE_LIST_FLAG)
-                buffer.append(INT_FLAG)
-                encode_number(buffer, len(obj))
-                for item in obj:
-                    if item < 0:
-                        buffer.append(NUMBER_BASE - 1)
-                        encode_number(buffer, -item, base=NUMBER_BASE - 1)
-                    else:
-                        encode_number(buffer, item, base=NUMBER_BASE - 1)
             elif first_type is bool:
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
                 buffer.append(BOOL_FLAG)
@@ -197,7 +186,7 @@ def is_consistent_type_list(obj: Union[List, Tuple]) -> bool:
     if len(obj) <= 1:
         return False
     first_type = type(obj[0])
-    if first_type in [list, tuple, str]:
+    if first_type in [list, tuple, str, int]:
         return False
     return all(type(x) is first_type for x in obj)
 

@@ -6,14 +6,13 @@ from typing import Tuple, List
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, \
-    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, INT_FLAG, BOOL_FLAG, POINTER_FLAG, \
+    EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, \
     INVALID_UTF_8_START_BYTE_COMPACT_ASCII, ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG
-
-from pypinch.exceptions import DeserializationError
 from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number
+from pypinch.exceptions import DeserializationError
 
 
 def load_bytes(
@@ -97,16 +96,6 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
         length, pointer = decode_number(buffer, pointer + 1)
         if typ_flag == NULL_FLAG:
             return ((None,) if settings.use_tuples else [None]) * length, pointer
-        elif typ_flag == INT_FLAG:
-            res_list = typing.cast(List[int], [None] * length)
-            for i in range(length):
-                if buffer[pointer] == NUMBER_BASE - 1:
-                    num, pointer = decode_number(buffer, pointer + 1, base=NUMBER_BASE - 1)
-                    res_list[i] = -num
-                else:
-                    num, pointer = decode_number(buffer, pointer, base=NUMBER_BASE - 1)
-                    res_list[i] = num
-            return res_list, pointer
         elif typ_flag == BOOL_FLAG:
             res_list = typing.cast(List[bool], [None] * length)
             # same as: math.ceil(length / NUMBER_OF_BITS_IN_BYTE)

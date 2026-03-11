@@ -1,6 +1,5 @@
 pub const NUMBER_BASE: u128 = 255;
 pub const ENDING_FLAG: u8 = 255;
-pub const NEGATIVE_NUMBER_SIGN: u128 = NUMBER_BASE - 1;
 pub const LEFTMOST_BIT_MASK: u8 = 128;
 pub const HEADER: &[u8] = b"<o>";
 pub const INVALID_UTF_8_START_BYTE_COMPACT_ASCII: u8 = 0xfe;
@@ -17,18 +16,17 @@ pub const EMPTY_LIST_FLAG: u8 = 5;
 pub const EMPTY_DICT_FLAG: u8 = 6;
 pub const POSITIVE_INT_FLAG: u8 = 7;
 pub const NEGATIVE_INT_FLAG: u8 = 8;
-pub const INT_FLAG: u8 = 9;
-pub const FLOAT_FLAG: u8 = 10;
-pub const STR_FLAG: u8 = 11;
-pub const BYTES_FLAG: u8 = 12;
-pub const BOOL_FLAG: u8 = 13;
-pub const LIST_FLAG: u8 = 14;
-pub const CONSISTENT_TYPE_LIST_FLAG: u8 = 15;
-pub const DICT_FLAG: u8 = 16;
-pub const STR_KEY_DICT_FLAG: u8 = 17;
-pub const POINTER_FLAG: u8 = 18;
-pub const ASCII_STR_FLAG: u8 = 19;
-pub const LIST_OF_STRUCTURED_DICTS_FLAG: u8 = 20;
+pub const FLOAT_FLAG: u8 = 9;
+pub const STR_FLAG: u8 = 10;
+pub const BYTES_FLAG: u8 = 11;
+pub const BOOL_FLAG: u8 = 12;
+pub const LIST_FLAG: u8 = 13;
+pub const CONSISTENT_TYPE_LIST_FLAG: u8 = 14;
+pub const DICT_FLAG: u8 = 15;
+pub const STR_KEY_DICT_FLAG: u8 = 16;
+pub const POINTER_FLAG: u8 = 17;
+pub const ASCII_STR_FLAG: u8 = 18;
+pub const LIST_OF_STRUCTURED_DICTS_FLAG: u8 = 19;
 
 pub const AMOUNT_OF_USED_FLAGS: u8 = 30; // for future flags
 
