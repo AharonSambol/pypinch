@@ -1,7 +1,7 @@
 # Pinch
 
 ## Limitations
-- Dictionary keys can't be lists
+- Dictionary keys can't be lists or tuples.
 
 Yup, that's it :)
 
