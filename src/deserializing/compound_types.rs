@@ -137,7 +137,7 @@ pub fn decode_list_of_structured_dicts<'a>(
         if use_tuples { tuple_set_item(list, i as Py_ssize_t, dict); } else { list_set_item(list, i as Py_ssize_t, dict); }
     }
 
-    // free the keys - PyDict_SetItem doesnt steal the reference
+    // free the keys - PyDict_SetItem doesn't steal the reference
     for key in keys {
         unsafe { Py_DECREF(key); }
     }

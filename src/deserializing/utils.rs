@@ -58,10 +58,10 @@ pub fn decode_large_number<const BASE: u128>(
     buf: &[u8],
     ptr: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
-    let b = *safe_get!(buf, *ptr);
+    let byte = *safe_get!(buf, *ptr);
     *ptr += 1;
-    if b != ENDING_FLAG {
-        return Ok(raise_mem_error_if_null!(unsafe { PyLong_FromLong(b as c_long) }));
+    if byte != ENDING_FLAG {
+        return Ok(raise_mem_error_if_null!(unsafe { PyLong_FromLong(byte as c_long) }));
     }
 
     let mut num_length = 1;
@@ -100,15 +100,15 @@ pub fn decode_large_number<const BASE: u128>(
         let base_as_long = raise_mem_error_if_null!(PyLong_FromLong(BASE as c_long));
 
         loop {
-            let v = *safe_get!(buf, *ptr);
+            let byte = *safe_get!(buf, *ptr);
             *ptr += 1;
-            if v == ENDING_FLAG {
+            if byte == ENDING_FLAG {
                 Py_DECREF(mul);
                 Py_DECREF(base_as_long);
 
                 return Ok(result);
             }
-            let cur_byte_as_long = raise_mem_error_if_null!(PyLong_FromLong(v as c_long));
+            let cur_byte_as_long = raise_mem_error_if_null!(PyLong_FromLong(byte as c_long));
             let tmp = raise_mem_error_if_null!(PyNumber_Multiply(cur_byte_as_long, mul));
             Py_DECREF(cur_byte_as_long);
             let new_result = raise_mem_error_if_null!(PyNumber_Add(result, tmp));

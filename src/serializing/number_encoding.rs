@@ -82,14 +82,14 @@ fn encode_pylong_big<const BASE: u128>(
 #[inline(always)]
 fn twos_complement_inplace(bytes: &mut [u8]) {
     // invert
-    for b in bytes.iter_mut() {
-        *b = !*b;
+    for byte in bytes.iter_mut() {
+        *byte = !*byte;
     }
 
     // add 1
-    for b in bytes.iter_mut().rev() {
-        let (v, carry) = b.overflowing_add(1);
-        *b = v;
+    for byte in bytes.iter_mut().rev() {
+        let (value, carry) = byte.overflowing_add(1);
+        *byte = value;
         if !carry {
             break;
         }
@@ -106,10 +106,10 @@ fn encode_base_from_bytes<const BASE: u128>(buf: &mut PyBytesBuffer, bytes: &[u8
     while !work.is_empty() {
         let mut carry: u32 = 0;
 
-        for b in work.iter_mut() {
-            let v = (carry << 8) | (*b as u32);
-            *b = (v / (BASE as u32)) as u8;
-            carry = v % (BASE as u32);
+        for byte in work.iter_mut() {
+            let byte_with_carry = (carry << 8) | (*byte as u32);
+            *byte = (byte_with_carry / (BASE as u32)) as u8;
+            carry = byte_with_carry % (BASE as u32);
         }
 
         // carry is the remainder
