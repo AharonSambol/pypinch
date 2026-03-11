@@ -1,13 +1,14 @@
 use std::ptr;
 
-use pyo3_ffi::{PyDict_Next, PyObject, PyUnicode_Type};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::utils::consts::NUMBER_BASE;
+use pyo3_ffi::{PyDict_Next, PyObject, PyUnicode_Type};
 
 pub static mut EMPTY_TUPLE: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_STRING: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_BYTES: *mut PyObject = ptr::null_mut();
 pub static mut SERIALIZATION_ERROR_TYPE: *mut PyObject = ptr::null_mut();
+pub static mut ISO_FORMAT_FUNC: *mut PyObject = ptr::null_mut();
 
 const ENCODED_NUMBER_LIMITS: [u128; 18] = [
     254,

@@ -110,31 +110,32 @@ def test__tuples_serialize_deserialize__into_list(input_tuple, expected):
     # Assert
     assert math.isnan(unserialized)
 
-# @pytest.mark.parametrize(
-#     ["obj", "expected"],
-#     [
-#         (datetime.datetime(2026, 10, 4, 23, 2, 9, 53, tzinfo=datetime.timezone.utc), "2026-10-04T23:02:09.000053+00:00"),
-#         (
-#             [
-#                 datetime.datetime(2026, 10, 4, 23, 2, 9, 53, tzinfo=datetime.timezone.utc),
-#                 datetime.datetime(1995, 1, 2, 6, 3, 18, tzinfo=ZoneInfo("America/Los_Angeles")),
-#                 datetime.datetime(2050, 4, 1, tzinfo=ZoneInfo("Asia/Kolkata")),
-#             ],
-#             [
-#                 "2026-10-04T23:02:09.000053+00:00",
-#                 "1995-01-02T06:03:18-08:00",
-#                 "2050-04-01T00:00:00+05:30",
-#             ]
-#         ),
-#     ]
-# )
-# def test__serialize_unknown_types(obj, expected):
-#     # Act
-#     serialized = pypinch.dump_bytes(obj)
-#     unserialized = pypinch.load_bytes(serialized)
-#
-#     # Assert
-#     assert unserialized == expected
+
+@pytest.mark.parametrize(
+    ["obj", "expected"],
+    [
+        (datetime.datetime(2026, 10, 4, 23, 2, 9, 53, tzinfo=datetime.timezone.utc), "2026-10-04T23:02:09.000053+00:00"),
+        (
+            [
+                datetime.datetime(2026, 10, 4, 23, 2, 9, 53, tzinfo=datetime.timezone.utc),
+                datetime.datetime(1995, 1, 2, 6, 3, 18, tzinfo=ZoneInfo("America/Los_Angeles")),
+                datetime.datetime(2050, 4, 1, tzinfo=ZoneInfo("Asia/Kolkata")),
+            ],
+            [
+                "2026-10-04T23:02:09.000053+00:00",
+                "1995-01-02T06:03:18-08:00",
+                "2050-04-01T00:00:00+05:30",
+            ]
+        ),
+    ]
+)
+def test__serialize_unknown_types(obj, expected):
+    # Act
+    serialized = pypinch.dump_bytes(obj, serialize_dates=True)
+    unserialized = pypinch.load_bytes(serialized)
+
+    # Assert
+    assert unserialized == expected
 
 
 # @pytest.mark.parametrize(

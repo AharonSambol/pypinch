@@ -1,24 +1,29 @@
 #![allow(static_mut_refs)]
 #![allow(unused_unsafe)]
 
+use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;
 
-use pyo3_ffi::*;
-use rustc_hash::FxHashMap;
-use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
-use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, SERIALIZATION_ERROR_TYPE};
+use crate::serializing::settings::Settings;
+use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::HEADER;
-use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
+use crate::utils::py_helpers::{
+    compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str,
+    ToPyErr,
+};
 use crate::utils::wrappers::{gc_disable, gc_enabled, is_gc_enabled, tuple_get_item};
+use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
+use pyo3_ffi::*;
+use rustc_hash::FxHashMap;
 
-mod utils;
-mod serializing;
 mod deserializing;
+mod serializing;
+mod utils;
 
 
 static mut MODULE_DEF: PyModuleDef = PyModuleDef {
@@ -42,9 +47,7 @@ static mut METHODS: [PyMethodDef; 3] = [
             PyCFunctionFastWithKeywords: dump_bytes,
         },
         ml_flags: METH_FASTCALL | METH_KEYWORDS,
-        ml_doc: "serializes pinch\0"
-            .as_ptr()
-            .cast::<c_char>(),
+        ml_doc: "serializes pinch\0".as_ptr().cast::<c_char>(),
     },
     PyMethodDef {
         ml_name: "load_bytes\0".as_ptr().cast::<c_char>(),
@@ -52,12 +55,10 @@ static mut METHODS: [PyMethodDef; 3] = [
             PyCFunctionFastWithKeywords: load_bytes,
         },
         ml_flags: METH_FASTCALL | METH_KEYWORDS,
-        ml_doc: "deserializes pinch\0"
-            .as_ptr()
-            .cast::<c_char>(),
+        ml_doc: "deserializes pinch\0".as_ptr().cast::<c_char>(),
     },
     // A zeroed PyMethodDef to mark the end of the array.
-    PyMethodDef::zeroed()
+    PyMethodDef::zeroed(),
 ];
 
 // The module initialization function
@@ -67,14 +68,26 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
     EMPTY_TUPLE = PyTuple_New(0);
     EMPTY_STRING = PyUnicode_New(0, 127);
     EMPTY_BYTES = PyBytes_FromStringAndSize(ptr::null(), 0);
-    DESERIALIZATION_ERROR_TYPE = import_object_from_python("pypinch.exceptions", "DeserializationError");
-    SERIALIZATION_ERROR_TYPE = import_object_from_python("pypinch.exceptions", "SerializationError");
-    if EMPTY_TUPLE.is_null() || EMPTY_STRING.is_null() || EMPTY_BYTES.is_null() || DESERIALIZATION_ERROR_TYPE.is_null() || SERIALIZATION_ERROR_TYPE.is_null() {
+    DESERIALIZATION_ERROR_TYPE =
+        import_object_from_python("pypinch.exceptions", "DeserializationError");
+    SERIALIZATION_ERROR_TYPE =
+        import_object_from_python("pypinch.exceptions", "SerializationError");
+    PyDateTime_IMPORT();
+    let iso_format_py_string = CString::new("isoformat").unwrap();
+    ISO_FORMAT_FUNC = PyObject_GetAttr(
+        (*PyDateTimeAPI()).DateTimeType as *mut PyObject,
+        PyUnicode_FromString(iso_format_py_string.as_ptr())
+    );
+    if EMPTY_TUPLE.is_null()
+        || EMPTY_STRING.is_null()
+        || EMPTY_BYTES.is_null()
+        || DESERIALIZATION_ERROR_TYPE.is_null()
+        || SERIALIZATION_ERROR_TYPE.is_null()
+    {
         return PyErr_NoMemory();
     }
     PyModule_Create(ptr::addr_of_mut!(MODULE_DEF))
 }
-
 
 #[allow(unused)]
 pub unsafe extern "C" fn dump_bytes(
@@ -84,9 +97,9 @@ pub unsafe extern "C" fn dump_bytes(
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
     let mut obj = None;
+    let mut serialize_dates: bool = false;
     // TODO
     let mut allow_non_string_keys: bool = true;
-    let mut serialize_dates: bool = false;
 
     if !kwnames.is_null() {
         let nkw = PyTuple_Size(kwnames);
@@ -103,8 +116,10 @@ pub unsafe extern "C" fn dump_bytes(
                 serialize_dates = PyObject_IsTrue(value) == 1;
             } else {
                 return format!(
-                    "dump_bytes() got an unexpected keyword argument '{}'", py_str_to_rust_str(&key).unwrap_or("<memory error>")
-                ).to_py_error(PyExc_TypeError);
+                    "dump_bytes() got an unexpected keyword argument '{}'",
+                    py_str_to_rust_str(&key).unwrap_or("<memory error>")
+                )
+                .to_py_error(PyExc_TypeError);
             }
         }
     }
@@ -112,14 +127,16 @@ pub unsafe extern "C" fn dump_bytes(
     let num_args = PyVectorcall_NARGS(nargs as usize);
     let obj = if let Some(obj) = obj {
         if num_args != 0 {
-            return "dump_bytes() got multiple values for argument 'obj'".to_py_error(PyExc_TypeError);
+            return "dump_bytes() got multiple values for argument 'obj'"
+                .to_py_error(PyExc_TypeError);
         }
         obj
     } else {
         if num_args != 1 {
             return format!(
                 "dump_bytes() expected exactly 1 positional argument, but {num_args} were provided"
-            ).to_py_error(PyExc_TypeError);
+            )
+            .to_py_error(PyExc_TypeError);
         }
         *args
     };
@@ -130,7 +147,13 @@ pub unsafe extern "C" fn dump_bytes(
 
     buf.extend_from_slice(b"<o>");
     let mut pointers = FxHashMap::default();
-    let result = serialize(obj, &mut buf, &mut pointers, &mut 0);
+    let result = serialize(
+        obj,
+        &mut buf,
+        &mut pointers,
+        &mut 0,
+        &Settings { serialize_dates },
+    );
     if let Err(error) = result {
         return error;
     }
@@ -167,8 +190,10 @@ pub unsafe extern "C" fn load_bytes(
                 ignore_extra_data = PyObject_IsTrue(value) == 1;
             } else {
                 return format!(
-                    "load_bytes() got an unexpected keyword argument '{}'", py_str_to_rust_str(&key).unwrap_or("<memory error>")
-                ).to_py_error(PyExc_TypeError);
+                    "load_bytes() got an unexpected keyword argument '{}'",
+                    py_str_to_rust_str(&key).unwrap_or("<memory error>")
+                )
+                .to_py_error(PyExc_TypeError);
             }
         }
     }
@@ -176,14 +201,16 @@ pub unsafe extern "C" fn load_bytes(
     let num_args = PyVectorcall_NARGS(nargs as usize);
     let buffer = if let Some(buffer) = buffer {
         if num_args != 0 {
-            return "load_bytes() got multiple values for argument 'buffer'".to_py_error(PyExc_TypeError);
+            return "load_bytes() got multiple values for argument 'buffer'"
+                .to_py_error(PyExc_TypeError);
         }
         buffer
     } else {
         if num_args != 1 {
             return format!(
                 "load_bytes() expected exactly 1 positional argument, but {num_args} were provided"
-            ).to_py_error(PyExc_TypeError);
+            )
+            .to_py_error(PyExc_TypeError);
         }
         *args
     };
@@ -192,8 +219,12 @@ pub unsafe extern "C" fn load_bytes(
         if is_gc_enabled() {
             gc_disable();
             true
-        } else { false }
-    } else { false };
+        } else {
+            false
+        }
+    } else {
+        false
+    };
     let mut pointers = FxHashMap::default();
     let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
         Ok(slice) => slice,
@@ -201,13 +232,20 @@ pub unsafe extern "C" fn load_bytes(
             if should_enable_gc {
                 gc_enabled();
             }
-            return err
-        },
+            return err;
+        }
     };
 
     let mut string_cache = StringCache::new();
     let mut pointer = HEADER.len();
-    let result = deserialize_object(slice, &mut pointer, &mut pointers, use_tuples, &mut string_cache, &mut 0);
+    let result = deserialize_object(
+        slice,
+        &mut pointer,
+        &mut pointers,
+        use_tuples,
+        &mut string_cache,
+        &mut 0,
+    );
     if should_enable_gc {
         gc_enabled();
     }
@@ -216,11 +254,10 @@ pub unsafe extern "C" fn load_bytes(
             if !ignore_extra_data && pointer != slice.len() {
                 return format!(
                     "Unexpected extra data, from position {pointer}. If you want to ignore it use the flag `ignore_extra_data`"
-                ).to_py_error(DESERIALIZATION_ERROR_TYPE)
+                ).to_py_error(DESERIALIZATION_ERROR_TYPE);
             }
             result_object
         }
-        Err(err) => err
+        Err(err) => err,
     }
-
 }

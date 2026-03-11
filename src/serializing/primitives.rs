@@ -1,12 +1,13 @@
-use pyo3_ffi::{Py_ssize_t, PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH};
-use std::collections::hash_map::Entry;
-use std::slice;
 use crate::raise_mem_error_if_null;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
-use crate::serializing::utils::{encode_number, predict_encoded_number_length};
+use crate::serializing::utils::{encode_number, predict_encoded_number_length, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE, POINTER_FLAG, STR_FLAG};
-use crate::utils::wrappers::{is_ascii, py_unicode_data};
+use crate::utils::py_helpers::ToPyErr;
+use crate::utils::wrappers::{is_ascii, py_unicode_data, tuple_set_item};
+use pyo3_ffi::{PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyObject_CallObject, PyTuple_New, PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH, Py_ssize_t};
+use std::collections::hash_map::Entry;
+use std::slice;
 
 #[inline(always)]
 pub fn serialize_bytes(obj: *mut PyObject, buffer: &mut PyBytesBuffer) -> Result<(), *mut PyObject> {
@@ -101,4 +102,16 @@ pub fn try_encode_as_pointer(str: *mut PyObject, buffer: &mut PyBytesBuffer, poi
         }
     }
     Ok(false)
+}
+
+pub fn serialize_date(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject> {
+    unsafe {
+        let args = PyTuple_New(1);
+        tuple_set_item(args, 0, obj);
+        let py_iso_formatted_date = PyObject_CallObject(ISO_FORMAT_FUNC, args);
+        if py_iso_formatted_date.is_null() {
+            return Err("Failed to serialize date".to_py_error(SERIALIZATION_ERROR_TYPE));
+        }
+        serialize_str(py_iso_formatted_date, buffer, pointers, str_count)
+    }
 }
