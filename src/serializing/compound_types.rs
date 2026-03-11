@@ -1,14 +1,14 @@
-use std::{ptr, slice};
-use pyo3_ffi::{Py_None, Py_ssize_t, Py_True, PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyObject, PyTuple_Type, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH, PyUnicode_Type};
-use rustc_hash::FxHashMap;
 use crate::serializing::primitives::{serialize_str, try_encode_as_pointer};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize;
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::{BOOL_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NULL_FLAG, NUMBER_BASE, STR_KEY_DICT_FLAG};
-use crate::utils::py_helpers::{ToPyErr};
+use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{get_list_size, get_tuple_size, is_ascii, list_get_item, py_unicode_data, tuple_get_item};
+use pyo3_ffi::{PyBool_Type, PyDict_Next, PyDict_Size, PyDict_Type, PyList_Type, PyObject, PyTuple_Type, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH, PyUnicode_Type, Py_None, Py_True, Py_ssize_t};
+use rustc_hash::FxHashMap;
+use std::{ptr, slice};
 
 #[inline(always)]
 pub fn serialize_dict(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mut Pointers, str_count: &mut usize) -> Result<(), *mut PyObject>{
@@ -122,28 +122,6 @@ pub fn encode_list(obj: *mut PyObject, buffer: &mut PyBytesBuffer, pointers: &mu
                 return Ok(())
             }
         }
-        // todo else if first_type == &mut PyLong_Type {
-            // buffer.push(CONSISTENT_TYPE_LIST_FLAG);
-            // buffer.push(INT_FLAG);
-            // encode_number::<NUMBER_BASE>(buffer, len as u128);
-            // for i in 0..len {
-            //     let item = if is_list {
-            //         list_get_item(obj, i)
-            //     } else {
-            //         tuple_get_item(obj, i)
-            //     };
-            //
-            //     if check_if_python_number_is_negative(item) {
-            //         buffer.push((NUMBER_BASE - 1) as u8);
-            //         let negative_item = PyNumber_Negative(item);
-            //         encode_python_int::<{NUMBER_BASE-1}, true>(negative_item, buffer);
-            //         Py_DECREF(negative_item);
-            //     } else {
-            //         encode_python_int::<{NUMBER_BASE-1}, true>(item, buffer);
-            //     }
-            // }
-            // return Ok(())
-        // }
     }
 
     serialize_normal_list(obj, buffer, pointers, is_list, len, str_count)

@@ -1,9 +1,9 @@
-use std::ffi::c_long;
-use pyo3_ffi::{_PyLong_AsByteArray, _PyLong_NumBits, Py_DECREF, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyLongObject, PyNumber_Add, PyNumber_Subtract, PyObject, PyObject_RichCompareBool};
 use crate::raise_mem_error_if_null;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::utils::encode_number;
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ENDING_FLAG, NEGATIVE_INT_FLAG, NUMBER_BASE, POSITIVE_INT_FLAG};
+use pyo3_ffi::{PyLongObject, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyNumber_Add, PyNumber_Subtract, PyObject, PyObject_RichCompareBool, Py_DECREF, _PyLong_AsByteArray, _PyLong_NumBits};
+use std::ffi::c_long;
 
 pub fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &mut PyBytesBuffer) -> Result<(), *mut PyObject> {
     let mut overflow = 0;
@@ -15,6 +15,7 @@ pub fn encode_python_int<const BASE: u128>(obj: *mut PyObject, buffer: &mut PyBy
                 buffer.push(AMOUNT_OF_USED_FLAGS + longlong as u8)
             } else {
                 buffer.push(POSITIVE_INT_FLAG)?;
+                // TODO: could technically subtract (NUMBER_BASE - AMOUNT_OF_USED_FLAGS) or serialize the number differently
                 encode_number::<BASE>(buffer, longlong as u128)
             }
         } else {
