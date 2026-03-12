@@ -1,4 +1,3 @@
-import bisect
 import struct
 from datetime import datetime
 from typing import Union, List, Tuple
@@ -8,7 +7,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     DICT_FLAG, STR_KEY_DICT_FLAG, FLOAT_FLAG, STR_FLAG, NEGATIVE_INT_FLAG, EMPTY_STR_FLAG, EMPTY_BYTES_FLAG, \
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, BOOL_FLAG, \
     POINTER_FLAG, HEADER, \
-    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, ENCODED_NUMBER_LIMITS, \
+    BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_OF_STRUCTURED_DICTS_FLAG
 from pypinch.exceptions import SerializationError
 from pypinch.serialize.settings import Settings
@@ -43,12 +42,9 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             buffer.append(EMPTY_STR_FLAG)
             return
         if (prev_pos := settings.pointers.get(obj)) is not None:
-            predicted_pointer_length = bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
-            predicted_str_length = len(obj) + bisect.bisect_left(ENCODED_NUMBER_LIMITS, len(obj))
-            if predicted_pointer_length <= predicted_str_length:
-                buffer.append(POINTER_FLAG)
-                encode_number(buffer, prev_pos)
-                return
+            buffer.append(POINTER_FLAG)
+            encode_number(buffer, prev_pos)
+            return
         else:
             settings.pointers[obj] = settings.str_count
         settings.str_count += 1
@@ -140,12 +136,8 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             encode_number(buffer, len(obj))
             for k, v in obj.items():
                 if (prev_pos := settings.pointers.get(k)) is not None:
-                    predicted_digits = 1 + bisect.bisect_left(ENCODED_NUMBER_LIMITS, prev_pos)
-                    if predicted_digits <= len(obj):
-                        buffer.append(NUMBER_BASE - 1)
-                        encode_number(buffer, prev_pos)
-                    else:
-                        serialize_str_without_type(buffer, k, settings, base=NUMBER_BASE - 1)
+                    buffer.append(NUMBER_BASE - 1)
+                    encode_number(buffer, prev_pos)
                 else:
                     serialize_str_without_type(buffer, k, settings, base=NUMBER_BASE - 1)
                 serialize_object_with_type(buffer, v, settings)
