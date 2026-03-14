@@ -53,34 +53,32 @@ pub fn decode_sized_pointer<const SIZE: usize>(
     if *ptr + SIZE > buf.len() {
         return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
     }
-    let pos = match SIZE {
-        1 => {
-            let pos = unsafe { *buf.get_unchecked(*ptr) } as usize;
-            *ptr += 1;
-            pos
+    let pos = unsafe {
+        match SIZE {
+            1 => {
+                let pos = *buf.get_unchecked(*ptr) as usize;
+                *ptr += 1;
+                pos
+            }
+            2 => {
+                let buf_pointer = buf.as_ptr().add(*ptr) as *const u16;
+                *ptr += 2;
+                u16::from_be(std::ptr::read_unaligned(buf_pointer)) as usize
+            }
+            3 => {
+                let pos = (*buf.get_unchecked(*ptr) as usize) << 16
+                    | (*buf.get_unchecked(*ptr + 1) as usize) << 8
+                    | *buf.get_unchecked(*ptr + 2) as usize;
+                *ptr += 3;
+                pos
+            }
+            4 => {
+                let buf_pointer = buf.as_ptr().add(*ptr) as *const u32;
+                *ptr += 4;
+                u32::from_be(std::ptr::read_unaligned(buf_pointer)) as usize
+            }
+            _ => unreachable!(),
         }
-        2 => {
-            let pos = (unsafe { *buf.get_unchecked(*ptr) } as usize) << 8
-                | unsafe { *buf.get_unchecked(*ptr + 1) } as usize;
-            *ptr += 2;
-            pos
-        }
-        3 => {
-            let pos = (unsafe { *buf.get_unchecked(*ptr) } as usize) << 16
-                | (unsafe { *buf.get_unchecked(*ptr + 1) } as usize) << 8
-                | unsafe { *buf.get_unchecked(*ptr + 2) } as usize;
-            *ptr += 3;
-            pos
-        }
-        4 => {
-            let pos = (unsafe { *buf.get_unchecked(*ptr) } as usize) << 24
-                | (unsafe { *buf.get_unchecked(*ptr + 1) } as usize) << 16
-                | (unsafe { *buf.get_unchecked(*ptr + 2) } as usize) << 8
-                | unsafe { *buf.get_unchecked(*ptr + 3) } as usize;
-            *ptr += 4;
-            pos
-        }
-        _ => unreachable!(),
     };
     let res = *safe_get!(pointers, &pos, CORRUPTED_DATA);
     unsafe {

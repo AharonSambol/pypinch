@@ -4,10 +4,7 @@ use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{
     encode_number, predict_encoded_number_length, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE,
 };
-use crate::utils::consts::{
-    ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE,
-    POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, STR_FLAG,
-};
+use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE, POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, STR_FLAG};
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{is_ascii, py_unicode_data, tuple_set_item};
 use pyo3_ffi::{
@@ -91,11 +88,8 @@ fn encode_pointer(buffer: &mut PyBytesBuffer, pointer: u128) -> Result<(), *mut 
     if pointer < 2u128.pow(8) {
         buffer.extend_from_slice(&[POINTER_FLAG_1BYTE, pointer as u8])?;
     } else if pointer < 2u128.pow(16) {
-        buffer.extend_from_slice(&[
-            POINTER_FLAG_2BYTE,
-            (pointer >> 8) as u8,
-            (pointer & 0b11111111) as u8,
-        ])?;
+        buffer.push(POINTER_FLAG_2BYTE)?;
+        buffer.extend_from_slice(&(pointer as u16).to_be_bytes())?;
     } else if pointer < 2u128.pow(24) {
         buffer.extend_from_slice(&[
             POINTER_FLAG_3BYTE,
@@ -104,13 +98,8 @@ fn encode_pointer(buffer: &mut PyBytesBuffer, pointer: u128) -> Result<(), *mut 
             (pointer & 0b11111111) as u8,
         ])?;
     } else if pointer < 2u128.pow(32) {
-        buffer.extend_from_slice(&[
-            POINTER_FLAG_3BYTE,
-            (pointer >> 24) as u8,
-            (pointer >> 16 & 0b11111111) as u8,
-            (pointer >> 8 & 0b11111111) as u8,
-            (pointer & 0b11111111) as u8,
-        ])?;
+        buffer.push(POINTER_FLAG_4BYTE)?;
+        buffer.extend_from_slice(&(pointer as u32).to_be_bytes())?;
     } else {
         buffer.push(POINTER_FLAG)?;
         encode_number::<NUMBER_BASE>(buffer, pointer)?;
