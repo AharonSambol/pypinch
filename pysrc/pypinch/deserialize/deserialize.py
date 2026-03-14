@@ -50,10 +50,28 @@ def load_bytes(
 def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple[ObjType, int]:
     flag = buffer[pointer]
     pointer += 1
+    # Ordered this way due to some basic PGO (most common cases first)
     if flag < len(FIRST_FLAGS_LIST):
         return FIRST_FLAGS_LIST[flag], pointer
+    elif flag == POINTER_FLAG_3BYTE:
+        position = buffer[pointer] << 16 | buffer[pointer + 1] << 8 | buffer[pointer + 2]
+        return settings.pointers[position], pointer + 3
+    elif flag == POINTER_FLAG_2BYTE:
+        position = buffer[pointer] << 8 | buffer[pointer + 1]
+        return settings.pointers[position], pointer + 2
+    elif flag == POINTER_FLAG_1BYTE:
+        position = buffer[pointer]
+        return settings.pointers[position], pointer + 1
+    elif flag == ASCII_STR_FLAG:
+        return deserialize_str(buffer, pointer, settings)
     elif flag == POSITIVE_INT_FLAG:
         return decode_number(buffer, pointer)
+    elif flag == LIST_FLAG:
+        length, pointer = decode_number(buffer, pointer)
+        res_list = [None] * length
+        for i in range(length):
+            res_list[i], pointer = deserialize_object(buffer, pointer, settings)
+        return res_list, pointer
     elif flag == STR_KEY_DICT_FLAG:
         length, pointer = decode_number(buffer, pointer)
         res_dict = {}
@@ -66,10 +84,8 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
             v, pointer = deserialize_object(buffer, pointer, settings)
             res_dict[k] = v
         return res_dict, pointer
-    elif flag == ASCII_STR_FLAG:
-        return deserialize_str(buffer, pointer, settings)
-    elif flag == STR_FLAG:
-        return deserialize_str(buffer, pointer, settings)
+    elif flag >= AMOUNT_OF_USED_FLAGS:
+        return flag - AMOUNT_OF_USED_FLAGS, pointer
     elif flag == DICT_FLAG:
         length, pointer = decode_number(buffer, pointer)
         res_dict = {}
@@ -84,12 +100,6 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
         return res_dict, pointer
     elif flag == EMPTY_DICT_FLAG:
         return {}, pointer
-    elif flag == LIST_FLAG:
-        length, pointer = decode_number(buffer, pointer)
-        res_list = [None] * length
-        for i in range(length):
-            res_list[i], pointer = deserialize_object(buffer, pointer, settings)
-        return res_list, pointer
     elif flag == EMPTY_LIST_FLAG:
         return (tuple() if settings.use_tuples else []), pointer
     elif flag == CONSISTENT_TYPE_LIST_FLAG:
@@ -145,18 +155,6 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
     elif flag == POINTER_FLAG:
         position, pointer = decode_number(buffer, pointer)
         return settings.pointers[position], pointer
-    elif flag == POINTER_FLAG_1BYTE:
-        position = buffer[pointer]
-        return settings.pointers[position], pointer + 1
-    elif flag == POINTER_FLAG_2BYTE:
-        position = buffer[pointer] << 8 | buffer[pointer + 1]
-        return settings.pointers[position], pointer + 2
-    elif flag == POINTER_FLAG_3BYTE:
-        position = buffer[pointer] << 16 | buffer[pointer + 1] << 8 | buffer[pointer + 2]
-        return settings.pointers[position], pointer + 3
-    elif flag == POINTER_FLAG_4BYTE:
-        position = buffer[pointer] << 24 | buffer[pointer + 1] << 16 | buffer[pointer + 2] << 8 | buffer[pointer + 3]
-        return settings.pointers[position], pointer + 4
     elif flag == LIST_OF_STRUCTURED_DICTS_FLAG:
         list_length, pointer = decode_number(buffer, pointer)
         dict_length, pointer = decode_number(buffer, pointer)
@@ -177,10 +175,13 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
                 dct[key], pointer = deserialize_object(buffer, pointer, settings)
             res_list[list_idx] = dct
         return res_list, pointer
-    elif flag < AMOUNT_OF_USED_FLAGS:
-        raise DeserializationError("unexpected flag")
+    elif flag == POINTER_FLAG_4BYTE:
+        position = buffer[pointer] << 24 | buffer[pointer + 1] << 16 | buffer[pointer + 2] << 8 | buffer[pointer + 3]
+        return settings.pointers[position], pointer + 4
+    elif flag == STR_FLAG:
+        return deserialize_str(buffer, pointer, settings)
     else:
-        return flag - AMOUNT_OF_USED_FLAGS, pointer
+        raise DeserializationError("unexpected flag")
 
 
 def deserialize_str(buffer: bytes, pointer: int, settings: Settings, base: int = NUMBER_BASE) -> Tuple[str, int]:
