@@ -45,6 +45,42 @@ pub fn decode_pointer(
 }
 
 #[inline(always)]
+pub fn decode_sized_pointer<const SIZE: usize>(
+    buf: &[u8],
+    ptr: &mut usize,
+    pointers: &mut FxHashMap<usize, *mut PyObject>,
+) -> Result<*mut PyObject, *mut PyObject> {
+    let pos = match SIZE {
+        1 => {
+            let pos = buf[*ptr] as usize;
+            *ptr += 1;
+            pos
+        },
+        2 => {
+            let pos = (buf[*ptr] as usize) << 8 | buf[*ptr + 1] as usize;
+            *ptr += 2;
+            pos
+        },
+        3 => {
+            let pos = (buf[*ptr] as usize) << 16 | (buf[*ptr + 1] as usize) << 8 | buf[*ptr + 2] as usize;
+            *ptr += 3;
+            pos
+        },
+        4 => {
+            let pos = (buf[*ptr] as usize) << 24 | (buf[*ptr + 1] as usize) << 16 | (buf[*ptr + 2] as usize) << 8 | buf[*ptr + 3] as usize;
+            *ptr += 4;
+            pos
+        },
+        _ => unreachable!(),
+    };
+    let res = *safe_get!(pointers, &pos, CORRUPTED_DATA);
+    unsafe {
+        Py_INCREF(res);
+    }
+    Ok(res)
+}
+
+#[inline(always)]
 pub fn decode_null() -> *mut PyObject {
     unsafe {
         let none = Py_None();

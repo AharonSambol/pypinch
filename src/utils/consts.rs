@@ -26,6 +26,10 @@ pub const STR_KEY_DICT_FLAG: u8 = 16;
 pub const POINTER_FLAG: u8 = 17;
 pub const ASCII_STR_FLAG: u8 = 18;
 pub const LIST_OF_STRUCTURED_DICTS_FLAG: u8 = 19;
+pub const POINTER_FLAG_1BYTE: u8 = 20;
+pub const POINTER_FLAG_2BYTE: u8 = 21;
+pub const POINTER_FLAG_3BYTE: u8 = 22;
+pub const POINTER_FLAG_4BYTE: u8 = 23;
 
 pub const AMOUNT_OF_USED_FLAGS: u8 = 30; // for future flags
 

@@ -6,7 +6,7 @@ use crate::serializing::utils::{
 };
 use crate::utils::consts::{
     ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE,
-    POINTER_FLAG, STR_FLAG,
+    POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, STR_FLAG,
 };
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{is_ascii, py_unicode_data, tuple_set_item};
@@ -57,14 +57,8 @@ pub fn serialize_str(
         if len == 0 {
             return buffer.push(EMPTY_STR_FLAG);
         }
-        if try_encode_as_pointer(
-            obj,
-            buffer,
-            pointers,
-            *str_count,
-            len as Py_ssize_t,
-            &[POINTER_FLAG],
-        )? {
+        if let Some(pointer) = try_get_as_pointer(obj, pointers, *str_count, len as Py_ssize_t)? {
+            encode_pointer(buffer, pointer)?;
             return Ok(());
         }
         // Skip the PyASCIIObject header
@@ -83,7 +77,8 @@ pub fn serialize_str(
         return buffer.push(EMPTY_STR_FLAG);
     }
 
-    if try_encode_as_pointer(obj, buffer, pointers, *str_count, len, &[POINTER_FLAG])? {
+    if let Some(pointer) = try_get_as_pointer(obj, pointers, *str_count, len)? {
+        encode_pointer(buffer, pointer)?;
         return Ok(());
     }
     *str_count += 1;
@@ -92,33 +87,59 @@ pub fn serialize_str(
     buffer.extend_from_slice(unsafe { slice::from_raw_parts(data as *const u8, len as usize) })
 }
 
+fn encode_pointer(buffer: &mut PyBytesBuffer, pointer: u128) -> Result<(), *mut PyObject> {
+    if pointer < 2u128.pow(8) {
+        buffer.extend_from_slice(&[POINTER_FLAG_1BYTE, pointer as u8])?;
+    } else if pointer < 2u128.pow(16) {
+        buffer.extend_from_slice(&[
+            POINTER_FLAG_2BYTE,
+            (pointer >> 8) as u8,
+            (pointer & 0b11111111) as u8,
+        ])?;
+    } else if pointer < 2u128.pow(24) {
+        buffer.extend_from_slice(&[
+            POINTER_FLAG_3BYTE,
+            (pointer >> 16) as u8,
+            (pointer >> 8 & 0b11111111) as u8,
+            (pointer & 0b11111111) as u8,
+        ])?;
+    } else if pointer < 2u128.pow(32) {
+        buffer.extend_from_slice(&[
+            POINTER_FLAG_3BYTE,
+            (pointer >> 24) as u8,
+            (pointer >> 16 & 0b11111111) as u8,
+            (pointer >> 8 & 0b11111111) as u8,
+            (pointer & 0b11111111) as u8,
+        ])?;
+    } else {
+        buffer.push(POINTER_FLAG)?;
+        encode_number::<NUMBER_BASE>(buffer, pointer)?;
+    }
+    Ok(())
+}
+
 #[inline(always)]
-pub fn try_encode_as_pointer(
+pub fn try_get_as_pointer(
     str: *mut PyObject,
-    buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
     str_count: usize,
     str_len: Py_ssize_t,
-    pointer_flag: &[u8],
-) -> Result<bool, *mut PyObject> {
+) -> Result<Option<u128>, *mut PyObject> {
     match pointers.entry(PyStringKey(str)) {
         Entry::Occupied(entry) => {
             let position = (*entry.get()) as u128;
-            let predicted_pointer_length =
-                pointer_flag.len() + predict_encoded_number_length(position);
+            let predicted_pointer_length = predict_encoded_number_length(position);
             let predicted_str_length =
-                1 + str_len as usize + predict_encoded_number_length(str_len as u128);
+                str_len as usize + predict_encoded_number_length(str_len as u128);
             if predicted_pointer_length <= predicted_str_length {
-                buffer.extend_from_slice(pointer_flag)?;
-                encode_number::<NUMBER_BASE>(buffer, position)?;
-                return Ok(true);
+                return Ok(Some(position));
             }
         }
         Entry::Vacant(entry) => {
             entry.insert(str_count);
         }
     }
-    Ok(false)
+    Ok(None)
 }
 
 pub fn serialize_date(

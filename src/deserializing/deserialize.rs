@@ -8,17 +8,15 @@ use crate::deserializing::compound_types::{
 };
 use crate::deserializing::consistent_typed_list::decode_consistent_type_list;
 use crate::deserializing::deserializing_string_cache::StringCache;
-use crate::deserializing::primitives::{
-    decode_bytes, decode_f64, decode_false, decode_negative_int, decode_null, decode_pointer,
-    decode_string, decode_true,
-};
+use crate::deserializing::primitives::{decode_bytes, decode_f64, decode_false, decode_negative_int, decode_null, decode_pointer, decode_sized_pointer, decode_string, decode_true};
 use crate::deserializing::utils::decode_large_number;
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
 use crate::utils::consts::{
     AMOUNT_OF_USED_FLAGS, ASCII_STR_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, DICT_FLAG,
     EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG,
     LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NEGATIVE_INT_FLAG, NOT_ASCII, NULL_FLAG, NUMBER_BASE,
-    POINTER_FLAG, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG, YES_ASCII,
+    POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE,
+    POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG, YES_ASCII,
 };
 use crate::{raise_mem_error_if_null, safe_get, safe_new_py_dict, safe_new_py_list};
 
@@ -47,6 +45,10 @@ pub fn deserialize_object<'a>(
         FALSE_FLAG => Ok(decode_false()),
         NULL_FLAG => Ok(decode_null()),
         POINTER_FLAG => decode_pointer(buf, ptr, pointers),
+        POINTER_FLAG_1BYTE => decode_sized_pointer::<1>(buf, ptr, pointers),
+        POINTER_FLAG_2BYTE => decode_sized_pointer::<2>(buf, ptr, pointers),
+        POINTER_FLAG_3BYTE => decode_sized_pointer::<3>(buf, ptr, pointers),
+        POINTER_FLAG_4BYTE => decode_sized_pointer::<4>(buf, ptr, pointers),
         BYTES_FLAG => decode_bytes(buf, ptr),
         CONSISTENT_TYPE_LIST_FLAG => {
             decode_consistent_type_list(buf, ptr, pointers, use_tuples, string_cache, str_count)

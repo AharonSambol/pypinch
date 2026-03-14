@@ -1,4 +1,4 @@
-use crate::serializing::primitives::{serialize_str, try_encode_as_pointer};
+use crate::serializing::primitives::{serialize_str, try_get_as_pointer};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize;
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
@@ -84,26 +84,21 @@ fn encode_dict_key(
     } else {
         unsafe { PyUnicode_AsUTF8AndSize(key, &mut len) as *const u8 }
     };
-    let encoded_as_pointer = try_encode_as_pointer(
-        key,
-        buffer,
-        pointers,
-        *str_count,
-        len,
-        &[NUMBER_BASE as u8 - 1],
-    )?;
-    if !encoded_as_pointer {
-        *str_count += 1;
-        if is_compact_ascii {
-            encode_number::<{ NUMBER_BASE - 1 }>(buffer, 1 + len as u128)?;
-            buffer.push(INVALID_UTF_8_START_BYTE_COMPACT_ASCII)?;
-        } else {
-            encode_number::<{ NUMBER_BASE - 1 }>(buffer, len as u128)?;
-        }
-        unsafe { buffer.extend_from_slice(slice::from_raw_parts(data, len as usize)) }
-    } else {
-        Ok(())
+
+    if let Some(pointer) = try_get_as_pointer(key, pointers, *str_count, len)? {
+        buffer.push(NUMBER_BASE as u8 - 1)?;
+        encode_number::<NUMBER_BASE>(buffer, pointer)?;
+        return Ok(());
     }
+
+    *str_count += 1;
+    if is_compact_ascii {
+        encode_number::<{ NUMBER_BASE - 1 }>(buffer, 1 + len as u128)?;
+        buffer.push(INVALID_UTF_8_START_BYTE_COMPACT_ASCII)?;
+    } else {
+        encode_number::<{ NUMBER_BASE - 1 }>(buffer, len as u128)?;
+    }
+    unsafe { buffer.extend_from_slice(slice::from_raw_parts(data, len as usize)) }
 }
 
 fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssize_t) -> bool {
