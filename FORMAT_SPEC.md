@@ -108,6 +108,10 @@ Note that when an object can be serialized by one of multiple flags, there is no
 * [pointer flag](#pointer-flag): `0x11`
 * [ascii str flag](#ascii-str-flag): `0x12`
 * [list of structured dicts flag](#list-of-structured-dicts-flag): `0x13`
+* [pointer flag 1 byte](#pointer-flag-1-byte): `0x14`
+* [pointer flag 2 byte](#pointer-flag-2-byte): `0x15`
+* [pointer flag 3 byte](#pointer-flag-3-byte): `0x16`
+* [pointer flag 4 byte](#pointer-flag-4-byte): `0x17`
 
 ### Empty String Flag
 As it sounds, it represents an empty string.
@@ -191,6 +195,22 @@ The index is not the position in the encoded bytes but rather just a counter whi
 is serialized. 
 <br/>
 A pointer cannot point at a string which appears after itself in the encoded bytes. It will always point backwards.
+
+### Pointer Flag 1 Byte
+Same as the pointer flag except that the number is stored a bit different.
+The number is stored in 1 byte, in base 255.
+
+### Pointer Flag 2 Byte
+Same as the pointer flag except that the number is stored a bit different.
+The number is stored in 2 bytes, big-endian, in base 255.
+
+### Pointer Flag 3 Byte
+Same as the pointer flag except that the number is stored a bit different.
+The number is stored in 3 bytes, big-endian, in base 255.
+
+### Pointer Flag 4 Byte
+Same as the pointer flag except that the number is stored a bit different.
+The number is stored in 4 bytes, big-endian, in base 255.
 
 ### ASCII Str Flag
 Same as [str flag](#str-flag), but indicates that the string is plain ASCII, and not the normal UTF-8. (This is used as an optimization)
