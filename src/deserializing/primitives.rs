@@ -50,27 +50,36 @@ pub fn decode_sized_pointer<const SIZE: usize>(
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
 ) -> Result<*mut PyObject, *mut PyObject> {
+    if *ptr + SIZE > buf.len() {
+        return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
+    }
     let pos = match SIZE {
         1 => {
-            let pos = buf[*ptr] as usize;
+            let pos = unsafe { *buf.get_unchecked(*ptr) } as usize;
             *ptr += 1;
             pos
-        },
+        }
         2 => {
-            let pos = (buf[*ptr] as usize) << 8 | buf[*ptr + 1] as usize;
+            let pos = (unsafe { *buf.get_unchecked(*ptr) } as usize) << 8
+                | unsafe { *buf.get_unchecked(*ptr + 1) } as usize;
             *ptr += 2;
             pos
-        },
+        }
         3 => {
-            let pos = (buf[*ptr] as usize) << 16 | (buf[*ptr + 1] as usize) << 8 | buf[*ptr + 2] as usize;
+            let pos = (unsafe { *buf.get_unchecked(*ptr) } as usize) << 16
+                | (unsafe { *buf.get_unchecked(*ptr + 1) } as usize) << 8
+                | unsafe { *buf.get_unchecked(*ptr + 2) } as usize;
             *ptr += 3;
             pos
-        },
+        }
         4 => {
-            let pos = (buf[*ptr] as usize) << 24 | (buf[*ptr + 1] as usize) << 16 | (buf[*ptr + 2] as usize) << 8 | buf[*ptr + 3] as usize;
+            let pos = (unsafe { *buf.get_unchecked(*ptr) } as usize) << 24
+                | (unsafe { *buf.get_unchecked(*ptr + 1) } as usize) << 16
+                | (unsafe { *buf.get_unchecked(*ptr + 2) } as usize) << 8
+                | unsafe { *buf.get_unchecked(*ptr + 3) } as usize;
             *ptr += 4;
             pos
-        },
+        }
         _ => unreachable!(),
     };
     let res = *safe_get!(pointers, &pos, CORRUPTED_DATA);
