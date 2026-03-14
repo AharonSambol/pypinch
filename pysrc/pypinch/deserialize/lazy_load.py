@@ -8,7 +8,8 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, \
     ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, EMPTY_STR_FLAG, \
-    EMPTY_BYTES_FLAG, TRUE_FLAG, FALSE_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+    EMPTY_BYTES_FLAG, TRUE_FLAG, FALSE_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, POINTER_FLAG_1BYTE, \
+    POINTER_FLAG_4BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_2BYTE
 from pypinch.deserialize.deserialize import deserialize_object, deserialize_str
 from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number, skip_number
@@ -185,6 +186,14 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
         return pointer + length
     elif flag == POINTER_FLAG:
         return skip_number(buffer, pointer)
+    elif flag == POINTER_FLAG_1BYTE:
+        return pointer + 1
+    elif flag == POINTER_FLAG_2BYTE:
+        return pointer + 2
+    elif flag == POINTER_FLAG_3BYTE:
+        return pointer + 3
+    elif flag == POINTER_FLAG_4BYTE:
+        return pointer + 4
     elif flag == LIST_OF_STRUCTURED_DICTS_FLAG:
         list_length, pointer = decode_number(buffer, pointer)
         dict_length, pointer = decode_number(buffer, pointer)
