@@ -9,7 +9,8 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, CONSISTENT_TYPE_LIST_FLAG, BOOL_FLAG, POINTER_FLAG, \
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, \
-    INVALID_UTF_8_START_BYTE_COMPACT_ASCII, ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG
+    INVALID_UTF_8_START_BYTE_COMPACT_ASCII, ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, POINTER_FLAG_1BYTE, \
+    POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE
 from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number
 from pypinch.exceptions import DeserializationError
@@ -144,6 +145,18 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
     elif flag == POINTER_FLAG:
         position, pointer = decode_number(buffer, pointer)
         return settings.pointers[position], pointer
+    elif flag == POINTER_FLAG_1BYTE:
+        position = buffer[pointer]
+        return settings.pointers[position], pointer + 1
+    elif flag == POINTER_FLAG_2BYTE:
+        position = buffer[pointer] << 8 | buffer[pointer + 1]
+        return settings.pointers[position], pointer + 2
+    elif flag == POINTER_FLAG_3BYTE:
+        position = buffer[pointer] << 16 | buffer[pointer + 1] << 8 | buffer[pointer + 2]
+        return settings.pointers[position], pointer + 3
+    elif flag == POINTER_FLAG_4BYTE:
+        position = buffer[pointer] << 24 | buffer[pointer + 1] << 16 | buffer[pointer + 2] << 8 | buffer[pointer + 3]
+        return settings.pointers[position], pointer + 4
     elif flag == LIST_OF_STRUCTURED_DICTS_FLAG:
         list_length, pointer = decode_number(buffer, pointer)
         dict_length, pointer = decode_number(buffer, pointer)

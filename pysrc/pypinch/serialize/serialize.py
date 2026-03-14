@@ -8,7 +8,8 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     EMPTY_LIST_FLAG, EMPTY_DICT_FLAG, AMOUNT_OF_USED_FLAGS, CONSISTENT_TYPE_LIST_FLAG, BOOL_FLAG, \
     POINTER_FLAG, HEADER, \
     BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
-    ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_OF_STRUCTURED_DICTS_FLAG
+    ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_OF_STRUCTURED_DICTS_FLAG, POINTER_FLAG_1BYTE, \
+    POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE
 from pypinch.exceptions import SerializationError
 from pypinch.serialize.settings import Settings
 from pypinch.serialize.utils import encode_number
@@ -42,8 +43,27 @@ def serialize_object(buffer: bytearray, obj: ObjType, settings: Settings) -> Non
             buffer.append(EMPTY_STR_FLAG)
             return
         if (prev_pos := settings.pointers.get(obj)) is not None:
-            buffer.append(POINTER_FLAG)
-            encode_number(buffer, prev_pos)
+            if prev_pos < 2 ** 8:
+                buffer.append(POINTER_FLAG_1BYTE)
+                buffer.append(prev_pos)
+            elif prev_pos < 2 ** 16:
+                buffer.append(POINTER_FLAG_2BYTE)
+                buffer.append(prev_pos >> 8)
+                buffer.append(prev_pos & 0b11111111)
+            elif prev_pos < 2 ** 24:
+                buffer.append(POINTER_FLAG_3BYTE)
+                buffer.append(prev_pos >> 16)
+                buffer.append(prev_pos >> 8 & 0b11111111)
+                buffer.append(prev_pos & 0b11111111)
+            elif prev_pos < 2 ** 32:
+                buffer.append(POINTER_FLAG_4BYTE)
+                buffer.append(prev_pos >> 24)
+                buffer.append(prev_pos >> 16 & 0b11111111)
+                buffer.append(prev_pos >> 8 & 0b11111111)
+                buffer.append(prev_pos & 0b11111111)
+            else:
+                buffer.append(POINTER_FLAG)
+                encode_number(buffer, prev_pos)
             return
         else:
             settings.pointers[obj] = settings.str_count
