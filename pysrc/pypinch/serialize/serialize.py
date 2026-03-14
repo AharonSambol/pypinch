@@ -25,7 +25,7 @@ def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, serialize_da
             str_count=0
         )
         buffer = bytearray(HEADER)
-        serialize_object_with_type(buffer, obj, settings)
+        serialize_object(buffer, obj, settings)
         return bytes(buffer)
     except SerializationError:
         raise
@@ -35,7 +35,7 @@ def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, serialize_da
         raise SerializationError() from e
 
 
-def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settings) -> None:
+def serialize_object(buffer: bytearray, obj: ObjType, settings: Settings) -> None:
     typ = type(obj)
     if typ is str:
         if len(obj) == 0:
@@ -105,26 +105,30 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
 
                     # first dict:
                     for k, v in obj[0].items():
-                        serialize_object_with_type(buffer, k, settings)
-                        serialize_object_with_type(buffer, v, settings)
+                        serialize_object(buffer, k, settings)
+                        serialize_object(buffer, v, settings)
 
                     # the rest:
                     for item in obj[1:]:
                         for key in first_keys:
-                            serialize_object_with_type(buffer, item[key], settings)
+                            serialize_object(buffer, item[key], settings)
                 else:
                     serialize_normal_list(buffer, obj, settings)
-            else:
+            elif first_type is float:
                 buffer.append(CONSISTENT_TYPE_LIST_FLAG)
-                try:
-                    # todo: support str (with utf trick)?
-                    buffer.append({bytes: BYTES_FLAG, float: FLOAT_FLAG, datetime: STR_FLAG}[first_type])
-                except KeyError:
-                    raise SerializationError(f"Unexpected type: {first_type}")
-
+                buffer.append(FLOAT_FLAG)
                 encode_number(buffer, len(obj))
                 for item in obj:
-                    serialize_object_without_type(buffer, item, settings)
+                    buffer.extend(_pack_double(item))
+            elif first_type is bytes:
+                buffer.append(CONSISTENT_TYPE_LIST_FLAG)
+                buffer.append(BYTES_FLAG)
+                encode_number(buffer, len(obj))
+                for item in obj:
+                    encode_number(buffer, len(item))
+                    buffer.extend(item)
+            else:
+                raise SerializationError(f"Unexpected type: {first_type}")
         else:
             serialize_normal_list(buffer, obj, settings)
     elif typ is dict:
@@ -136,19 +140,20 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             encode_number(buffer, len(obj))
             for k, v in obj.items():
                 if (prev_pos := settings.pointers.get(k)) is not None:
+                    # TODO: pointer optimization here too?
                     buffer.append(NUMBER_BASE - 1)
                     encode_number(buffer, prev_pos)
                 else:
                     serialize_str_without_type(buffer, k, settings, base=NUMBER_BASE - 1)
-                serialize_object_with_type(buffer, v, settings)
+                serialize_object(buffer, v, settings)
         else:
             buffer.append(DICT_FLAG)
             encode_number(buffer, len(obj))
             for k, v in obj.items():
                 if type(k) is tuple:
                     raise SerializationError("Invalid type for dict key: tuple")
-                serialize_object_with_type(buffer, k, settings)
-                serialize_object_with_type(buffer, v, settings)
+                serialize_object(buffer, k, settings)
+                serialize_object(buffer, v, settings)
     elif typ is float:
         buffer.append(FLOAT_FLAG)
         buffer.extend(_pack_double(obj))
@@ -160,7 +165,7 @@ def serialize_object_with_type(buffer: bytearray, obj: ObjType, settings: Settin
             encode_number(buffer, len(obj))
             buffer.extend(obj)
     elif typ is datetime and settings.serialize_dates:
-        return serialize_object_with_type(buffer, obj.isoformat(), settings)
+        return serialize_object(buffer, obj.isoformat(), settings)
     else:
         if typ is datetime and not settings.serialize_dates:
             raise SerializationError(f"Unexpected type: datetime, with flag serialize_dates disabled")
@@ -171,66 +176,16 @@ def serialize_normal_list(buffer: bytearray, obj: Union[List, Tuple], settings: 
     buffer.append(LIST_FLAG)
     encode_number(buffer, len(obj))
     for item in obj:
-        serialize_object_with_type(buffer, item, settings)
+        serialize_object(buffer, item, settings)
 
 
 def is_consistent_type_list(obj: Union[List, Tuple]) -> bool:
     if len(obj) <= 1:
         return False
     first_type = type(obj[0])
-    if first_type in [list, tuple, str, int]:
-        return False
-    return all(type(x) is first_type for x in obj)
-
-
-def serialize_object_without_type(buffer: bytearray, obj: ObjType, settings: Settings) -> None:
-    typ = type(obj)
-    if typ is int:
-        encode_number(buffer, obj if obj > 0 else -obj)
-    elif typ is bool:
-        buffer.append(TRUE_FLAG if obj else FALSE_FLAG)
-    elif obj is None:
-        buffer.append(NULL_FLAG)
-    elif typ is bytes:
-        encode_number(buffer, len(obj))
-        buffer.extend(obj)
-    elif typ is list or typ is tuple:
-        encode_number(buffer, len(obj))
-        for item in obj:
-            serialize_object_with_type(buffer, item, settings)
-    elif typ is dict:
-        if len(obj) == 0:
-            buffer.append(EMPTY_DICT_FLAG)
-        # elif not settings.use_pointers and not settings.allow_non_string_keys:
-        #     buffer.append(STR_KEY_DICT_FLAG)
-        #     encode_number(buffer, len(obj))
-        #     for k, v in obj.items():
-        #         if type(k) is not str:
-        #             raise EncodingError("Encountered a non string key while allow_non_string_keys is False")
-        #         serialize_object_without_type(buffer, k, settings)
-        #         serialize_object_with_type(buffer, v, settings)
-        # elif not settings.use_pointers and all(type(x) is str for x in obj.keys()):
-        # TODO:    buffer.append(STR_KEY_DICT_FLAG)
-        #     encode_number(buffer, len(obj))
-        #     for k, v in obj.items():
-        #         serialize_object_without_type(buffer, k, settings)
-        #         serialize_object_with_type(buffer, v, settings)
-        else:
-            buffer.append(DICT_FLAG)
-            encode_number(buffer, len(obj))
-            for k, v in obj.items():
-                if type(k) is tuple:
-                    raise SerializationError("Invalid type for dict key: tuple")
-                serialize_object_with_type(buffer, k, settings)
-                serialize_object_with_type(buffer, v, settings)
-    elif typ is float:
-        buffer.extend(_pack_double(obj))
-    elif typ is str:
-        serialize_str_without_type(buffer, obj, settings)
-    elif typ is datetime and settings.serialize_dates:
-        return serialize_object_without_type(buffer, obj.isoformat(), settings)
-    else:
-        raise SerializationError(f"Unexpected type: {typ}")
+    if first_type in [type(None), bool, dict, bytes, float]:
+        return all(type(x) is first_type for x in obj)
+    return False
 
 
 def serialize_str_without_type(buffer: bytearray, obj: ObjType, settings: Settings, base: int = NUMBER_BASE) -> None:
