@@ -204,7 +204,7 @@ def is_consistent_type_list(obj: Union[List, Tuple]) -> bool:
         return False
     first_type = type(obj[0])
     if first_type in [type(None), bool, dict, bytes, float]:
-        return all(type(x) is first_type for x in obj)
+        return all(type(x) is first_type for x in obj[1:])
     return False
 
 
