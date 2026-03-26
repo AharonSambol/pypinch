@@ -56,10 +56,10 @@ def test__serialize_unknown_types(obj):
         UUID: CustomType(identifier=0, converter=lambda x: str(x)),
         CustomClass: CustomType(identifier="hello?", converter=lambda x: x.serialize())
     })
-    unserialized = pypinch.load_bytes(serialized, custom_types={
+    deserialized = pypinch.load_bytes(serialized, custom_types={
         0: lambda x: UUID(x),
         "hello?": lambda x: CustomClass.deserialize(x)
     })
 
     # Assert
-    assert unserialized == obj
+    assert deserialized == obj
