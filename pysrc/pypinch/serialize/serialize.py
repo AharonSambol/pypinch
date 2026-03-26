@@ -1,6 +1,6 @@
 import struct
 from datetime import datetime
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Dict, Type
 
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
@@ -9,21 +9,28 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     POINTER_FLAG, HEADER, \
     BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_OF_STRUCTURED_DICTS_FLAG, POINTER_FLAG_1BYTE, \
-    POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE
+    POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, CUSTOM_TYPE_FLAG
 from pypinch.exceptions import SerializationError
-from pypinch.serialize.settings import Settings
+from pypinch.serialize.settings import Settings, CustomType
 from pypinch.serialize.utils import encode_number
 
 _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
 
-def dump_bytes(obj: ObjType, *, allow_non_string_keys: bool = True, serialize_dates: bool = False) -> bytes:
+def dump_bytes(
+        obj: ObjType,
+        *,
+        allow_non_string_keys: bool = True,
+        serialize_dates: bool = False,
+        custom_types: Dict[Type, CustomType] = None
+) -> bytes:
     try:
         settings = Settings(
             allow_non_string_keys=allow_non_string_keys,
             pointers={},
             serialize_dates=serialize_dates,
-            str_count=0
+            str_count=0,
+            custom_types=custom_types,
         )
         buffer = bytearray(HEADER)
         serialize_object(buffer, obj, settings)
@@ -115,9 +122,9 @@ def serialize_object(buffer: bytearray, obj: ObjType, settings: Settings) -> Non
             elif first_type is dict:
                 first_keys = obj[0].keys()
                 if (
-                    all(type(k) is str for k in first_keys)
-                    and all(len(x) == len(first_keys) for x in obj[1:])
-                    and all(x.keys() == first_keys for x in obj[1:])
+                        all(type(k) is str for k in first_keys)
+                        and all(len(x) == len(first_keys) for x in obj[1:])
+                        and all(x.keys() == first_keys for x in obj[1:])
                 ):
                     buffer.append(LIST_OF_STRUCTURED_DICTS_FLAG)
                     encode_number(buffer, len(obj))
@@ -186,6 +193,11 @@ def serialize_object(buffer: bytearray, obj: ObjType, settings: Settings) -> Non
             buffer.extend(obj)
     elif typ is datetime and settings.serialize_dates:
         return serialize_object(buffer, obj.isoformat(), settings)
+    elif (custom_type := settings.custom_types.get(typ)) is not None:
+        custom_type: CustomType
+        buffer.append(CUSTOM_TYPE_FLAG)
+        serialize_object(buffer, custom_type.identifier, settings)
+        serialize_object(buffer, custom_type.converter(obj), settings)
     else:
         if typ is datetime and not settings.serialize_dates:
             raise SerializationError(f"Unexpected type: datetime, with flag serialize_dates disabled")

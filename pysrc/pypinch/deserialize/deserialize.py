@@ -1,7 +1,7 @@
 import gc
 import struct
 import typing
-from typing import Tuple, List
+from typing import Tuple, List, Any, Dict, Callable
 
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
@@ -10,20 +10,20 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     ByteLike, HEADER, BIG_ENDIAN_DOUBLE_FORMAT, NUMBER_OF_BITS_IN_BYTE, \
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, \
     INVALID_UTF_8_START_BYTE_COMPACT_ASCII, ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, POINTER_FLAG_1BYTE, \
-    POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE
+    POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, CUSTOM_TYPE_FLAG
 from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number
 from pypinch.exceptions import DeserializationError
 
 
 def load_bytes(
-    buffer: ByteLike,
-    *,
-    use_tuples: bool = False,
-    stop_gc: bool = False,
-    ignore_extra_data: bool = False
+        buffer: ByteLike,
+        *,
+        use_tuples: bool = False,
+        stop_gc: bool = False,
+        ignore_extra_data: bool = False,
+        custom_types: Dict[Any, Callable[[bytes], Any]] = None,
 ) -> ObjType:
-
     try:
         if stop_gc:
             gc.freeze()
@@ -31,6 +31,7 @@ def load_bytes(
         settings = Settings(
             use_tuples=use_tuples,  # TODO
             pointers=[],
+            custom_types=custom_types,
         )
         res, pointer = deserialize_object(buffer, len(HEADER), settings)
         if not ignore_extra_data and pointer != len(buffer):
@@ -180,6 +181,15 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
         return settings.pointers[position], pointer + 4
     elif flag == STR_FLAG:
         return deserialize_str(buffer, pointer, settings)
+    elif flag == CUSTOM_TYPE_FLAG:
+        typ, pointer = deserialize_object(buffer, pointer, settings)
+        encoded_obj, pointer = deserialize_object(buffer, pointer, settings)
+        if type_converter := settings.custom_types.get(typ):
+            deserialized_obj = type_converter(encoded_obj)
+            return deserialized_obj, pointer
+        raise DeserializationError(
+            f"unknown custom type. please provide the correct mapping when deserializing. identifier: `{typ}` (type: `{type(typ)}`)"
+        )
     else:
         raise DeserializationError("unexpected flag")
 
@@ -187,9 +197,9 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
 def deserialize_str(buffer: bytes, pointer: int, settings: Settings, base: int = NUMBER_BASE) -> Tuple[str, int]:
     length, pointer = decode_number(buffer, pointer, base=base)
     string = buffer[
-        #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
-        pointer + (buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
-        :pointer + length
-    ].decode()
+             #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+             pointer + (buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
+             :pointer + length
+             ].decode()
     settings.pointers.append(string)
     return string, pointer + length
