@@ -1,5 +1,5 @@
 import struct
-from typing import List, Union, Any
+from typing import List, Union, Any, Dict, Callable
 
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
@@ -9,7 +9,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     LEFTMOST_BIT_MASK, BYTES_IN_DOUBLE, FIRST_FLAGS_LIST, AMOUNT_OF_USED_FLAGS, \
     ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, EMPTY_STR_FLAG, \
     EMPTY_BYTES_FLAG, TRUE_FLAG, FALSE_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, POINTER_FLAG_1BYTE, \
-    POINTER_FLAG_4BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_2BYTE
+    POINTER_FLAG_4BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_2BYTE, CUSTOM_TYPE_FLAG
 from pypinch.deserialize.deserialize import deserialize_object, deserialize_str
 from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number, skip_number
@@ -37,24 +37,31 @@ class PointersHolder:
             base = NUMBER_BASE
         length, pointer = decode_number(self.buffer, pointer, base=base)
         return self.buffer[
-            #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
-            pointer + (self.buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
-            :pointer + length
-        ].decode()
+               #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+               pointer + (self.buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
+               :pointer + length
+               ].decode()
 
     def append(self, string: str) -> None:
         self.str_posses.append(string)
 
 
 def lazy_load_bytes(
-    buffer: ByteLike,
-    path_to_load: List[Union[str, List[int]]],
-    # *,
-    # use_tuples: bool = False,
-    # stop_gc: bool = False,
+        buffer: ByteLike,
+        path_to_load: List[Union[str, List[int]]],
+        custom_types: Dict[Any, Callable[[bytes], Any]] = None,
+        # *,
+        # use_tuples: bool = False,
+        # stop_gc: bool = False,
 ) -> ObjType:
     try:
-        return lazy_deserialize_object(buffer, len(HEADER), path_to_load, Settings(use_tuples=False, pointers=PointersHolder(buffer)), dont_load=False)
+        return lazy_deserialize_object(
+            buffer,
+            len(HEADER),
+            path_to_load,
+            Settings(use_tuples=False, pointers=PointersHolder(buffer), custom_types=custom_types),
+            dont_load=False
+        )
     except DeserializationError:
         raise
     except MemoryError:
@@ -64,13 +71,20 @@ def lazy_load_bytes(
 
 
 def bytes_check_if_contains(
-    buffer: ByteLike,
-    path_to_load: List[Union[str, List[int]]],
-    # *,
-    # stop_gc: bool = False,
+        buffer: ByteLike,
+        path_to_load: List[Union[str, List[int]]],
+        custom_types: Dict[Any, Callable[[bytes], Any]] = None,
+        # *,
+        # stop_gc: bool = False,
 ) -> ObjType:
     try:
-        return lazy_deserialize_object(buffer, len(HEADER), path_to_load, Settings(use_tuples=False, pointers=PointersHolder(buffer)), dont_load=True)
+        return lazy_deserialize_object(
+            buffer,
+            len(HEADER),
+            path_to_load,
+            Settings(use_tuples=False, pointers=PointersHolder(buffer), custom_types=custom_types),
+            dont_load=True
+        )
     except DeserializationError:
         return False
     except MemoryError:
@@ -79,7 +93,8 @@ def bytes_check_if_contains(
         raise DeserializationError() from e
 
 
-def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any], settings: Settings, dont_load: bool) -> ObjType:
+def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any], settings: Settings,
+                            dont_load: bool) -> ObjType:
     if not path_to_load:
         if dont_load:
             return True
@@ -102,7 +117,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
         elif flag == CONSISTENT_TYPE_LIST_FLAG:
             return lazy_deserialize_consistent_type_list(buffer, index, path_to_load, pointer, settings)
         elif flag == LIST_OF_STRUCTURED_DICTS_FLAG:
-            pass # TODO!
+            pass  # TODO!
         else:
             raise DeserializationError(f"Invalid path, expected `list` but found `{flag_to_type_name(flag)}`")
     else:
@@ -223,13 +238,18 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
             for _ in range(dict_length):
                 pointer = skip_object(buffer, pointer, settings)
         return pointer
+    elif flag == CUSTOM_TYPE_FLAG:
+        pointer = skip_object(buffer, pointer, settings)
+        pointer = skip_object(buffer, pointer, settings)
+        return pointer
     elif flag < AMOUNT_OF_USED_FLAGS:
         raise DeserializationError("unexpected flag")
     else:
         return pointer
 
 
-def lazy_deserialize_consistent_type_list(buffer: bytes, index: int, path_to_load: List[Any], pointer: int, settings: Settings) -> Any:
+def lazy_deserialize_consistent_type_list(buffer: bytes, index: int, path_to_load: List[Any], pointer: int,
+                                          settings: Settings) -> Any:
     typ_flag = buffer[pointer]
     length, pointer = decode_number(buffer, pointer + 1)
     if index not in range(length):
