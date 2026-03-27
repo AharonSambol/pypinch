@@ -10,9 +10,7 @@ use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
 use crate::serializing::settings::Settings;
-use crate::serializing::utils::{
-    EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE,
-};
+use crate::serializing::utils::{CUSTOM_TYPE_CLASS, EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::HEADER;
 use crate::utils::py_helpers::{
     compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str,
@@ -22,7 +20,7 @@ use crate::utils::wrappers::{gc_disable, gc_enabled, is_gc_enabled, tuple_get_it
 use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
-
+use utils::custom_type_loaders;
 mod deserializing;
 mod serializing;
 mod utils;
@@ -73,6 +71,9 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
         import_object_from_python("pypinch.exceptions", "DeserializationError");
     SERIALIZATION_ERROR_TYPE =
         import_object_from_python("pypinch.exceptions", "SerializationError");
+    CUSTOM_TYPE_CLASS =
+        import_object_from_python("pypinch.serialize.settings", "CustomType");
+
     PyDateTime_IMPORT();
     let iso_format_py_string = CString::new("isoformat").unwrap();
     ISO_FORMAT_FUNC = PyObject_GetAttr(
@@ -84,6 +85,7 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
         || EMPTY_BYTES.is_null()
         || DESERIALIZATION_ERROR_TYPE.is_null()
         || SERIALIZATION_ERROR_TYPE.is_null()
+        || CUSTOM_TYPE_CLASS.is_null()
     {
         return PyErr_NoMemory();
     }
@@ -99,6 +101,7 @@ pub unsafe extern "C" fn dump_bytes(
 ) -> *mut PyObject {
     let mut obj = None;
     let mut serialize_dates: bool = false;
+    let mut custom_types = None;
     // TODO
     let mut allow_non_string_keys: bool = true;
 
@@ -115,12 +118,24 @@ pub unsafe extern "C" fn dump_bytes(
             } else if compare_str(key, b"serialize_dates\0") {
                 let value = *args.offset(nargs + i);
                 serialize_dates = PyObject_IsTrue(value) == 1;
+            } else if compare_str(key, b"custom_types\0") {
+                let value = *args.offset(nargs + i);
+
+                let custom_types_dict = match custom_type_loaders::parse_dumps_custom_types_dict(value) {
+                    Ok(value) => value,
+                    Err(value) => return value,
+                };
+                custom_types = Some(custom_types_dict);
             } else {
-                return format!(
-                    "dump_bytes() got an unexpected keyword argument '{}'",
-                    py_str_to_rust_str(&key).unwrap_or("<memory error>")
-                )
-                .to_py_error(PyExc_TypeError);
+                let rust_str = py_str_to_rust_str(&key);
+                return if let Ok(rust_str) = rust_str {
+                    format!(
+                        "dump_bytes() got an unexpected keyword argument '{}'",
+                        rust_str
+                    ).to_py_error(PyExc_TypeError)
+                } else {
+                    PyErr_NoMemory()
+                }
             }
         }
     }
@@ -153,7 +168,10 @@ pub unsafe extern "C" fn dump_bytes(
         &mut buf,
         &mut pointers,
         &mut 0,
-        &Settings { serialize_dates },
+        &Settings {
+            serialize_dates,
+            custom_types,
+        },
     );
     if let Err(error) = result {
         return error;
@@ -169,6 +187,7 @@ pub unsafe extern "C" fn load_bytes(
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
     let mut buffer = None;
+    let mut custom_types = None;
     let mut use_tuples: bool = false;
     let mut stop_gc: bool = false;
     let mut ignore_extra_data: bool = false;
@@ -189,12 +208,24 @@ pub unsafe extern "C" fn load_bytes(
             } else if compare_str(key, b"ignore_extra_data\0") {
                 let value = *args.offset(nargs + i);
                 ignore_extra_data = PyObject_IsTrue(value) == 1;
+            } else if compare_str(key, b"custom_types\0") {
+                let value = *args.offset(nargs + i);
+
+                let custom_types_dict = match custom_type_loaders::parse_loads_custom_types_dict(value) {
+                    Ok(value) => value,
+                    Err(value) => return value,
+                };
+                custom_types = Some(custom_types_dict);
             } else {
-                return format!(
-                    "load_bytes() got an unexpected keyword argument '{}'",
-                    py_str_to_rust_str(&key).unwrap_or("<memory error>")
-                )
-                .to_py_error(PyExc_TypeError);
+                let rust_str = py_str_to_rust_str(&key);
+                return if let Ok(rust_str) = rust_str {
+                    format!(
+                        "load_bytes() got an unexpected keyword argument '{}'",
+                        rust_str
+                    ).to_py_error(PyExc_TypeError)
+                } else {
+                    PyErr_NoMemory()
+                }
             }
         }
     }
@@ -246,6 +277,7 @@ pub unsafe extern "C" fn load_bytes(
         use_tuples,
         &mut string_cache,
         &mut 0,
+        &custom_types,
     );
     if should_enable_gc {
         gc_enabled();

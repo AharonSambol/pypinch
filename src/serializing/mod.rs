@@ -6,4 +6,5 @@ pub mod serialize;
 mod serializing_string_cache;
 pub mod settings;
 pub mod utils;
+mod custom_types;
 

@@ -30,6 +30,7 @@ pub const POINTER_FLAG_1BYTE: u8 = 20;
 pub const POINTER_FLAG_2BYTE: u8 = 21;
 pub const POINTER_FLAG_3BYTE: u8 = 22;
 pub const POINTER_FLAG_4BYTE: u8 = 23;
+pub const CUSTOM_TYPE_FLAG: u8 = 24;
 
 pub const AMOUNT_OF_USED_FLAGS: u8 = 30; // for future flags
 

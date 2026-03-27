@@ -8,6 +8,7 @@ pub static mut EMPTY_TUPLE: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_STRING: *mut PyObject = ptr::null_mut();
 pub static mut EMPTY_BYTES: *mut PyObject = ptr::null_mut();
 pub static mut SERIALIZATION_ERROR_TYPE: *mut PyObject = ptr::null_mut();
+pub static mut CUSTOM_TYPE_CLASS: *mut PyObject = ptr::null_mut();
 pub static mut ISO_FORMAT_FUNC: *mut PyObject = ptr::null_mut();
 
 const ENCODED_NUMBER_LIMITS: [u128; 18] = [

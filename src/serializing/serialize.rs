@@ -3,7 +3,7 @@ use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serializing_string_cache::Pointers;
 use crate::serializing::settings::Settings;
 use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
-use crate::serializing::{compound_types, primitives};
+use crate::serializing::{compound_types, custom_types, primitives};
 use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE, TRUE_FLAG};
 use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use pyo3_ffi::*;
@@ -45,6 +45,8 @@ pub fn serialize(
             buffer.push(NULL_FLAG)
         } else if settings.serialize_dates && PyDateTime_Check(obj) != 0 {
             primitives::serialize_date(obj, buffer, pointers, str_count)
+        } else if custom_type_mapping_exists(settings, &typ) {
+            custom_types::serialize_custom_type(obj, buffer, pointers, str_count, settings, typ)
         } else {
             if !settings.serialize_dates && PyDateTime_Check(obj) != 0 {
                 return Err(
@@ -56,4 +58,11 @@ pub fn serialize(
                 .to_py_error(SERIALIZATION_ERROR_TYPE))
         }
     }
+}
+
+fn custom_type_mapping_exists(settings: &Settings, typ: &*mut PyTypeObject) -> bool {
+    if let Some(custom_types) = &settings.custom_types {
+        return custom_types.contains_key(&typ)
+    }
+    false
 }

@@ -8,6 +8,7 @@ use crate::deserializing::utils::{
     decode_number_py_ssize_t, decode_number_usize, DESERIALIZATION_ERROR_TYPE,
 };
 use crate::utils::consts::{CORRUPTED_DATA, MIGHT_BE_ASCII, NUMBER_BASE};
+use crate::utils::py_dict_key::PyHashMap;
 use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
@@ -20,20 +21,21 @@ pub fn decode_list<'a>(
     use_tuples: bool,
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
+    custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
 
     if use_tuples {
         let tup = safe_new_py_list!(len, true);
         for i in 0..len {
-            let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+            let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
             tuple_set_item(tup, i, obj);
         }
         Ok(tup)
     } else {
         let list = safe_new_py_list!(len, false);
         for i in 0..len {
-            let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+            let obj = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
             list_set_item(list, i, obj);
         }
         Ok(list)
@@ -48,12 +50,13 @@ pub fn decode_str_key_dict<'a>(
     use_tuples: bool,
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
+    custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
     let dict = safe_new_py_dict!();
     for _ in 0..len {
         let key = deserialize_dict_key(buf, ptr, pointers, string_cache, str_count)?;
-        let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+        let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
         unsafe {
             PyDict_SetItem(dict, key, value);
             Py_DECREF(key);
@@ -97,12 +100,13 @@ pub fn decode_dict<'a>(
     use_tuples: bool,
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
+    custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
     let dict = safe_new_py_dict!();
     for _ in 0..len {
-        let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
-        let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+        let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
+        let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
         unsafe {
             if PyDict_SetItem(dict, key, value) != 0 {
                 return Err(format!("Invalid type for a key: {}", pretty_type(key))
@@ -122,6 +126,7 @@ pub fn decode_list_of_structured_dicts<'a>(
     use_tuples: bool,
     string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
+    custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let list_len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
     let list = safe_new_py_list!(list_len, use_tuples);
@@ -131,8 +136,8 @@ pub fn decode_list_of_structured_dicts<'a>(
     let first_dict = safe_new_py_dict!();
     let mut keys = Vec::with_capacity(dict_len);
     for _ in 0..dict_len {
-        let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
-        let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+        let key = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
+        let value = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
         unsafe {
             PyDict_SetItem(first_dict, key, value);
             Py_DECREF(value);
@@ -150,7 +155,7 @@ pub fn decode_list_of_structured_dicts<'a>(
         let dict = safe_new_py_dict!();
         for key_index in 0..dict_len {
             let value =
-                deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count)?;
+                deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
             unsafe {
                 PyDict_SetItem(dict, keys[key_index], value);
                 Py_DECREF(value);
