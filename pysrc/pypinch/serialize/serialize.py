@@ -18,11 +18,11 @@ _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
 
 
 def dump_bytes(
-        obj: ObjType,
-        *,
-        allow_non_string_keys: bool = True,
-        serialize_dates: bool = False,
-        custom_types: Dict[Type, CustomType] = None
+    obj: ObjType,
+    *,
+    allow_non_string_keys: bool = True,
+    serialize_dates: bool = False,
+    custom_types: Dict[Type, CustomType] = None
 ) -> bytes:
     try:
         settings = Settings(
@@ -193,7 +193,7 @@ def serialize_object(buffer: bytearray, obj: ObjType, settings: Settings) -> Non
             buffer.extend(obj)
     elif typ is datetime and settings.serialize_dates:
         return serialize_object(buffer, obj.isoformat(), settings)
-    elif (custom_type := settings.custom_types.get(typ)) is not None:
+    elif settings.custom_types and (custom_type := settings.custom_types.get(typ)) is not None:
         custom_type: CustomType
         buffer.append(CUSTOM_TYPE_FLAG)
         serialize_object(buffer, custom_type.identifier, settings)

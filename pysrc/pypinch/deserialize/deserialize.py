@@ -184,7 +184,7 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
     elif flag == CUSTOM_TYPE_FLAG:
         typ, pointer = deserialize_object(buffer, pointer, settings)
         encoded_obj, pointer = deserialize_object(buffer, pointer, settings)
-        if type_converter := settings.custom_types.get(typ):
+        if settings.custom_types and (type_converter := settings.custom_types.get(typ)):
             deserialized_obj = type_converter(encoded_obj)
             return deserialized_obj, pointer
         raise DeserializationError(
