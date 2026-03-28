@@ -2,14 +2,14 @@ use crate::raise_mem_error_if_null;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
 use crate::serializing::utils::{
-    encode_number, predict_encoded_number_length, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE,
+    encode_number, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE,
 };
 use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE, POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, STR_FLAG};
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{is_ascii, py_unicode_data, tuple_set_item};
 use pyo3_ffi::{
     PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyObject_CallObject, PyTuple_New,
-    PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH, Py_ssize_t,
+    PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH,
 };
 use std::collections::hash_map::Entry;
 use std::slice;
@@ -54,7 +54,7 @@ pub fn serialize_str(
         if len == 0 {
             return buffer.push(EMPTY_STR_FLAG);
         }
-        if let Some(pointer) = try_get_as_pointer(obj, pointers, *str_count, len as Py_ssize_t)? {
+        if let Some(pointer) = try_get_as_pointer(obj, pointers, *str_count)? {
             encode_pointer(buffer, pointer)?;
             return Ok(());
         }
@@ -74,7 +74,7 @@ pub fn serialize_str(
         return buffer.push(EMPTY_STR_FLAG);
     }
 
-    if let Some(pointer) = try_get_as_pointer(obj, pointers, *str_count, len)? {
+    if let Some(pointer) = try_get_as_pointer(obj, pointers, *str_count)? {
         encode_pointer(buffer, pointer)?;
         return Ok(());
     }
@@ -112,17 +112,10 @@ pub fn try_get_as_pointer(
     str: *mut PyObject,
     pointers: &mut Pointers,
     str_count: usize,
-    str_len: Py_ssize_t,
 ) -> Result<Option<u128>, *mut PyObject> {
     match pointers.entry(PyStringKey(str)) {
         Entry::Occupied(entry) => {
-            let position = (*entry.get()) as u128;
-            let predicted_pointer_length = predict_encoded_number_length(position);
-            let predicted_str_length =
-                str_len as usize + predict_encoded_number_length(str_len as u128);
-            if predicted_pointer_length <= predicted_str_length {
-                return Ok(Some(position));
-            }
+            return Ok(Some((*entry.get()) as u128));
         }
         Entry::Vacant(entry) => {
             entry.insert(str_count);

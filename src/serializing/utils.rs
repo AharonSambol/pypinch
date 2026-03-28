@@ -68,15 +68,3 @@ pub fn all_dict_keys_are_str(obj: *mut PyObject) -> bool {
     }
     true
 }
-
-#[inline(always)]
-pub fn predict_encoded_number_length(number: u128) -> usize {
-    let mut predicted_digits = 1;
-    for limit in ENCODED_NUMBER_LIMITS {
-        if number <= limit {
-            break;
-        }
-        predicted_digits += 1;
-    }
-    predicted_digits
-}

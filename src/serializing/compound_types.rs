@@ -85,7 +85,7 @@ fn encode_dict_key(
         unsafe { PyUnicode_AsUTF8AndSize(key, &mut len) as *const u8 }
     };
 
-    if let Some(pointer) = try_get_as_pointer(key, pointers, *str_count, len)? {
+    if let Some(pointer) = try_get_as_pointer(key, pointers, *str_count)? {
         buffer.push(NUMBER_BASE as u8 - 1)?;
         encode_number::<NUMBER_BASE>(buffer, pointer)?;
         return Ok(());
