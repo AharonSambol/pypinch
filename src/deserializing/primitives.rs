@@ -5,7 +5,7 @@ use pyo3_ffi::{
 use rustc_hash::FxHashMap;
 use std::ffi::c_char;
 
-use crate::deserializing::deserializing_string_cache::StringCache;
+use crate::deserializing::string_creator::create_string;
 use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::deserializing::utils::{
     decode_large_number, decode_number_py_ssize_t, decode_number_usize,
@@ -129,7 +129,6 @@ pub fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
-    string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_usize::<BASE>(buf, ptr)?;
@@ -137,13 +136,13 @@ pub fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128>(
         return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
     }
     let string = match IS_ASCII {
-        YES_ASCII => string_cache.get_or_create::<true>(&buf[*ptr..*ptr + len])?,
-        NOT_ASCII => string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len])?,
+        YES_ASCII => create_string::<true>(&buf[*ptr..*ptr + len])?,
+        NOT_ASCII => create_string::<false>(&buf[*ptr..*ptr + len])?,
         MIGHT_BE_ASCII => {
             if unsafe { *buf.get_unchecked(*ptr) } == INVALID_UTF_8_START_BYTE_COMPACT_ASCII {
-                string_cache.get_or_create::<true>(&buf[*ptr + 1..*ptr + len])?
+                create_string::<true>(&buf[*ptr + 1..*ptr + len])?
             } else {
-                string_cache.get_or_create::<false>(&buf[*ptr..*ptr + len])?
+                create_string::<false>(&buf[*ptr..*ptr + len])?
             }
         }
         _ => unreachable!(),

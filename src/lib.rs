@@ -6,7 +6,6 @@ use std::os::raw::c_char;
 use std::ptr;
 
 use crate::deserializing::deserialize::deserialize_object;
-use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
 use crate::serializing::settings::Settings;
@@ -268,14 +267,12 @@ pub unsafe extern "C" fn load_bytes(
         }
     };
 
-    let mut string_cache = StringCache::new();
     let mut pointer = HEADER.len();
     let result = deserialize_object(
         slice,
         &mut pointer,
         &mut pointers,
         use_tuples,
-        &mut string_cache,
         &mut 0,
         &custom_types,
     );

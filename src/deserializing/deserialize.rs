@@ -7,7 +7,6 @@ use crate::deserializing::compound_types::{
     decode_dict, decode_list, decode_list_of_structured_dicts, decode_str_key_dict,
 };
 use crate::deserializing::consistent_typed_list::decode_consistent_type_list;
-use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::deserializing::primitives::{decode_bytes, decode_f64, decode_false, decode_negative_int, decode_null, decode_pointer, decode_sized_pointer, decode_string, decode_true};
 use crate::deserializing::utils::{decode_large_number, DESERIALIZATION_ERROR_TYPE};
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, SERIALIZATION_ERROR_TYPE};
@@ -28,7 +27,6 @@ pub fn deserialize_object<'a>(
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
     use_tuples: bool,
-    string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<*mut PyObject, *mut PyObject> {
@@ -40,10 +38,10 @@ pub fn deserialize_object<'a>(
         NEGATIVE_INT_FLAG => decode_negative_int(buf, ptr),
         FLOAT_FLAG => decode_f64(buf, ptr),
         STR_FLAG => {
-            decode_string::<NOT_ASCII, NUMBER_BASE>(buf, ptr, pointers, string_cache, str_count)
+            decode_string::<NOT_ASCII, NUMBER_BASE>(buf, ptr, pointers, str_count)
         }
         ASCII_STR_FLAG => {
-            decode_string::<YES_ASCII, NUMBER_BASE>(buf, ptr, pointers, string_cache, str_count)
+            decode_string::<YES_ASCII, NUMBER_BASE>(buf, ptr, pointers, str_count)
         }
         TRUE_FLAG => Ok(decode_true()),
         FALSE_FLAG => Ok(decode_false()),
@@ -55,11 +53,11 @@ pub fn deserialize_object<'a>(
         POINTER_FLAG_4BYTE => decode_sized_pointer::<4>(buf, ptr, pointers),
         BYTES_FLAG => decode_bytes(buf, ptr),
         CONSISTENT_TYPE_LIST_FLAG => {
-            decode_consistent_type_list(buf, ptr, pointers, use_tuples, string_cache, str_count)
+            decode_consistent_type_list(buf, ptr, pointers, use_tuples, str_count)
         }
-        DICT_FLAG => decode_dict(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types),
+        DICT_FLAG => decode_dict(buf, ptr, pointers, use_tuples, str_count, custom_types),
         STR_KEY_DICT_FLAG => {
-            decode_str_key_dict(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)
+            decode_str_key_dict(buf, ptr, pointers, use_tuples, str_count, custom_types)
         }
         EMPTY_BYTES_FLAG => unsafe {
             Py_INCREF(EMPTY_BYTES);
@@ -80,13 +78,13 @@ pub fn deserialize_object<'a>(
             Py_INCREF(EMPTY_STRING);
             Ok(EMPTY_STRING)
         },
-        LIST_FLAG => decode_list(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types),
+        LIST_FLAG => decode_list(buf, ptr, pointers, use_tuples, str_count, custom_types),
         LIST_OF_STRUCTURED_DICTS_FLAG => {
-            decode_list_of_structured_dicts(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)
+            decode_list_of_structured_dicts(buf, ptr, pointers, use_tuples, str_count, custom_types)
         }
         CUSTOM_TYPE_FLAG => {
-            let type_identifier = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
-            let serialized_object = deserialize_object(buf, ptr, pointers, use_tuples, string_cache, str_count, custom_types)?;
+            let type_identifier = deserialize_object(buf, ptr, pointers, use_tuples, str_count, custom_types)?;
+            let serialized_object = deserialize_object(buf, ptr, pointers, use_tuples, str_count, custom_types)?;
             unsafe {
                 println!("{} {}", custom_types.as_ref().unwrap().len(), py_str_to_rust_str(&PyObject_Str(type_identifier))?);
             }

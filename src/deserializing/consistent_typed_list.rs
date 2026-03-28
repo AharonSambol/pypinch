@@ -6,7 +6,6 @@ use pyo3_ffi::{
 };
 use rustc_hash::FxHashMap;
 
-use crate::deserializing::deserializing_string_cache::StringCache;
 use crate::deserializing::primitives::{decode_f64, decode_string};
 use crate::deserializing::utils::decode_number_py_ssize_t;
 use crate::utils::consts::{
@@ -23,7 +22,6 @@ pub fn decode_consistent_type_list<'a>(
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
     use_tuples: bool,
-    string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let typ = *safe_get!(buf, *ptr);
@@ -34,7 +32,7 @@ pub fn decode_consistent_type_list<'a>(
         NULL_FLAG => decode_null_list(use_tuples, len),
         BOOL_FLAG => decode_bool_list(use_tuples, buf, ptr, len),
         BYTES_FLAG => decode_bytes_list(use_tuples, buf, ptr, len),
-        STR_FLAG => decode_str_list(use_tuples, buf, ptr, pointers, string_cache, str_count, len),
+        STR_FLAG => decode_str_list(use_tuples, buf, ptr, pointers, str_count, len),
         FLOAT_FLAG => decode_floats_list(use_tuples, buf, ptr, len),
         _ => Err("Unexpected consistent list type".to_py_error(unsafe { PyExc_TypeError })),
     }
@@ -63,7 +61,6 @@ fn decode_str_list<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut FxHashMap<usize, *mut PyObject>,
-    string_cache: &mut StringCache<'a>,
     str_count: &mut usize,
     len: Py_ssize_t,
 ) -> Result<*mut PyObject, *mut PyObject> {
@@ -73,7 +70,6 @@ fn decode_str_list<'a>(
             buf,
             ptr,
             pointers,
-            string_cache,
             str_count,
         )?;
         if use_tuples {
