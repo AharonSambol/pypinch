@@ -1,7 +1,6 @@
 use std::ffi::c_long;
 
 use pyo3_ffi::{PyLong_FromLong, PyObject, PyObject_CallObject, PyObject_Str, PyTuple_New, Py_DECREF, Py_INCREF};
-use rustc_hash::FxHashMap;
 
 use crate::deserializing::compound_types::{
     decode_dict, decode_list, decode_list_of_structured_dicts, decode_str_key_dict,
@@ -25,7 +24,7 @@ use crate::{raise_mem_error_if_null, safe_get, safe_new_py_dict, safe_new_py_lis
 pub fn deserialize_object<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,

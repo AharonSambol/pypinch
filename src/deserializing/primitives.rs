@@ -2,7 +2,6 @@ use pyo3_ffi::{
     PyBytes_FromStringAndSize, PyFloat_FromDouble, PyNumber_Negative, PyObject, Py_DECREF,
     Py_False, Py_INCREF, Py_None, Py_True,
 };
-use rustc_hash::FxHashMap;
 use std::ffi::c_char;
 
 use crate::deserializing::string_creator::create_string;
@@ -33,10 +32,10 @@ pub fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut P
 pub fn decode_pointer(
     buf: &[u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let pos = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
-    let res = *safe_get!(pointers, &pos, CORRUPTED_DATA);
+    let res = *safe_get!(pointers, pos, CORRUPTED_DATA);
     unsafe {
         Py_INCREF(res);
     }
@@ -47,7 +46,7 @@ pub fn decode_pointer(
 pub fn decode_sized_pointer<const SIZE: usize>(
     buf: &[u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
 ) -> Result<*mut PyObject, *mut PyObject> {
     if *ptr + SIZE > buf.len() {
         return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
@@ -79,7 +78,7 @@ pub fn decode_sized_pointer<const SIZE: usize>(
             _ => unreachable!(),
         }
     };
-    let res = *safe_get!(pointers, &pos, CORRUPTED_DATA);
+    let res = *safe_get!(pointers, pos, CORRUPTED_DATA);
     unsafe {
         Py_INCREF(res);
     }
@@ -127,7 +126,7 @@ pub fn decode_negative_int(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject,
 pub fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_usize::<BASE>(buf, ptr)?;

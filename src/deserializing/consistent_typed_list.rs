@@ -4,7 +4,6 @@ use pyo3_ffi::{
     PyBytes_FromStringAndSize, PyExc_TypeError, PyObject, Py_False, Py_INCREF, Py_None, Py_True,
     Py_ssize_t,
 };
-use rustc_hash::FxHashMap;
 
 use crate::deserializing::primitives::{decode_f64, decode_string};
 use crate::deserializing::utils::decode_number_py_ssize_t;
@@ -20,7 +19,7 @@ use crate::{raise_mem_error_if_null, safe_get, safe_new_py_list};
 pub fn decode_consistent_type_list<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     use_tuples: bool,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
@@ -60,7 +59,7 @@ fn decode_str_list<'a>(
     use_tuples: bool,
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     str_count: &mut usize,
     len: Py_ssize_t,
 ) -> Result<*mut PyObject, *mut PyObject> {

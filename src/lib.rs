@@ -256,7 +256,7 @@ pub unsafe extern "C" fn load_bytes(
     } else {
         false
     };
-    let mut pointers = FxHashMap::default();
+    let mut pointers = vec![];
     let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
         Ok(slice) => slice,
         Err(err) => {

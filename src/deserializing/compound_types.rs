@@ -1,5 +1,4 @@
 use pyo3_ffi::{PyDict_SetItem, PyObject, Py_DECREF, Py_INCREF, Py_ssize_t};
-use rustc_hash::FxHashMap;
 
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::primitives::decode_string;
@@ -16,7 +15,7 @@ use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
 pub fn decode_list<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
@@ -44,7 +43,7 @@ pub fn decode_list<'a>(
 pub fn decode_str_key_dict<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
@@ -66,13 +65,13 @@ pub fn decode_str_key_dict<'a>(
 fn deserialize_dict_key<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     if *safe_get!(buf, *ptr) == NUMBER_BASE as u8 - 1 {
         *ptr += 1;
         let position = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
-        let res = *safe_get!(pointers, &position, CORRUPTED_DATA);
+        let res = *safe_get!(pointers, position, CORRUPTED_DATA);
         unsafe {
             Py_INCREF(res);
         }
@@ -91,7 +90,7 @@ fn deserialize_dict_key<'a>(
 pub fn decode_dict<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
@@ -116,7 +115,7 @@ pub fn decode_dict<'a>(
 pub fn decode_list_of_structured_dicts<'a>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut FxHashMap<usize, *mut PyObject>,
+    pointers: &mut Vec<*mut PyObject>,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
