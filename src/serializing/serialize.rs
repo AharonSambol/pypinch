@@ -4,7 +4,7 @@ use crate::serializing::serializing_string_cache::Pointers;
 use crate::serializing::settings::Settings;
 use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 use crate::serializing::{compound_types, custom_types, primitives};
-use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE, TRUE_FLAG};
+use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE};
 use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use pyo3_ffi::*;
 use pyo3_ffi::{
@@ -26,11 +26,7 @@ pub fn serialize(
         if typ == &mut PyUnicode_Type {
             primitives::serialize_str(obj, buffer, pointers, str_count)
         } else if typ == &mut PyBool_Type {
-            buffer.push(if obj == Py_True() {
-                TRUE_FLAG
-            } else {
-                FALSE_FLAG
-            })
+            buffer.push(FALSE_FLAG - (obj == Py_True()) as u8)
         } else if typ == &mut PyLong_Type {
             encode_python_int::<NUMBER_BASE>(obj, buffer)
         } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {

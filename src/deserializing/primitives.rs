@@ -30,7 +30,6 @@ pub fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut P
     Ok(bytes)
 }
 
-#[inline(always)]
 pub fn decode_pointer(
     buf: &[u8],
     ptr: &mut usize,

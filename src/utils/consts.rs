@@ -8,8 +8,8 @@ pub const CORRUPTED_DATA: &'static str = "Corrupted data";
 
 pub const EMPTY_STR_FLAG: u8 = 0;
 pub const EMPTY_BYTES_FLAG: u8 = 1;
-pub const TRUE_FLAG: u8 = 2;
-pub const FALSE_FLAG: u8 = 3;
+pub const TRUE_FLAG: u8 = 2;    // DON'T CHANGE THIS VALUE, IT IS USED IN THE ENCODING ALGORITHM
+pub const FALSE_FLAG: u8 = 3;   // DON'T CHANGE THIS VALUE, IT IS USED IN THE ENCODING ALGORITHM
 pub const NULL_FLAG: u8 = 4;
 pub const EMPTY_LIST_FLAG: u8 = 5;
 pub const EMPTY_DICT_FLAG: u8 = 6;
