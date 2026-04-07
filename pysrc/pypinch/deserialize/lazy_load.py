@@ -15,7 +15,6 @@ from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number, skip_number
 from pypinch.exceptions import DeserializationError
 
-UNEXPECTED_END_MESSAGE_TEMPLATE = lambda path_to_load, got: f"Invalid path, expected `{'list' if type(path_to_load[0]) is list else 'dict'}` but found `{got}`"
 INDEX_OUT_OF_RANGE_TEMPLATE = "Index out of range, index is `{}` but list is of len `{}`"
 KEY_NOT_IN_DICT_TEMPLATE = "Key not found, key: `{}` (type `{}`)"
 
@@ -107,7 +106,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
         index = indexer[0]
         if flag == EMPTY_LIST_FLAG:
             raise DeserializationError(INDEX_OUT_OF_RANGE_TEMPLATE.format(index, 0))
-        if flag == LIST_FLAG:
+        elif flag == LIST_FLAG:
             length, pointer = decode_number(buffer, pointer)
             if index not in range(length):
                 raise DeserializationError(INDEX_OUT_OF_RANGE_TEMPLATE.format(index, length))
@@ -123,7 +122,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
     else:
         if flag == EMPTY_DICT_FLAG:
             raise DeserializationError(KEY_NOT_IN_DICT_TEMPLATE.format(indexer, type(indexer)))
-        if flag == DICT_FLAG:
+        elif flag == DICT_FLAG:
             length, pointer = decode_number(buffer, pointer)
             for _ in range(length):
                 # TODO: check char char if it matches indexer and the moment it doesnt skip all the rest of the chars
@@ -257,7 +256,9 @@ def lazy_deserialize_consistent_type_list(buffer: bytes, index: int, path_to_loa
 
     if path_to_load:
         got_type = flag_to_type_name(typ_flag)
-        raise DeserializationError(UNEXPECTED_END_MESSAGE_TEMPLATE(path_to_load, got_type))
+        raise DeserializationError(
+            f"Invalid path, expected `{'list' if type(path_to_load[0]) is list else 'dict'}` but found `{got_type}`"
+        )
 
     if typ_flag == NULL_FLAG:
         return None
