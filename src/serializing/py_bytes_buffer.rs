@@ -7,6 +7,7 @@ use pyo3_ffi::{
 
 pub struct PyBytesBuffer {
     obj: *mut PyObject,
+    data_ptr: *mut u8,
     len: usize,
     cap: usize,
 }
@@ -19,14 +20,10 @@ impl PyBytesBuffer {
 
         Ok(Self {
             obj,
+            data_ptr: unsafe { PyBytes_AS_STRING(obj) as *mut u8 },
             len: 0,
             cap: if cap <= 0 { 8 } else { cap },
         })
-    }
-
-    #[inline(always)]
-    fn data_ptr(&self) -> *mut u8 {
-        unsafe { PyBytes_AS_STRING(self.obj) as *mut u8 }
     }
 
     #[inline]
@@ -37,17 +34,23 @@ impl PyBytesBuffer {
         }
 
         self.cap = required.max(self.cap * 2);
-        unsafe { _PyBytes_Resize(&mut self.obj, self.cap as isize) >= 0 }
+        unsafe {
+            let succeeded = _PyBytes_Resize(&mut self.obj, self.cap as isize) >= 0;
+            self.data_ptr = PyBytes_AS_STRING(self.obj) as *mut u8;
+            succeeded
+        }
     }
 
     #[inline]
     pub fn push(&mut self, byte: u8) -> Result<(), *mut PyObject> {
-        if !self.ensure_capacity(1) {
-            return Err(unsafe { PyErr_NoMemory() });
+        if self.len < self.cap {
+            if !self.ensure_capacity(1) {
+                return Err(unsafe { PyErr_NoMemory() });
+            }
         }
 
         unsafe {
-            *self.data_ptr().add(self.len) = byte;
+            *self.data_ptr.add(self.len) = byte;
         }
         self.len += 1;
         Ok(())
@@ -60,7 +63,7 @@ impl PyBytesBuffer {
         }
 
         unsafe {
-            ptr::copy_nonoverlapping(slice.as_ptr(), self.data_ptr().add(self.len), slice.len());
+            ptr::copy_nonoverlapping(slice.as_ptr(), self.data_ptr.add(self.len), slice.len());
         }
 
         self.len += slice.len();
