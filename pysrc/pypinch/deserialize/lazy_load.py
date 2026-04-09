@@ -35,17 +35,12 @@ class PointersHolder:
             return self.str_posses[item]
 
         pointer = self.str_posses[item]
-        if type(pointer) is tuple:
-            base = NUMBER_BASE - 1
-            pointer = pointer[0]
-        else:
-            base = NUMBER_BASE
-        length, pointer = decode_number(self.buffer, pointer, base=base)
+        length, pointer = decode_number(self.buffer, pointer >> 1, base=NUMBER_BASE - (pointer & 1))
         return self.buffer[
-               #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
-               pointer + (self.buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
-               :pointer + length
-               ].decode()
+            #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+            pointer + (self.buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
+            :pointer + length
+        ].decode()
 
     def append(self, string: str) -> None:
         self.str_posses.append(string)
@@ -414,9 +409,6 @@ def lazy_load_float_list(buffer: bytes, index: int, pointer: int) -> float:
 
 
 def skip_string(buffer: bytes, pointer: int, settings: Settings, base: int = NUMBER_BASE) -> int:
-    if base == NUMBER_BASE:
-        settings.pointers.str_posses.append(pointer)
-    else:
-        settings.pointers.str_posses.append((pointer,))
+    settings.pointers.str_posses.append((pointer << 1) + (base == NUMBER_BASE))
     length, pointer = decode_number(buffer, pointer, base=base)
     return pointer + length
