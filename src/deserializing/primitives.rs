@@ -4,17 +4,18 @@ use pyo3_ffi::{
 };
 use std::ffi::c_char;
 
+use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::deserializing::string_creator::create_string;
 use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::deserializing::utils::{
     decode_large_number, decode_number_py_ssize_t, decode_number_usize,
 };
 use crate::utils::consts::{
-    IsAscii, CORRUPTED_DATA, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, MIGHT_BE_ASCII, NOT_ASCII,
+    IsAscii, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, MIGHT_BE_ASCII, NOT_ASCII,
     NUMBER_BASE, UNEXPECTED_END_OF_INPUT, YES_ASCII,
 };
 use crate::utils::py_helpers::ToPyErr;
-use crate::{raise_mem_error_if_null, safe_get};
+use crate::raise_mem_error_if_null;
 
 #[inline(always)]
 pub fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
@@ -29,24 +30,20 @@ pub fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut P
     Ok(bytes)
 }
 
-pub fn decode_pointer(
+pub fn decode_pointer<P: PointerHolder>(
     buf: &[u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let pos = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
-    let res = *safe_get!(pointers, pos, CORRUPTED_DATA);
-    unsafe {
-        Py_INCREF(res);
-    }
-    Ok(res)
+    pointers.safe_get(pos)
 }
 
 #[inline(always)]
-pub fn decode_sized_pointer<const SIZE: usize>(
+pub fn decode_sized_pointer<const SIZE: usize, P: PointerHolder>(
     buf: &[u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
 ) -> Result<*mut PyObject, *mut PyObject> {
     if *ptr + SIZE > buf.len() {
         return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
@@ -78,11 +75,7 @@ pub fn decode_sized_pointer<const SIZE: usize>(
             _ => unreachable!(),
         }
     };
-    let res = *safe_get!(pointers, pos, CORRUPTED_DATA);
-    unsafe {
-        Py_INCREF(res);
-    }
-    Ok(res)
+    pointers.safe_get(pos)
 }
 
 #[inline(always)]
@@ -123,32 +116,39 @@ pub fn decode_negative_int(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject,
 }
 
 #[inline(always)]
-pub fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128>(
+pub fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128, P: PointerHolder>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
+    let string = decode_string_without_inserting_pointer::<IS_ASCII, BASE>(&buf, ptr)?;
+    pointers.insert(string);
+    *str_count += 1;
+    Ok(string)
+}
+
+pub fn decode_string_without_inserting_pointer<'a, const IS_ASCII: IsAscii, const BASE: u128>(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_usize::<BASE>(buf, ptr)?;
     if *ptr + len > buf.len() {
         return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
     }
-    let string = match IS_ASCII {
-        YES_ASCII => create_string::<true>(&buf[*ptr..*ptr + len])?,
-        NOT_ASCII => create_string::<false>(&buf[*ptr..*ptr + len])?,
+    let start = *ptr;
+    *ptr += len;
+    let end = *ptr;
+
+    match IS_ASCII {
+        YES_ASCII => create_string::<true>(&buf[start..end]),
+        NOT_ASCII => create_string::<false>(&buf[start..end]),
         MIGHT_BE_ASCII => {
-            if unsafe { *buf.get_unchecked(*ptr) } == INVALID_UTF_8_START_BYTE_COMPACT_ASCII {
-                create_string::<true>(&buf[*ptr + 1..*ptr + len])?
+            if unsafe { *buf.get_unchecked(start) } == INVALID_UTF_8_START_BYTE_COMPACT_ASCII {
+                create_string::<true>(&buf[start + 1..end])
             } else {
-                create_string::<false>(&buf[*ptr..*ptr + len])?
+                create_string::<false>(&buf[start..end])
             }
         }
         _ => unreachable!(),
-    };
-    *ptr += len;
-    pointers.insert(*str_count, string);
-    *str_count += 1;
-    Ok(string)
+    }
 }
 
 pub fn decode_f64(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {

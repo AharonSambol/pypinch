@@ -1,4 +1,5 @@
 use crate::deserializing::deserialize::deserialize_object;
+use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 use crate::utils::py_dict_key::{PyHashMap, PyKey};
@@ -6,10 +7,10 @@ use crate::utils::py_helpers::{pretty_type, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::tuple_set_item;
 use pyo3_ffi::{PyObject, PyObject_CallObject, PyObject_Str, PyTuple_New, Py_DECREF};
 
-pub fn deserialize_custom_type(
+pub fn deserialize_custom_type<P: PointerHolder>(
     buf: &[u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,

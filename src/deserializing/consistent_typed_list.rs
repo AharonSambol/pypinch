@@ -5,6 +5,7 @@ use pyo3_ffi::{
     Py_ssize_t,
 };
 
+use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::deserializing::primitives::{decode_f64, decode_string};
 use crate::deserializing::utils::decode_number_py_ssize_t;
 use crate::utils::consts::{
@@ -16,10 +17,10 @@ use crate::utils::wrappers::{list_set_item, tuple_set_item};
 use crate::{raise_mem_error_if_null, safe_get, safe_new_py_list};
 
 #[inline(always)]
-pub fn decode_consistent_type_list<'a>(
+pub fn decode_consistent_type_list<'a, P: PointerHolder>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     use_tuples: bool,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
@@ -55,17 +56,17 @@ fn decode_floats_list(
     Ok(list)
 }
 
-fn decode_str_list<'a>(
+fn decode_str_list<'a, P: PointerHolder>(
     use_tuples: bool,
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     str_count: &mut usize,
     len: Py_ssize_t,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let list = safe_new_py_list!(len, use_tuples);
     for i in 0..len {
-        let str = decode_string::<MIGHT_BE_ASCII, NUMBER_BASE>(
+        let str = decode_string::<MIGHT_BE_ASCII, NUMBER_BASE, P>(
             buf,
             ptr,
             pointers,

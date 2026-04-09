@@ -32,6 +32,22 @@ macro_rules! _decode_number {
     }};
 }
 
+pub fn skip_number(buf: &[u8], ptr: &mut usize) -> Result<(), *mut PyObject> {
+    let byte = *safe_get!(buf, *ptr);
+    *ptr += 1;
+
+    if byte != ENDING_FLAG {
+        return Ok(());
+    }
+    loop {
+        let byte = *safe_get!(buf, *ptr);
+        *ptr += 1;
+        if byte == ENDING_FLAG {
+            break Ok(());
+        }
+    }
+}
+
 #[inline(always)]
 pub fn decode_number_usize<const BASE: u128>(
     buf: &[u8],

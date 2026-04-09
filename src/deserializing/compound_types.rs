@@ -1,21 +1,22 @@
-use pyo3_ffi::{PyDict_SetItem, PyObject, Py_DECREF, Py_INCREF, Py_ssize_t};
+use pyo3_ffi::{PyDict_SetItem, PyObject, Py_DECREF, Py_ssize_t};
 
 use crate::deserializing::deserialize::deserialize_object;
+use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::deserializing::primitives::decode_string;
 use crate::deserializing::utils::{
     decode_number_py_ssize_t, decode_number_usize, DESERIALIZATION_ERROR_TYPE,
 };
-use crate::utils::consts::{CORRUPTED_DATA, MIGHT_BE_ASCII, NUMBER_BASE};
+use crate::utils::consts::{MIGHT_BE_ASCII, NUMBER_BASE};
 use crate::utils::py_dict_key::PyHashMap;
 use crate::utils::py_helpers::{pretty_type, ToPyErr};
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
 
 #[inline(always)]
-pub fn decode_list<'a>(
+pub fn decode_list<'a, P: PointerHolder>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
@@ -40,10 +41,10 @@ pub fn decode_list<'a>(
 }
 
 #[inline(always)]
-pub fn decode_str_key_dict<'a>(
+pub fn decode_str_key_dict<'a, P: PointerHolder>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
@@ -62,22 +63,18 @@ pub fn decode_str_key_dict<'a>(
     Ok(dict)
 }
 
-fn deserialize_dict_key<'a>(
+pub fn deserialize_dict_key<'a, P: PointerHolder>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     if *safe_get!(buf, *ptr) == NUMBER_BASE as u8 - 1 {
         *ptr += 1;
         let position = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
-        let res = *safe_get!(pointers, position, CORRUPTED_DATA);
-        unsafe {
-            Py_INCREF(res);
-        }
-        Ok(res)
+        pointers.safe_get(position)
     } else {
-        decode_string::<MIGHT_BE_ASCII, { NUMBER_BASE - 1 }>(
+        decode_string::<MIGHT_BE_ASCII, { NUMBER_BASE - 1 }, P>(
             buf,
             ptr,
             pointers,
@@ -87,10 +84,10 @@ fn deserialize_dict_key<'a>(
 }
 
 #[inline(always)]
-pub fn decode_dict<'a>(
+pub fn decode_dict<'a, P: PointerHolder>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
@@ -112,10 +109,10 @@ pub fn decode_dict<'a>(
     Ok(dict)
 }
 
-pub fn decode_list_of_structured_dicts<'a>(
+pub fn decode_list_of_structured_dicts<'a, P: PointerHolder>(
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,

@@ -43,10 +43,9 @@ impl PyBytesBuffer {
 
     #[inline]
     pub fn push(&mut self, byte: u8) -> Result<(), *mut PyObject> {
-        if self.len >= self.cap {
-            if !self.ensure_capacity(1) {
-                return Err(unsafe { PyErr_NoMemory() });
-            }
+        // VVVVVVVVVVVVVVVVVVVV attempt to make hot path faster
+        if self.len >= self.cap && !self.ensure_capacity(1) {
+            return Err(unsafe { PyErr_NoMemory() });
         }
 
         unsafe {

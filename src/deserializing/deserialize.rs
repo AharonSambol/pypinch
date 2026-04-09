@@ -7,6 +7,7 @@ use crate::deserializing::compound_types::{
 };
 use crate::deserializing::consistent_typed_list::decode_consistent_type_list;
 use crate::deserializing::custom_types::deserialize_custom_type;
+use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::deserializing::primitives::{decode_bytes, decode_f64, decode_false, decode_negative_int, decode_null, decode_pointer, decode_sized_pointer, decode_string, decode_true};
 use crate::deserializing::utils::decode_large_number;
 use crate::serializing::utils::{EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE};
@@ -20,10 +21,10 @@ use crate::utils::consts::{
 use crate::utils::py_dict_key::PyHashMap;
 use crate::{raise_mem_error_if_null, safe_get, safe_new_py_dict, safe_new_py_list};
 
-pub fn deserialize_object(
+pub fn deserialize_object<P: PointerHolder>(
     buf: &[u8],
     ptr: &mut usize,
-    pointers: &mut Vec<*mut PyObject>,
+    pointers: &mut P,
     use_tuples: bool,
     str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
@@ -36,19 +37,19 @@ pub fn deserialize_object(
         NEGATIVE_INT_FLAG => decode_negative_int(buf, ptr),
         FLOAT_FLAG => decode_f64(buf, ptr),
         STR_FLAG => {
-            decode_string::<NOT_ASCII, NUMBER_BASE>(buf, ptr, pointers, str_count)
+            decode_string::<NOT_ASCII, NUMBER_BASE, P>(buf, ptr, pointers, str_count)
         }
         ASCII_STR_FLAG => {
-            decode_string::<YES_ASCII, NUMBER_BASE>(buf, ptr, pointers, str_count)
+            decode_string::<YES_ASCII, NUMBER_BASE, P>(buf, ptr, pointers, str_count)
         }
         TRUE_FLAG => Ok(decode_true()),
         FALSE_FLAG => Ok(decode_false()),
         NULL_FLAG => Ok(decode_null()),
         POINTER_FLAG => decode_pointer(buf, ptr, pointers),
-        POINTER_FLAG_1BYTE => decode_sized_pointer::<1>(buf, ptr, pointers),
-        POINTER_FLAG_2BYTE => decode_sized_pointer::<2>(buf, ptr, pointers),
-        POINTER_FLAG_3BYTE => decode_sized_pointer::<3>(buf, ptr, pointers),
-        POINTER_FLAG_4BYTE => decode_sized_pointer::<4>(buf, ptr, pointers),
+        POINTER_FLAG_1BYTE => decode_sized_pointer::<1, P>(buf, ptr, pointers),
+        POINTER_FLAG_2BYTE => decode_sized_pointer::<2, P>(buf, ptr, pointers),
+        POINTER_FLAG_3BYTE => decode_sized_pointer::<3, P>(buf, ptr, pointers),
+        POINTER_FLAG_4BYTE => decode_sized_pointer::<4, P>(buf, ptr, pointers),
         BYTES_FLAG => decode_bytes(buf, ptr),
         CONSISTENT_TYPE_LIST_FLAG => {
             decode_consistent_type_list(buf, ptr, pointers, use_tuples, str_count)

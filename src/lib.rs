@@ -6,6 +6,7 @@ use std::os::raw::c_char;
 use std::ptr;
 
 use crate::deserializing::deserialize::deserialize_object;
+use crate::deserializing::pointer_holders::vec_pointer_holder::VecPointerHolder;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
 use crate::serializing::settings::Settings;
@@ -20,6 +21,7 @@ use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use pyo3_ffi::*;
 use rustc_hash::FxHashMap;
 use utils::custom_type_loaders;
+
 mod deserializing;
 mod serializing;
 mod utils;
@@ -256,7 +258,7 @@ pub unsafe extern "C" fn load_bytes(
     } else {
         false
     };
-    let mut pointers = vec![];
+    let mut pointers = VecPointerHolder::new();
     let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
         Ok(slice) => slice,
         Err(err) => {
