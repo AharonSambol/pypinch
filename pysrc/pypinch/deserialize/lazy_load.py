@@ -20,6 +20,11 @@ INDEX_OUT_OF_RANGE_TEMPLATE = "Index out of range, index is `{}` but list is of 
 KEY_NOT_IN_DICT_TEMPLATE = "Key not found, key: `{}` (type `{}`)"
 
 
+class Idx:
+    def __init__(self, index: int):
+        self.index = index
+
+
 class PointersHolder:
     def __init__(self, buffer: bytes):
         self.buffer = buffer
@@ -103,8 +108,8 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
     flag = buffer[pointer]
     pointer += 1
 
-    if type(indexer) is list and len(indexer) == 1 and type(indexer[0]) is int:
-        index = indexer[0]
+    if isinstance(indexer, Idx):
+        index = indexer.index
         if flag == EMPTY_LIST_FLAG:
             raise DeserializationError(INDEX_OUT_OF_RANGE_TEMPLATE.format(index, 0))
         elif flag == LIST_FLAG:
@@ -124,7 +129,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
 
             if path_to_load:    # in this case we don't need to load the whole dict, only the specific value
                 next_indexer, path_to_load = path_to_load[0], path_to_load[1:]
-                if type(next_indexer) is list and len(next_indexer) == 1 and type(next_indexer[0]) is int:
+                if isinstance(next_indexer, Idx):
                     raise DeserializationError(f"Invalid path, expected `list` but found `dict`")
 
                 key_index = None
