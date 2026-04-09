@@ -43,7 +43,7 @@ impl PyBytesBuffer {
 
     #[inline]
     pub fn push(&mut self, byte: u8) -> Result<(), *mut PyObject> {
-        if self.len < self.cap {
+        if self.len >= self.cap {
             if !self.ensure_capacity(1) {
                 return Err(unsafe { PyErr_NoMemory() });
             }
