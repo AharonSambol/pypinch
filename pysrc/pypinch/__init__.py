@@ -1,6 +1,6 @@
 import os
 
-from .deserialize.lazy_load import lazy_load_bytes, bytes_check_if_contains
+from .deserialize.lazy_load import lazy_load_bytes, bytes_check_if_contains, Idx
 
 FORCE_PYTHON = os.environ.get("PYPINCH_FORCE_PYTHON")
 
