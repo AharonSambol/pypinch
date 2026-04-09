@@ -4,3 +4,4 @@ pub mod deserialize;
 pub mod string_creator;
 mod primitives;
 pub mod utils;
+mod custom_types;
