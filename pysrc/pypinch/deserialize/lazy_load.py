@@ -1,4 +1,5 @@
 import struct
+import typing
 from typing import List, Union, Any, Dict, Callable
 
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, BYTES_FLAG, \
@@ -116,7 +117,62 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
         elif flag == CONSISTENT_TYPE_LIST_FLAG:
             return lazy_deserialize_consistent_type_list(buffer, index, path_to_load, pointer, settings)
         elif flag == LIST_OF_STRUCTURED_DICTS_FLAG:
-            pass  # TODO!
+            list_length, pointer = decode_number(buffer, pointer)
+            dict_length, pointer = decode_number(buffer, pointer)
+            if index not in range(list_length):
+                raise DeserializationError(INDEX_OUT_OF_RANGE_TEMPLATE.format(index, list_length))
+
+            if path_to_load:    # in this case we don't need to load the whole dict, only the specific value
+                next_indexer, path_to_load = path_to_load[0], path_to_load[1:]
+                if type(next_indexer) is list and len(next_indexer) == 1 and type(next_indexer[0]) is int:
+                    raise DeserializationError(f"Invalid path, expected `list` but found `dict`")
+
+                key_index = None
+                checking_keys = True
+                for i in range(dict_length):
+                    if not checking_keys:
+                        pointer = skip_object(buffer, pointer, settings)    # skip key
+                        pointer = skip_object(buffer, pointer, settings)    # skip value
+                        continue
+                    key, pointer = deserialize_object(buffer, pointer, settings)
+                    if key == next_indexer:
+                        if index == 0:
+                            return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load=dont_load)
+                        key_index = i
+                        checking_keys = False   # no more need to deserialize the keys for comparing them
+                    pointer = skip_object(buffer, pointer, settings)
+
+                if key_index is None:
+                    raise DeserializationError(KEY_NOT_IN_DICT_TEMPLATE.format(next_indexer, type(next_indexer)))
+
+                for _ in range((index - 1) * dict_length + key_index):
+                    pointer = skip_object(buffer, pointer, settings)
+
+                return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load=dont_load)
+            else:
+                if dont_load:
+                    return True
+                if index == 0:
+                    dct = {}
+                    for i in range(dict_length):
+                        k, pointer = deserialize_object(buffer, pointer, settings)
+                        v, pointer = deserialize_object(buffer, pointer, settings)
+                        dct[k] = v
+                    return dct
+                else:
+                    keys = typing.cast(List[str], [None] * dict_length)
+                    for i in range(dict_length):
+                        k, pointer = deserialize_object(buffer, pointer, settings)
+                        pointer = skip_object(buffer, pointer, settings)
+                        keys[i] = k
+
+                    for _ in range((index - 1) * dict_length):
+                        pointer = skip_object(buffer, pointer, settings)
+
+                    dct = {}
+                    for i, key in enumerate(keys):
+                        dct[key], pointer = deserialize_object(buffer, pointer, settings)
+                    return dct
         else:
             raise DeserializationError(f"Invalid path, expected `list` but found `{flag_to_type_name(flag)}`")
     else:

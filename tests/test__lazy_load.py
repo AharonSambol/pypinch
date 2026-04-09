@@ -23,6 +23,12 @@ MIX = pypinch.dump_bytes({
     1234: "d",
 })
 
+WITH_STRUCTURED_DICT_LIST = pypinch.dump_bytes([
+    {"name": "Bob", "age": 24, "country": "USA"},
+    {"name": "John", "age": 29, "country": "China"},
+    {"name": "Jack", "age": 20, "country": "Spain"},
+])
+
 
 @pytest.mark.parametrize(
     ["data", "path", "expected"],
@@ -65,6 +71,18 @@ MIX = pypinch.dump_bytes({
         (SAME_TYPE_LISTS, [[0], [5], [0]], None),
         (SAME_TYPE_LISTS, [[0], [5], [1]], None),
         (SAME_TYPE_LISTS, [[0], [5], [2]], None),
+        (WITH_STRUCTURED_DICT_LIST, [[0], "name"], "Bob"),
+        (WITH_STRUCTURED_DICT_LIST, [[1], "name"], "John"),
+        (WITH_STRUCTURED_DICT_LIST, [[2], "name"], "Jack"),
+        (WITH_STRUCTURED_DICT_LIST, [[0], "age"], 24),
+        (WITH_STRUCTURED_DICT_LIST, [[1], "age"], 29),
+        (WITH_STRUCTURED_DICT_LIST, [[2], "age"], 20),
+        (WITH_STRUCTURED_DICT_LIST, [[0], "country"], "USA"),
+        (WITH_STRUCTURED_DICT_LIST, [[1], "country"], "China"),
+        (WITH_STRUCTURED_DICT_LIST, [[2], "country"], "Spain"),
+        (WITH_STRUCTURED_DICT_LIST, [[0]], {"name": "Bob", "age": 24, "country": "USA"}),
+        (WITH_STRUCTURED_DICT_LIST, [[1]], {"name": "John", "age": 29, "country": "China"}),
+        (WITH_STRUCTURED_DICT_LIST, [[2]], {"name": "Jack", "age": 20, "country": "Spain"}),
     ]
 )
 def test__lazy_load(data: bytes, path: list, expected: Any):
