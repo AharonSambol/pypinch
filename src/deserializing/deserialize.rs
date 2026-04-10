@@ -26,7 +26,6 @@ pub fn deserialize_object<P: PointerHolder>(
     ptr: &mut usize,
     pointers: &mut P,
     use_tuples: bool,
-    str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let flag = *safe_get!(buf, *ptr);
@@ -37,10 +36,10 @@ pub fn deserialize_object<P: PointerHolder>(
         NEGATIVE_INT_FLAG => decode_negative_int(buf, ptr),
         FLOAT_FLAG => decode_f64(buf, ptr),
         STR_FLAG => {
-            decode_string::<NOT_ASCII, NUMBER_BASE, P>(buf, ptr, pointers, str_count)
+            decode_string::<NOT_ASCII, NUMBER_BASE, P>(buf, ptr, pointers)
         }
         ASCII_STR_FLAG => {
-            decode_string::<YES_ASCII, NUMBER_BASE, P>(buf, ptr, pointers, str_count)
+            decode_string::<YES_ASCII, NUMBER_BASE, P>(buf, ptr, pointers)
         }
         TRUE_FLAG => Ok(decode_true()),
         FALSE_FLAG => Ok(decode_false()),
@@ -52,11 +51,11 @@ pub fn deserialize_object<P: PointerHolder>(
         POINTER_FLAG_4BYTE => decode_sized_pointer::<4, P>(buf, ptr, pointers),
         BYTES_FLAG => decode_bytes(buf, ptr),
         CONSISTENT_TYPE_LIST_FLAG => {
-            decode_consistent_type_list(buf, ptr, pointers, use_tuples, str_count)
+            decode_consistent_type_list(buf, ptr, pointers, use_tuples)
         }
-        DICT_FLAG => decode_dict(buf, ptr, pointers, use_tuples, str_count, custom_types),
+        DICT_FLAG => decode_dict(buf, ptr, pointers, use_tuples, custom_types),
         STR_KEY_DICT_FLAG => {
-            decode_str_key_dict(buf, ptr, pointers, use_tuples, str_count, custom_types)
+            decode_str_key_dict(buf, ptr, pointers, use_tuples, custom_types)
         }
         EMPTY_BYTES_FLAG => unsafe {
             Py_INCREF(EMPTY_BYTES);
@@ -77,11 +76,11 @@ pub fn deserialize_object<P: PointerHolder>(
             Py_INCREF(EMPTY_STRING);
             Ok(EMPTY_STRING)
         },
-        LIST_FLAG => decode_list(buf, ptr, pointers, use_tuples, str_count, custom_types),
+        LIST_FLAG => decode_list(buf, ptr, pointers, use_tuples, custom_types),
         LIST_OF_STRUCTURED_DICTS_FLAG => {
-            decode_list_of_structured_dicts(buf, ptr, pointers, use_tuples, str_count, custom_types)
+            decode_list_of_structured_dicts(buf, ptr, pointers, use_tuples, custom_types)
         }
-        CUSTOM_TYPE_FLAG => deserialize_custom_type(buf, ptr, pointers, use_tuples, str_count, custom_types),
+        CUSTOM_TYPE_FLAG => deserialize_custom_type(buf, ptr, pointers, use_tuples, custom_types),
         _ => unsafe {
             Ok(raise_mem_error_if_null!(PyLong_FromLong(
                 (flag - AMOUNT_OF_USED_FLAGS) as c_long

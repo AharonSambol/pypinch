@@ -12,11 +12,10 @@ pub fn deserialize_custom_type<P: PointerHolder>(
     ptr: &mut usize,
     pointers: &mut P,
     use_tuples: bool,
-    str_count: &mut usize,
     custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<*mut PyObject, *mut PyObject> {
-    let type_identifier = deserialize_object(buf, ptr, pointers, use_tuples, str_count, custom_types)?;
-    let serialized_object = deserialize_object(buf, ptr, pointers, use_tuples, str_count, custom_types)?;
+    let type_identifier = deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
+    let serialized_object = deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
 
     let custom_types = if let Some(custom_types) = custom_types {
         custom_types

@@ -46,7 +46,6 @@ pub fn serialize_str(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
-    str_count: &mut usize,
 ) -> Result<(), *mut PyObject> {
     let mut len: isize = 0;
     if is_ascii(obj) {
@@ -54,14 +53,13 @@ pub fn serialize_str(
         if len == 0 {
             return buffer.push(EMPTY_STR_FLAG);
         }
-        if let Some(pointer) = try_get_as_pointer(obj, pointers, *str_count)? {
+        if let Some(pointer) = try_get_as_pointer(obj, pointers)? {
             encode_pointer(buffer, pointer)?;
             return Ok(());
         }
         // Skip the PyASCIIObject header
         let data_ptr = py_unicode_data(obj);
 
-        *str_count += 1;
         buffer.push(ASCII_STR_FLAG)?;
         encode_number::<NUMBER_BASE>(buffer, len as u128)?;
         return buffer.extend_from_slice(unsafe { slice::from_raw_parts(data_ptr, len) });
@@ -74,11 +72,10 @@ pub fn serialize_str(
         return buffer.push(EMPTY_STR_FLAG);
     }
 
-    if let Some(pointer) = try_get_as_pointer(obj, pointers, *str_count)? {
+    if let Some(pointer) = try_get_as_pointer(obj, pointers)? {
         encode_pointer(buffer, pointer)?;
         return Ok(());
     }
-    *str_count += 1;
     buffer.push(STR_FLAG)?;
     encode_number::<NUMBER_BASE>(buffer, len as u128)?;
     buffer.extend_from_slice(unsafe { slice::from_raw_parts(data as *const u8, len as usize) })
@@ -111,14 +108,14 @@ fn encode_pointer(buffer: &mut PyBytesBuffer, pointer: u128) -> Result<(), *mut 
 pub fn try_get_as_pointer(
     str: *mut PyObject,
     pointers: &mut Pointers,
-    str_count: usize,
 ) -> Result<Option<u128>, *mut PyObject> {
+    let amount_of_pointers = pointers.len();
     match pointers.entry(PyStringKey(str)) {
         Entry::Occupied(entry) => {
             return Ok(Some((*entry.get()) as u128));
         }
         Entry::Vacant(entry) => {
-            entry.insert(str_count);
+            entry.insert(amount_of_pointers);
         }
     }
     Ok(None)
@@ -128,7 +125,6 @@ pub fn serialize_date(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
-    str_count: &mut usize,
 ) -> Result<(), *mut PyObject> {
     unsafe {
         let args = PyTuple_New(1);
@@ -137,6 +133,6 @@ pub fn serialize_date(
         if py_iso_formatted_date.is_null() {
             return Err("Failed to serialize date".to_py_error(SERIALIZATION_ERROR_TYPE));
         }
-        serialize_str(py_iso_formatted_date, buffer, pointers, str_count)
+        serialize_str(py_iso_formatted_date, buffer, pointers)
     }
 }

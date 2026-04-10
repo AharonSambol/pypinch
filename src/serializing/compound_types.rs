@@ -26,7 +26,6 @@ pub fn serialize_dict(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
-    str_count: &mut usize,
     settings: &Settings,
 ) -> Result<(), *mut PyObject> {
     let size = unsafe { PyDict_Size(obj) };
@@ -42,9 +41,9 @@ pub fn serialize_dict(
         let mut val: *mut PyObject = ptr::null_mut();
         while unsafe { PyDict_Next(obj, &mut pos, &mut key, &mut val) } != 0 {
             // key
-            encode_dict_key(buffer, pointers, str_count, key)?;
+            encode_dict_key(buffer, pointers, key)?;
             // value
-            serialize::serialize(val, buffer, pointers, str_count, settings)?;
+            serialize::serialize(val, buffer, pointers, settings)?;
         }
         return Ok(());
     }
@@ -63,8 +62,8 @@ pub fn serialize_dict(
                 );
             }
         }
-        serialize::serialize(key, buffer, pointers, str_count, settings)?;
-        serialize::serialize(val, buffer, pointers, str_count, settings)?;
+        serialize::serialize(key, buffer, pointers, settings)?;
+        serialize::serialize(val, buffer, pointers, settings)?;
     }
     return Ok(());
 }
@@ -73,7 +72,6 @@ pub fn serialize_dict(
 fn encode_dict_key(
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
-    str_count: &mut usize,
     key: *mut PyObject,
 ) -> Result<(), *mut PyObject> {
     let mut len = 0;
@@ -85,13 +83,12 @@ fn encode_dict_key(
         unsafe { PyUnicode_AsUTF8AndSize(key, &mut len) as *const u8 }
     };
 
-    if let Some(pointer) = try_get_as_pointer(key, pointers, *str_count)? {
+    if let Some(pointer) = try_get_as_pointer(key, pointers)? {
         buffer.push(NUMBER_BASE as u8 - 1)?;
         encode_number::<NUMBER_BASE>(buffer, pointer)?;
         return Ok(());
     }
 
-    *str_count += 1;
     if is_compact_ascii {
         encode_number::<{ NUMBER_BASE - 1 }>(buffer, 1 + len as u128)?;
         buffer.push(INVALID_UTF_8_START_BYTE_COMPACT_ASCII)?;
@@ -122,7 +119,6 @@ pub fn encode_list(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
-    str_count: &mut usize,
     typ: *mut PyTypeObject,
     settings: &Settings,
 ) -> Result<(), *mut PyObject> {
@@ -151,14 +147,14 @@ pub fn encode_list(
             return encode_bool_list(obj, buffer, is_list, len);
         } else if unsafe { first_type == &mut PyDict_Type } {
             if encode_structured_list(
-                obj, buffer, pointers, str_count, is_list, len, first_item, settings,
+                obj, buffer, pointers, is_list, len, first_item, settings,
             )? {
                 return Ok(());
             }
         }
     }
 
-    serialize_normal_list(obj, buffer, pointers, is_list, len, str_count, settings)
+    serialize_normal_list(obj, buffer, pointers, is_list, len, settings)
 }
 
 fn get_dict_keys(dict: *mut PyObject) -> Option<Pointers> {
@@ -195,7 +191,6 @@ fn encode_structured_list(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
-    str_count: &mut usize,
     is_list: bool,
     len: isize,
     first_item: *mut PyObject,
@@ -227,8 +222,8 @@ fn encode_structured_list(
     let mut key: *mut PyObject = ptr::null_mut();
     let mut val: *mut PyObject = ptr::null_mut();
     while unsafe { PyDict_Next(first_item, &mut pos, &mut key, &mut val) } != 0 {
-        serialize_str(key, buffer, pointers, str_count)?;
-        serialize::serialize(val, buffer, pointers, str_count, settings)?;
+        serialize_str(key, buffer, pointers)?;
+        serialize::serialize(val, buffer, pointers, settings)?;
     }
 
     let mut values = Vec::with_capacity(len_of_dicts);
@@ -250,7 +245,7 @@ fn encode_structured_list(
         }
 
         for val in &values {
-            serialize::serialize(*val, buffer, pointers, str_count, settings)?;
+            serialize::serialize(*val, buffer, pointers, settings)?;
         }
     }
     Ok(true)
@@ -299,7 +294,6 @@ fn serialize_normal_list(
     pointers: &mut Pointers,
     is_list: bool,
     len: Py_ssize_t,
-    str_count: &mut usize,
     settings: &Settings,
 ) -> Result<(), *mut PyObject> {
     buf.push(LIST_FLAG)?;
@@ -310,7 +304,7 @@ fn serialize_normal_list(
         } else {
             tuple_get_item(obj, i)
         };
-        serialize::serialize(item, buf, pointers, str_count, settings)?;
+        serialize::serialize(item, buf, pointers, settings)?;
     }
     Ok(())
 }

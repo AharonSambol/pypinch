@@ -10,12 +10,12 @@ use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::deserializing::utils::{
     decode_large_number, decode_number_py_ssize_t, decode_number_usize,
 };
+use crate::raise_mem_error_if_null;
 use crate::utils::consts::{
     IsAscii, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, MIGHT_BE_ASCII, NOT_ASCII,
     NUMBER_BASE, UNEXPECTED_END_OF_INPUT, YES_ASCII,
 };
 use crate::utils::py_helpers::ToPyErr;
-use crate::raise_mem_error_if_null;
 
 #[inline(always)]
 pub fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
@@ -120,11 +120,9 @@ pub fn decode_string<'a, const IS_ASCII: IsAscii, const BASE: u128, P: PointerHo
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut P,
-    str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let string = decode_string_without_inserting_pointer::<IS_ASCII, BASE>(&buf, ptr)?;
     pointers.insert(string);
-    *str_count += 1;
     Ok(string)
 }
 

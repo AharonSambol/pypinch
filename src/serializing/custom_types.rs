@@ -12,7 +12,6 @@ pub fn serialize_custom_type(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
-    str_count: &mut usize,
     settings: &Settings,
     typ: *mut PyTypeObject,
 ) -> Result<(), *mut PyObject> {
@@ -22,7 +21,6 @@ pub fn serialize_custom_type(
         custom_type.identifier.as_ptr(),
         buffer,
         pointers,
-        str_count,
         settings,
     )?;
 
@@ -34,5 +32,5 @@ pub fn serialize_custom_type(
             "Failed to serialize custom type".to_py_error(unsafe { SERIALIZATION_ERROR_TYPE })
         );
     }
-    serialize::serialize(converted_object, buffer, pointers, str_count, settings)
+    serialize::serialize(converted_object, buffer, pointers, settings)
 }

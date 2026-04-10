@@ -17,22 +17,21 @@ pub fn serialize(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
-    str_count: &mut usize,
     settings: &Settings,
 ) -> Result<(), *mut PyObject> {
     unsafe {
         let typ = (*obj).ob_type;
 
         if typ == &mut PyUnicode_Type {
-            primitives::serialize_str(obj, buffer, pointers, str_count)
+            primitives::serialize_str(obj, buffer, pointers)
         } else if typ == &mut PyBool_Type {
             buffer.push(FALSE_FLAG - (obj == Py_True()) as u8)
         } else if typ == &mut PyLong_Type {
             encode_python_int::<NUMBER_BASE>(obj, buffer)
         } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
-            compound_types::encode_list(obj, buffer, pointers, str_count, typ, settings)
+            compound_types::encode_list(obj, buffer, pointers, typ, settings)
         } else if typ == &mut PyDict_Type {
-            compound_types::serialize_dict(obj, buffer, pointers, str_count, settings)
+            compound_types::serialize_dict(obj, buffer, pointers, settings)
         } else if typ == &mut PyFloat_Type {
             primitives::serialize_float(obj, buffer)
         } else if typ == &mut PyBytes_Type {
@@ -40,9 +39,9 @@ pub fn serialize(
         } else if obj == Py_None() {
             buffer.push(NULL_FLAG)
         } else if settings.serialize_dates && PyDateTime_Check(obj) != 0 {
-            primitives::serialize_date(obj, buffer, pointers, str_count)
+            primitives::serialize_date(obj, buffer, pointers)
         } else if custom_type_mapping_exists(settings, &typ) {
-            custom_types::serialize_custom_type(obj, buffer, pointers, str_count, settings, typ)
+            custom_types::serialize_custom_type(obj, buffer, pointers, settings, typ)
         } else {
             if !settings.serialize_dates && PyDateTime_Check(obj) != 0 {
                 return Err(

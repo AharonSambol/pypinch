@@ -22,7 +22,6 @@ pub fn decode_consistent_type_list<'a, P: PointerHolder>(
     ptr: &mut usize,
     pointers: &mut P,
     use_tuples: bool,
-    str_count: &mut usize,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let typ = *safe_get!(buf, *ptr);
     *ptr += 1;
@@ -32,7 +31,7 @@ pub fn decode_consistent_type_list<'a, P: PointerHolder>(
         NULL_FLAG => decode_null_list(use_tuples, len),
         BOOL_FLAG => decode_bool_list(use_tuples, buf, ptr, len),
         BYTES_FLAG => decode_bytes_list(use_tuples, buf, ptr, len),
-        STR_FLAG => decode_str_list(use_tuples, buf, ptr, pointers, str_count, len),
+        STR_FLAG => decode_str_list(use_tuples, buf, ptr, pointers, len),
         FLOAT_FLAG => decode_floats_list(use_tuples, buf, ptr, len),
         _ => Err("Unexpected consistent list type".to_py_error(unsafe { PyExc_TypeError })),
     }
@@ -61,7 +60,6 @@ fn decode_str_list<'a, P: PointerHolder>(
     buf: &'a [u8],
     ptr: &mut usize,
     pointers: &mut P,
-    str_count: &mut usize,
     len: Py_ssize_t,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let list = safe_new_py_list!(len, use_tuples);
@@ -70,7 +68,6 @@ fn decode_str_list<'a, P: PointerHolder>(
             buf,
             ptr,
             pointers,
-            str_count,
         )?;
         if use_tuples {
             tuple_set_item(list, i, str);

@@ -168,7 +168,6 @@ pub unsafe extern "C" fn dump_bytes(
         obj,
         &mut buf,
         &mut pointers,
-        &mut 0,
         &Settings {
             serialize_dates,
             custom_types,
@@ -275,7 +274,6 @@ pub unsafe extern "C" fn load_bytes(
         &mut pointer,
         &mut pointers,
         use_tuples,
-        &mut 0,
         &custom_types,
     );
     if should_enable_gc {
