@@ -17,7 +17,7 @@ pub fn deserialize_custom_type<P: PointerHolder>(
     custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<*mut PyObject, *mut PyObject> {
     let type_identifier = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
-    let serialized_object = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
+    let serialized_object = deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
 
     let custom_types = if let Some(custom_types) = custom_types {
         custom_types
@@ -29,7 +29,7 @@ pub fn deserialize_custom_type<P: PointerHolder>(
         if args.as_ptr().is_null() {
             return Err(FAILED_TO_DESERIALIZE_MESSAGE.to_py_error(unsafe { SERIALIZATION_ERROR_TYPE }));
         }
-        tuple_set_item(args.as_ptr(), 0, serialized_object.as_ptr());
+        tuple_set_item(args.as_ptr(), 0, serialized_object);
         let converted_object = unsafe { PyObject_CallObject(*converter, args.as_ptr()) };
         if converted_object.is_null() {
             Err(FAILED_TO_DESERIALIZE_MESSAGE.to_py_error(unsafe { SERIALIZATION_ERROR_TYPE }))
