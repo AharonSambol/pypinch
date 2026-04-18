@@ -3,7 +3,7 @@ use crate::deserializing::pointer_holders::position_pointer_holder::Pointer::{Po
 use crate::deserializing::primitives::decode_string_without_inserting_pointer;
 use crate::safe_get;
 use crate::utils::consts::{MIGHT_BE_ASCII, NUMBER_BASE};
-use pyo3_ffi::{PyObject, Py_INCREF};
+use pyo3_ffi::{PyObject, Py_DECREF, Py_INCREF};
 
 enum Pointer {
     Str(*mut PyObject),
@@ -42,6 +42,7 @@ impl PointerHolder for PositionPointerHolder<'_> {
     }
 
     fn insert(&mut self, object: *mut PyObject) {
+        unsafe { Py_INCREF(object) };
         self.str_posses.push(Str(object));
     }
 }
@@ -49,5 +50,18 @@ impl PointerHolder for PositionPointerHolder<'_> {
 impl PositionPointerHolder<'_> {
     pub fn insert_position(&mut self, position: usize, is_base_254: bool) {
         self.str_posses.push(Position(position, is_base_254));
+    }
+}
+
+impl Drop for PositionPointerHolder<'_> {
+    fn drop(&mut self) {
+        for item in self.str_posses.iter() {
+            match item {
+                Position(..) => {},
+                Str(str) => {
+                    unsafe { Py_DECREF(*str); }
+                }
+            }
+        }
     }
 }

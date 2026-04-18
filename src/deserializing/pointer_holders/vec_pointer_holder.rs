@@ -1,7 +1,7 @@
 use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::safe_get;
 use crate::utils::consts::CORRUPTED_DATA;
-use pyo3_ffi::{PyObject, Py_INCREF};
+use pyo3_ffi::{PyObject, Py_DECREF, Py_INCREF};
 
 pub struct VecPointerHolder {
     vec: Vec<*mut PyObject>,
@@ -15,6 +15,7 @@ impl PointerHolder for VecPointerHolder {
     }
 
     fn insert(&mut self, object: *mut PyObject) {
+        unsafe { Py_INCREF(object); }
         self.vec.push(object);
     }
 }
@@ -22,5 +23,15 @@ impl PointerHolder for VecPointerHolder {
 impl VecPointerHolder {
     pub fn new() -> VecPointerHolder {
         VecPointerHolder { vec: Vec::new() }
+    }
+}
+
+impl Drop for VecPointerHolder {
+    fn drop(&mut self) {
+        for i in self.vec.iter() {
+            unsafe {
+                Py_DECREF(*i);
+            }
+        }
     }
 }
