@@ -74,13 +74,3 @@ macro_rules! raise_mem_error_if_null {
         item
     }};
 }
-
-#[macro_export]
-macro_rules! safe_py_pointer {
-    ($item:expr) => {
-        match crate::utils::safe_py_pointer::PyPointer::new_w_null_check($item) {
-            Ok(ptr) => ptr,
-            Err(err) => return err,
-        }
-    }
-}

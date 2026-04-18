@@ -1,12 +1,12 @@
-use crate::raise_mem_error_if_null;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::utils::encode_number;
 use crate::utils::consts::{
     AMOUNT_OF_USED_FLAGS, ENDING_FLAG, NEGATIVE_INT_FLAG, NUMBER_BASE, POSITIVE_INT_FLAG,
 };
+use crate::utils::safe_py_pointer::PyPointer;
 use pyo3_ffi::{
     PyLongObject, PyLong_AsLongLongAndOverflow, PyLong_FromLong, PyNumber_Add, PyNumber_Subtract,
-    PyObject, PyObject_RichCompareBool, Py_DECREF, _PyLong_AsByteArray, _PyLong_NumBits,
+    PyObject, PyObject_RichCompareBool, _PyLong_AsByteArray, _PyLong_NumBits,
 };
 use std::ffi::c_long;
 
@@ -43,19 +43,18 @@ fn encode_pylong_big<const BASE: u128>(
     unsafe {
         let is_negative = PyObject_RichCompareBool(
             obj,
-            raise_mem_error_if_null!(PyLong_FromLong(0)),
+            PyPointer::new_w_null_check(PyLong_FromLong(0))?.as_ptr(),
             pyo3_ffi::Py_LT,
         ) == 1;
 
-        let python_base_num = raise_mem_error_if_null!(PyLong_FromLong(BASE as c_long));
-        let obj = raise_mem_error_if_null!(if is_negative {
-            PyNumber_Add(obj, python_base_num)
+        let python_base_num = PyPointer::new_w_null_check(PyLong_FromLong(BASE as c_long))?;
+        let obj = PyPointer::new_w_null_check(if is_negative {
+            PyNumber_Add(obj, python_base_num.as_ptr())
         } else {
-            PyNumber_Subtract(obj, python_base_num)
-        });
-        Py_DECREF(python_base_num);
+            PyNumber_Subtract(obj, python_base_num.as_ptr())
+        })?;
 
-        let nbits = _PyLong_NumBits(obj);
+        let nbits = _PyLong_NumBits(obj.as_ptr());
         let nbytes = (nbits + 7) / 8 + 1; // +1 to preserve sign bit
 
         let mut bytes = Vec::<u8>::with_capacity(nbytes);
@@ -63,7 +62,7 @@ fn encode_pylong_big<const BASE: u128>(
 
         // signed = 1 → two's complement
         _PyLong_AsByteArray(
-            obj as *mut PyLongObject,
+            obj.as_ptr() as *mut PyLongObject,
             bytes.as_mut_ptr(),
             nbytes,
             0, // big-endian

@@ -1,4 +1,4 @@
-use pyo3_ffi::{PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_Str, PyObject_Type, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, Py_DECREF, Py_ssize_t};
+use pyo3_ffi::{PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_Str, PyObject_Type, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, Py_ssize_t};
 use std::ffi::{CStr, CString};
 use std::{ptr, slice};
 
@@ -37,40 +37,41 @@ pub fn convert_py_buffer_into_bytes_slice(buffer: &*mut PyObject) -> Result<&[u8
 }
 
 pub fn import_object_from_python(module_name: &str, object_name: &str) -> *mut PyObject {
-    let module_name = CString::new(module_name).unwrap();
-    let class_name = CString::new(object_name).unwrap();
+    let module_name = if let Ok(x) = CString::new(module_name) { x } else {
+        return ptr::null_mut()
+    };
+    let class_name = if let Ok(x) = CString::new(object_name) { x } else {
+        return ptr::null_mut()
+    };
     unsafe {
-        let py_mod_path = PyUnicode_FromString(module_name.as_ptr());
-        let module = PyImport_Import(py_mod_path);
-
-        Py_DECREF(py_mod_path);
-        let object = PyObject_GetAttrString(module, class_name.as_ptr());
-
-        Py_DECREF(module);
-        object
+        let py_mod_path = match PyPointer::new_w_null_check(PyUnicode_FromString(module_name.as_ptr())) {
+            Ok(py_mod_path) => py_mod_path,
+            Err(_) => return ptr::null_mut(),
+        };
+        
+        let module = match PyPointer::new_w_null_check(PyImport_Import(py_mod_path.as_ptr())) {
+            Ok(module) => module,
+            Err(_) => return ptr::null_mut(),
+        };
+        PyObject_GetAttrString(module.as_ptr(), class_name.as_ptr())
     }
 }
 
 pub fn pretty_type(object: *mut PyObject) -> String {
     unsafe {
-        let type_ptr = PyObject_Type(object);
-        if type_ptr.is_null() {
+        let type_ptr = PyPointer::new(PyObject_Type(object));
+        if type_ptr.as_ptr().is_null() {
             return "Error".to_string();
         }
 
-        let repr_ptr = PyObject_Repr(type_ptr);
-        Py_DECREF(type_ptr);
+        let repr_ptr = PyPointer::new(PyObject_Repr(type_ptr.as_ptr()));
 
-        if repr_ptr.is_null() {
+        if repr_ptr.as_ptr().is_null() {
             return "Error".to_string();
         }
 
-        let c_ptr = PyUnicode_AsUTF8(repr_ptr);
-        let result = CStr::from_ptr(c_ptr).to_string_lossy().into_owned();
-
-        Py_DECREF(repr_ptr);
-
-        result
+        let c_ptr = PyUnicode_AsUTF8(repr_ptr.as_ptr());
+        CStr::from_ptr(c_ptr).to_string_lossy().into_owned()
     }
 }
 

@@ -12,10 +12,7 @@ use crate::serializing::serialize::serialize;
 use crate::serializing::settings::Settings;
 use crate::serializing::utils::{CUSTOM_TYPE_CLASS, EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::HEADER;
-use crate::utils::py_helpers::{
-    compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str,
-    ToPyErr,
-};
+use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::{gc_disable, gc_enabled, is_gc_enabled, tuple_get_item};
 use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use pyo3_ffi::*;
@@ -76,6 +73,9 @@ pub unsafe extern "C" fn PyInit__pypinch() -> *mut PyObject {
         import_object_from_python("pypinch.serialize.settings", "CustomType");
 
     PyDateTime_IMPORT();
+    if PyDateTimeAPI().is_null() {
+        return PyErr_NoMemory();
+    }
     let iso_format_py_string = CString::new("isoformat").unwrap();
     ISO_FORMAT_FUNC = PyObject_GetAttr(
         (*PyDateTimeAPI()).DateTimeType as *mut PyObject,
@@ -103,7 +103,7 @@ pub unsafe extern "C" fn dump_bytes(
     let mut obj = None;
     let mut serialize_dates: bool = false;
     let mut custom_types = None;
-    // TODO
+    // TODO:
     let mut allow_non_string_keys: bool = true;
 
     if !kwnames.is_null() {

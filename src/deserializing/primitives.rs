@@ -1,5 +1,5 @@
 use pyo3_ffi::{
-    PyBytes_FromStringAndSize, PyFloat_FromDouble, PyNumber_Negative, PyObject, Py_DECREF,
+    PyBytes_FromStringAndSize, PyFloat_FromDouble, PyNumber_Negative, PyObject,
     Py_False, Py_INCREF, Py_None, Py_True,
 };
 use std::ffi::c_char;
@@ -16,6 +16,7 @@ use crate::utils::consts::{
     NUMBER_BASE, UNEXPECTED_END_OF_INPUT, YES_ASCII,
 };
 use crate::utils::py_helpers::ToPyErr;
+use crate::utils::safe_py_pointer::PyPointer;
 
 #[inline(always)]
 pub fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
@@ -107,11 +108,9 @@ pub fn decode_true() -> *mut PyObject {
 
 #[inline(always)]
 pub fn decode_negative_int(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
-    let num = decode_large_number::<NUMBER_BASE>(buf, ptr)?;
+    let num = PyPointer::new(decode_large_number::<NUMBER_BASE>(buf, ptr)?);
     unsafe {
-        let res = raise_mem_error_if_null!(PyNumber_Negative(num));
-        Py_DECREF(num);
-        Ok(res)
+        Ok(raise_mem_error_if_null!(PyNumber_Negative(num.as_ptr())))
     }
 }
 

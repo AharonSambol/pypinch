@@ -1,8 +1,8 @@
 use crate::utils::consts::ENDING_FLAG;
+use crate::utils::safe_py_pointer::PyPointer;
 use crate::{raise_mem_error_if_null, safe_get};
 use pyo3_ffi::{
-    PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject,
-    Py_DECREF, Py_ssize_t,
+    PyLong_FromLong, PyLong_FromUnsignedLongLong, PyNumber_Add, PyNumber_Multiply, PyObject, Py_ssize_t,
 };
 use std::ffi::{c_long, c_ulonglong};
 use std::ptr;
@@ -113,29 +113,22 @@ pub fn decode_large_number<const BASE: u128>(
     }
 
     unsafe {
-        let mut result = raise_mem_error_if_null!(PyLong_FromUnsignedLongLong(res as c_ulonglong));
-        let mut mul = raise_mem_error_if_null!(PyLong_FromUnsignedLongLong(mul as c_ulonglong));
-        let base_as_long = raise_mem_error_if_null!(PyLong_FromLong(BASE as c_long));
+        let mut result = PyPointer::new_w_null_check(PyLong_FromUnsignedLongLong(res as c_ulonglong))?;
+        let mut mul = PyPointer::new_w_null_check(PyLong_FromUnsignedLongLong(mul as c_ulonglong))?;
+        let base_as_long = PyPointer::new_w_null_check(PyLong_FromLong(BASE as c_long))?;
 
         loop {
             let byte = *safe_get!(buf, *ptr);
             *ptr += 1;
             if byte == ENDING_FLAG {
-                Py_DECREF(mul);
-                Py_DECREF(base_as_long);
-
-                return Ok(result);
+                return Ok(result.release());
             }
-            let cur_byte_as_long = raise_mem_error_if_null!(PyLong_FromLong(byte as c_long));
-            let tmp = raise_mem_error_if_null!(PyNumber_Multiply(cur_byte_as_long, mul));
-            Py_DECREF(cur_byte_as_long);
-            let new_result = raise_mem_error_if_null!(PyNumber_Add(result, tmp));
-            Py_DECREF(tmp);
-            Py_DECREF(result);
+            let cur_byte_as_long = PyPointer::new_w_null_check(PyLong_FromLong(byte as c_long))?;
+            let tmp = PyPointer::new_w_null_check(PyNumber_Multiply(cur_byte_as_long.as_ptr(), mul.as_ptr()))?;
+            let new_result = PyPointer::new_w_null_check(PyNumber_Add(result.as_ptr(), tmp.as_ptr()))?;
             result = new_result;
 
-            let tmp = raise_mem_error_if_null!(PyNumber_Multiply(mul, base_as_long));
-            Py_DECREF(mul);
+            let tmp = PyPointer::new_w_null_check(PyNumber_Multiply(mul.as_ptr(), base_as_long.as_ptr()))?;
             mul = tmp;
         }
     }

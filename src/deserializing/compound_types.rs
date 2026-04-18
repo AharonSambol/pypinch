@@ -1,4 +1,4 @@
-use pyo3_ffi::{PyDict_SetItem, PyObject, Py_DECREF, Py_ssize_t};
+use pyo3_ffi::{PyDict_SetItem, PyObject, Py_ssize_t};
 
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
@@ -9,6 +9,7 @@ use crate::deserializing::utils::{
 use crate::utils::consts::{MIGHT_BE_ASCII, NUMBER_BASE};
 use crate::utils::py_dict_key::PyHashMap;
 use crate::utils::py_helpers::{pretty_type, ToPyErr};
+use crate::utils::safe_py_pointer::PyPointer;
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 use crate::{safe_get, safe_new_py_dict, safe_new_py_list};
 
@@ -50,12 +51,10 @@ pub fn decode_str_key_dict<'a, P: PointerHolder>(
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
     let dict = safe_new_py_dict!();
     for _ in 0..len {
-        let key = deserialize_dict_key(buf, ptr, pointers)?;
-        let value = deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
+        let key = PyPointer::new(deserialize_dict_key(buf, ptr, pointers)?);
+        let value = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
         unsafe {
-            PyDict_SetItem(dict, key, value);
-            Py_DECREF(key);
-            Py_DECREF(value);
+            PyDict_SetItem(dict, key.as_ptr(), value.as_ptr());
         }
     }
     Ok(dict)
@@ -90,15 +89,13 @@ pub fn decode_dict<'a, P: PointerHolder>(
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
     let dict = safe_new_py_dict!();
     for _ in 0..len {
-        let key = deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
-        let value = deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
+        let key = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
+        let value = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
         unsafe {
-            if PyDict_SetItem(dict, key, value) != 0 {
-                return Err(format!("Invalid type for a key: {}", pretty_type(key))
+            if PyDict_SetItem(dict, key.as_ptr(), value.as_ptr()) != 0 {
+                return Err(format!("Invalid type for a key: {}", pretty_type(key.as_ptr()))
                     .to_py_error(DESERIALIZATION_ERROR_TYPE));
             }
-            Py_DECREF(key);
-            Py_DECREF(value);
         }
     }
     Ok(dict)
@@ -119,11 +116,10 @@ pub fn decode_list_of_structured_dicts<'a, P: PointerHolder>(
     let first_dict = safe_new_py_dict!();
     let mut keys = Vec::with_capacity(dict_len);
     for _ in 0..dict_len {
-        let key = deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
-        let value = deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
+        let key = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
+        let value = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
         unsafe {
-            PyDict_SetItem(first_dict, key, value);
-            Py_DECREF(value);
+            PyDict_SetItem(first_dict, key.as_ptr(), value.as_ptr());
         }
         keys.push(key);
     }
@@ -137,24 +133,15 @@ pub fn decode_list_of_structured_dicts<'a, P: PointerHolder>(
     for i in 1usize..list_len as usize {
         let dict = safe_new_py_dict!();
         for key_index in 0..dict_len {
-            let value =
-                deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?;
+            let value = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
             unsafe {
-                PyDict_SetItem(dict, keys[key_index], value);
-                Py_DECREF(value);
+                PyDict_SetItem(dict, keys[key_index].as_ptr(), value.as_ptr());
             }
         }
         if use_tuples {
             tuple_set_item(list, i as Py_ssize_t, dict);
         } else {
             list_set_item(list, i as Py_ssize_t, dict);
-        }
-    }
-
-    // free the keys - PyDict_SetItem doesn't steal the reference
-    for key in keys {
-        unsafe {
-            Py_DECREF(key);
         }
     }
 

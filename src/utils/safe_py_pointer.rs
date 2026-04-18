@@ -19,6 +19,15 @@ impl PyPointer {
     pub fn as_ptr(&self) -> *mut PyObject {
         self.ptr
     }
+
+    pub fn release(&self) -> *mut PyObject {
+        // TODO: use std::mem::forget somehow?
+
+        unsafe {
+            Py_INCREF(self.ptr);
+        }
+        self.ptr
+    }
 }
 
 impl Drop for PyPointer {
