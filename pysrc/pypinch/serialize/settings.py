@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, Type, Callable
 class CustomType:
     identifier: Any
     converter: Callable[[Any], Any]
+    include_subclasses: bool = False
 
 
 @dataclass

@@ -1,7 +1,7 @@
 use crate::serializing::number_encoding::encode_python_int;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serializing_string_cache::Pointers;
-use crate::serializing::settings::Settings;
+use crate::serializing::settings::{CustomType, Settings};
 use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 use crate::serializing::{compound_types, custom_types, primitives};
 use crate::utils::consts::{FALSE_FLAG, NULL_FLAG, NUMBER_BASE};
@@ -40,8 +40,8 @@ pub fn serialize(
             buffer.push(NULL_FLAG)
         } else if settings.serialize_dates && PyDateTime_Check(obj) != 0 {
             primitives::serialize_date(obj, buffer, pointers)
-        } else if custom_type_mapping_exists(settings, &typ) {
-            custom_types::serialize_custom_type(obj, buffer, pointers, settings, typ)
+        } else if let Some(custom_type) = get_custom_type_mapping(settings, &typ) {
+            custom_types::serialize_custom_type(obj, buffer, pointers, settings, custom_type)
         } else {
             if !settings.serialize_dates && PyDateTime_Check(obj) != 0 {
                 return Err(
@@ -55,9 +55,14 @@ pub fn serialize(
     }
 }
 
-fn custom_type_mapping_exists(settings: &Settings, typ: &*mut PyTypeObject) -> bool {
+fn get_custom_type_mapping<'a>(settings: &'a Settings, typ: &*mut PyTypeObject) -> Option<&'a CustomType> {
     if let Some(custom_types) = &settings.custom_types {
-        return custom_types.contains_key(&typ)
+        for (key, custom_type) in custom_types {
+            if typ == key || (custom_type.include_subclasses && unsafe { PyType_IsSubtype(*typ, *key) } != 0) {
+                return Some(custom_type);
+            }
+
+        }
     }
-    false
+    None
 }

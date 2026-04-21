@@ -1,21 +1,20 @@
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize;
 use crate::serializing::serializing_string_cache::Pointers;
-use crate::serializing::settings::Settings;
+use crate::serializing::settings::{CustomType, Settings};
 use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 use crate::utils::consts::CUSTOM_TYPE_FLAG;
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::tuple_set_item;
-use pyo3_ffi::{PyObject, PyObject_CallObject, PyTuple_New, PyTypeObject};
+use pyo3_ffi::{PyObject, PyObject_CallObject, PyTuple_New};
 
 pub fn serialize_custom_type(
     obj: *mut PyObject,
     buffer: &mut PyBytesBuffer,
     pointers: &mut Pointers,
     settings: &Settings,
-    typ: *mut PyTypeObject,
+    custom_type: &CustomType,
 ) -> Result<(), *mut PyObject> {
-    let custom_type = settings.custom_types.as_ref().unwrap().get(&typ).unwrap();
     buffer.push(CUSTOM_TYPE_FLAG)?;
     serialize::serialize(
         custom_type.identifier.as_ptr(),
