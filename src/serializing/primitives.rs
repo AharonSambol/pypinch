@@ -5,12 +5,9 @@ use crate::serializing::utils::{
     encode_number, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE,
 };
 use crate::utils::consts::{ASCII_STR_FLAG, BYTES_FLAG, EMPTY_BYTES_FLAG, EMPTY_STR_FLAG, FLOAT_FLAG, NUMBER_BASE, POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, STR_FLAG};
-use crate::utils::py_helpers::ToPyErr;
-use crate::utils::wrappers::{is_ascii, py_unicode_data, tuple_set_item};
-use pyo3_ffi::{
-    PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyObject_CallObject, PyTuple_New,
-    PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH,
-};
+use crate::utils::py_helpers::{temporary_tuple_of, ToPyErr};
+use crate::utils::wrappers::{is_ascii, py_unicode_data};
+use pyo3_ffi::{PyBytes_AsString, PyBytes_Size, PyFloatObject, PyObject, PyObject_CallObject, PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH};
 use std::collections::hash_map::Entry;
 use std::slice;
 
@@ -127,9 +124,8 @@ pub fn serialize_date(
     pointers: &mut Pointers,
 ) -> Result<(), *mut PyObject> {
     unsafe {
-        let args = PyTuple_New(1);
-        tuple_set_item(args, 0, obj);
-        let py_iso_formatted_date = PyObject_CallObject(ISO_FORMAT_FUNC, args);
+        let args = temporary_tuple_of(obj)?;
+        let py_iso_formatted_date = PyObject_CallObject(ISO_FORMAT_FUNC, args.as_ptr());
         if py_iso_formatted_date.is_null() {
             return Err("Failed to serialize date".to_py_error(SERIALIZATION_ERROR_TYPE));
         }

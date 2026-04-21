@@ -1,9 +1,9 @@
-use pyo3_ffi::{PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_Str, PyObject_Type, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, Py_ssize_t};
+use crate::utils::safe_py_pointer::PyPointer;
+use crate::utils::wrappers::tuple_set_item;
+use crate::{py_string_format, raise_mem_error_if_null};
+use pyo3_ffi::{PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_Str, PyObject_Type, PyTuple_New, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, Py_INCREF, Py_ssize_t};
 use std::ffi::{CStr, CString};
 use std::{ptr, slice};
-
-use crate::utils::safe_py_pointer::PyPointer;
-use crate::{py_string_format, raise_mem_error_if_null};
 
 #[inline(always)]
 pub fn compare_str(py_str: *mut PyObject, rust_str: &[u8]) -> bool {
@@ -48,7 +48,7 @@ pub fn import_object_from_python(module_name: &str, object_name: &str) -> *mut P
             Ok(py_mod_path) => py_mod_path,
             Err(_) => return ptr::null_mut(),
         };
-        
+
         let module = match PyPointer::new_w_null_check(PyImport_Import(py_mod_path.as_ptr())) {
             Ok(module) => module,
             Err(_) => return ptr::null_mut(),
@@ -81,6 +81,14 @@ pub fn to_py_str(object: *mut PyObject) -> Result<PyPointer, *mut PyObject> {
     }
 }
 
+pub fn temporary_tuple_of(object: *mut PyObject) -> Result<PyPointer, *mut PyObject> {
+    unsafe {
+        let tuple = PyPointer::new_w_null_check(PyTuple_New(1))?;
+        Py_INCREF(object);
+        tuple_set_item(tuple.as_ptr(), 0, object);
+        Ok(tuple)
+    }
+}
 
 pub trait ToPyErr<T> {
     fn to_py_error(&self, typ: *mut PyObject) -> *mut PyObject;

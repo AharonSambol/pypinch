@@ -3,10 +3,9 @@ use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 use crate::utils::py_dict_key::{PyHashMap, PyKey};
-use crate::utils::py_helpers::{pretty_type, py_str_to_rust_str, ToPyErr};
+use crate::utils::py_helpers::{pretty_type, py_str_to_rust_str, temporary_tuple_of, ToPyErr};
 use crate::utils::safe_py_pointer::PyPointer;
-use crate::utils::wrappers::tuple_set_item;
-use pyo3_ffi::{PyObject, PyObject_CallObject, PyObject_Str, PyTuple_New};
+use pyo3_ffi::{PyObject, PyObject_CallObject, PyObject_Str};
 
 const FAILED_TO_DESERIALIZE_MESSAGE: &'static str = "Failed to deserialize custom type";
 pub fn deserialize_custom_type<P: PointerHolder>(
@@ -25,11 +24,7 @@ pub fn deserialize_custom_type<P: PointerHolder>(
         &PyHashMap::default()
     };
     if let Some(converter) = custom_types.get(&PyKey(type_identifier.as_ptr())) {
-        let args = PyPointer::new(unsafe { PyTuple_New(1) });
-        if args.as_ptr().is_null() {
-            return Err(FAILED_TO_DESERIALIZE_MESSAGE.to_py_error(unsafe { SERIALIZATION_ERROR_TYPE }));
-        }
-        tuple_set_item(args.as_ptr(), 0, serialized_object.release());
+        let args = temporary_tuple_of(serialized_object.as_ptr())?;
         let converted_object = unsafe { PyObject_CallObject(*converter, args.as_ptr()) };
         if converted_object.is_null() {
             Err(FAILED_TO_DESERIALIZE_MESSAGE.to_py_error(unsafe { SERIALIZATION_ERROR_TYPE }))
