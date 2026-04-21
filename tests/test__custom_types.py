@@ -3,6 +3,7 @@ from uuid import UUID
 import pytest
 
 import pypinch
+from pypinch.exceptions import SerializationError
 from pypinch.serialize.settings import CustomType
 
 
@@ -63,3 +64,27 @@ def test__serialize_unknown_types(obj):
 
     # Assert
     assert deserialized == obj
+
+
+class InheritingCustomClass(CustomClass):
+    pass
+
+def test__serialize_inheriting_custom_type():
+    # Act
+    serialized = pypinch.dump_bytes(InheritingCustomClass(1, "2", "3"), custom_types={
+        CustomClass: CustomType(identifier="hello?", converter=lambda x: x.serialize(), include_subclasses=True)
+    })
+    deserialized = pypinch.load_bytes(serialized, custom_types={
+        0: lambda x: UUID(x),
+        "hello?": lambda x: CustomClass.deserialize(x)
+    })
+
+    # Assert
+    assert deserialized == CustomClass(1, "2", "3")
+
+def test__dont_serialize_inheriting_custom_type():
+    # Act
+    with pytest.raises(SerializationError):
+        serialized = pypinch.dump_bytes(InheritingCustomClass(1, "2", "3"), custom_types={
+            CustomClass: CustomType(identifier="hello?", converter=lambda x: x.serialize())
+        })
