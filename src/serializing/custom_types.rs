@@ -6,7 +6,7 @@ use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 use crate::utils::consts::CUSTOM_TYPE_FLAG;
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::tuple_set_item;
-use pyo3_ffi::{PyObject, PyObject_CallObject, PyTuple_New};
+use pyo3_ffi::{PyObject, PyObject_CallObject, PyTuple_New, Py_INCREF};
 
 pub fn serialize_custom_type(
     obj: *mut PyObject,
@@ -24,6 +24,7 @@ pub fn serialize_custom_type(
     )?;
 
     let args = unsafe { PyTuple_New(1) };
+    unsafe { Py_INCREF(obj); }
     tuple_set_item(args, 0, obj);
     let converted_object = unsafe { PyObject_CallObject(custom_type.converter.as_ptr(), args) };
     if converted_object.is_null() {
