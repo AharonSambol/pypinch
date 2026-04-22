@@ -209,7 +209,7 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
 
     if flag < len(FIRST_FLAGS_LIST) or flag in [EMPTY_DICT_FLAG, EMPTY_LIST_FLAG]:
         return pointer
-    elif flag == [NEGATIVE_INT_FLAG, POINTER_FLAG, POSITIVE_INT_FLAG]:
+    elif flag in [NEGATIVE_INT_FLAG, POINTER_FLAG, POSITIVE_INT_FLAG]:
         return skip_number(buffer, pointer)
     elif flag == STR_KEY_DICT_FLAG:
         length, pointer = decode_number(buffer, pointer)
