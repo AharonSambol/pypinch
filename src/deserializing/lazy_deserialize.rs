@@ -105,14 +105,14 @@ pub fn lazy_deserialize(
                                     skip_object(buf, ptr, pointers)?; // skip value
                                     continue;
                                 }
-                                let key = deserialize_object(
+                                let key = PyPointer::new(deserialize_object(
                                     buf,
                                     ptr,
                                     pointers,
                                     use_tuples,
                                     custom_types,
-                                )?;
-                                if compare_objects(key, *next_indexer) {
+                                )?);
+                                if compare_objects(key.as_ptr(), *next_indexer) {
                                     if *index == 0 {
                                         return lazy_deserialize(
                                             buf,
@@ -228,7 +228,6 @@ pub fn lazy_deserialize(
                 STR_KEY_DICT_FLAG => {
                     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
                     for _ in 0..len {
-                        // TODO: handle DECREF this and other places?
                         let dict_key = PyPointer::new(deserialize_dict_key(buf, ptr, pointers)?);
                         if compare_objects(dict_key.as_ptr(), *key) {
                             return lazy_deserialize(
