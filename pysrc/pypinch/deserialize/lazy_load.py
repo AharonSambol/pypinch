@@ -48,9 +48,9 @@ class PointersHolder:
 
 def lazy_load_bytes(
         buffer: ByteLike,
-        path_to_load: List[Union[str, List[int]]],
+        path_to_load: List[Union[Any, Idx]],
+        *,
         custom_types: Dict[Any, Callable[[bytes], Any]] = None,
-        # *,
         # use_tuples: bool = False,
         # stop_gc: bool = False,
 ) -> ObjType:
@@ -72,9 +72,9 @@ def lazy_load_bytes(
 
 def bytes_check_if_contains(
         buffer: ByteLike,
-        path_to_load: List[Union[str, List[int]]],
+        path_to_load: List[Union[Any, Idx]],
+        *,
         custom_types: Dict[Any, Callable[[bytes], Any]] = None,
-        # *,
         # stop_gc: bool = False,
 ) -> ObjType:
     try:
@@ -207,9 +207,9 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
     flag = buffer[pointer]
     pointer += 1
 
-    if flag < len(FIRST_FLAGS_LIST):
+    if flag < len(FIRST_FLAGS_LIST) or flag in [EMPTY_DICT_FLAG, EMPTY_LIST_FLAG]:
         return pointer
-    elif flag == POSITIVE_INT_FLAG:
+    elif flag == [NEGATIVE_INT_FLAG, POINTER_FLAG, POSITIVE_INT_FLAG]:
         return skip_number(buffer, pointer)
     elif flag == STR_KEY_DICT_FLAG:
         length, pointer = decode_number(buffer, pointer)
@@ -220,9 +220,7 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
                 pointer = skip_string(buffer, pointer, settings, base=NUMBER_BASE - 1)
             pointer = skip_object(buffer, pointer, settings)
         return pointer
-    elif flag == ASCII_STR_FLAG:
-        return skip_string(buffer, pointer, settings)
-    elif flag == STR_FLAG:
+    elif flag == ASCII_STR_FLAG or flag == STR_FLAG:
         return skip_string(buffer, pointer, settings)
     elif flag == DICT_FLAG:
         length, pointer = decode_number(buffer, pointer)
@@ -234,14 +232,10 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
                 pointer = skip_object(buffer, pointer, settings)
             pointer = skip_object(buffer, pointer, settings)
         return pointer
-    elif flag == EMPTY_DICT_FLAG:
-        return pointer
     elif flag == LIST_FLAG:
         length, pointer = decode_number(buffer, pointer)
         for _ in range(length):
             pointer = skip_object(buffer, pointer, settings)
-        return pointer
-    elif flag == EMPTY_LIST_FLAG:
         return pointer
     elif flag == CONSISTENT_TYPE_LIST_FLAG:
         typ_flag = buffer[pointer]
@@ -264,15 +258,11 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
             return pointer + BYTES_IN_DOUBLE * length
         else:
             raise DeserializationError(f"Unexpected type flag: {typ_flag}")
-    elif flag == NEGATIVE_INT_FLAG:
-        return skip_number(buffer, pointer)
     elif flag == FLOAT_FLAG:
         return pointer + BYTES_IN_DOUBLE
     elif flag == BYTES_FLAG:
         length, pointer = decode_number(buffer, pointer)
         return pointer + length
-    elif flag == POINTER_FLAG:
-        return skip_number(buffer, pointer)
     elif flag == POINTER_FLAG_1BYTE:
         return pointer + 1
     elif flag == POINTER_FLAG_2BYTE:
@@ -313,7 +303,7 @@ def lazy_deserialize_consistent_type_list(buffer: bytes, index: int, path_to_loa
     if path_to_load:
         got_type = flag_to_type_name(typ_flag)
         raise DeserializationError(
-            f"Invalid path, expected `{'list' if type(path_to_load[0]) is list else 'dict'}` but found `{got_type}`"
+            f"Invalid path, expected `{'list' if isinstance(path_to_load[0], Idx) else 'dict'}` but found `{got_type}`"
         )
 
     if typ_flag == NULL_FLAG:
@@ -384,6 +374,7 @@ def lazy_load_bool_list(buffer: bytes, index: int, pointer: int, length: int) ->
             if i * NUMBER_OF_BITS_IN_BYTE + j == index:
                 return (byte & LEFTMOST_BIT_MASK) == LEFTMOST_BIT_MASK
             byte <<= 1
+    # TODO: unless data is malformed? (also in rust err)
     raise DeserializationError("this should be unreachable")
 
 

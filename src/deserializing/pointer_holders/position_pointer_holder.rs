@@ -7,7 +7,10 @@ use pyo3_ffi::{PyObject, Py_DECREF, Py_INCREF};
 
 enum Pointer {
     Str(*mut PyObject),
-    Position(usize, bool),
+    Position {
+        pos: usize,
+        is_base_254: bool,
+    },
 }
 
 pub struct PositionPointerHolder<'a> {
@@ -30,8 +33,8 @@ impl PointerHolder for PositionPointerHolder<'_> {
                 unsafe { Py_INCREF(str); }
                 Ok(str)
             },
-            Position(position, is_base_254) => {
-                let mut position = position;
+            Position { pos, is_base_254 }  => {
+                let mut position = pos;
                 return if is_base_254 {
                     decode_string_without_inserting_pointer::<MIGHT_BE_ASCII, { NUMBER_BASE - 1 }>(self.buf, &mut position)
                 } else {
@@ -49,7 +52,7 @@ impl PointerHolder for PositionPointerHolder<'_> {
 
 impl PositionPointerHolder<'_> {
     pub fn insert_position(&mut self, position: usize, is_base_254: bool) {
-        self.str_posses.push(Position(position, is_base_254));
+        self.str_posses.push(Position { pos: position, is_base_254 });
     }
 }
 
@@ -57,7 +60,7 @@ impl Drop for PositionPointerHolder<'_> {
     fn drop(&mut self) {
         for item in self.str_posses.iter() {
             match item {
-                Position(..) => {},
+                Position { .. } => {},
                 Str(str) => {
                     unsafe { Py_DECREF(*str); }
                 }

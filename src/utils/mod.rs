@@ -5,4 +5,5 @@ pub mod wrappers;
 pub mod safe_py_pointer;
 pub mod py_dict_key;
 pub mod custom_type_loaders;
+pub mod path_to_load_loaders;
 

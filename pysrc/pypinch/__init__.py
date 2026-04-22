@@ -1,6 +1,6 @@
 import os
 
-from .deserialize.lazy_load import lazy_load_bytes, bytes_check_if_contains, Idx
+from .deserialize.lazy_load import bytes_check_if_contains, Idx
 
 FORCE_PYTHON = os.environ.get("PYPINCH_FORCE_PYTHON")
 
@@ -10,16 +10,18 @@ if not FORCE_PYTHON:
     try:
         from ._pypinch import *
     except ImportError:
-        _pypinch = None
+        pass
 
 if _pypinch is not None:
     _BACKEND = "rust"
     dump_bytes = _pypinch.dump_bytes
     load_bytes = _pypinch.load_bytes
+    lazy_load_bytes = _pypinch.lazy_load_bytes
 else:
     _BACKEND = "python"
     from .serialize.serialize import dump_bytes
     from .deserialize.deserialize import load_bytes
+    from .deserialize.lazy_load import lazy_load_bytes
 
 lazy_unpinch = lazy_load_bytes
 pinch = dump_bytes
