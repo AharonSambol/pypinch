@@ -1,28 +1,24 @@
 use crate::deserializing::compound_types::deserialize_dict_key;
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::pointer_holders::position_pointer_holder::PositionPointerHolder;
-use crate::deserializing::primitives::{
-    decode_bytes, decode_f64, decode_null
-    , decode_string,
-};
-use crate::deserializing::utils::{
-    decode_number_usize, skip_number,
-    DESERIALIZATION_ERROR_TYPE,
-};
-use crate::safe_get;
+use crate::deserializing::primitives::{decode_bytes, decode_f64, decode_null, decode_string, decode_true};
+use crate::deserializing::utils::{decode_number_usize, skip_number, DESERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::{
-    AMOUNT_OF_USED_FLAGS, ASCII_STR_FLAG, BOOL_FLAG, BYTES_FLAG,
-    CONSISTENT_TYPE_LIST_FLAG, CUSTOM_TYPE_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG,
-    EMPTY_LIST_FLAG, EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG,
-    LIST_OF_STRUCTURED_DICTS_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, POINTER_FLAG, POINTER_FLAG_1BYTE,
-    POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, POSITIVE_INT_FLAG, STR_FLAG,
-    STR_KEY_DICT_FLAG, TRUE_FLAG,
+    AMOUNT_OF_USED_FLAGS, ASCII_STR_FLAG, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG,
+    CUSTOM_TYPE_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG,
+    EMPTY_STR_FLAG, FALSE_FLAG, FLOAT_FLAG, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG,
+    NEGATIVE_INT_FLAG, NULL_FLAG, POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE,
+    POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG,
+    TRUE_FLAG,
 };
 use crate::utils::consts::{LEFTMOST_BIT_MASK, MIGHT_BE_ASCII, NUMBER_BASE};
 use crate::utils::py_dict_key::PyHashMap;
-use crate::utils::py_helpers::{pretty_type, py_str_to_rust_str, to_py_str, ToPyErr};
+use crate::utils::py_helpers::{
+    compare_objects, pretty_type, py_str_to_rust_str, to_py_str, ToPyErr,
+};
 use crate::utils::safe_py_pointer::PyPointer;
-use pyo3_ffi::{PyExc_TypeError, PyObject, PyObject_RichCompareBool, Py_EQ, Py_False, Py_True};
+use crate::{safe_get, safe_new_py_dict};
+use pyo3_ffi::{PyDict_SetItem, PyExc_TypeError, PyObject, Py_False, Py_True};
 
 pub enum PathPart {
     Index(usize),
@@ -51,7 +47,7 @@ pub fn lazy_deserialize(
 ) -> Result<*mut PyObject, *mut PyObject> {
     if path_to_load.is_empty() {
         if dont_load {
-            return Ok(std::ptr::null_mut());
+            return Ok(decode_true());
         }
         return deserialize_object(buf, ptr, pointers, use_tuples, custom_types);
     }
@@ -86,7 +82,103 @@ pub fn lazy_deserialize(
                 lazy_deserialize_consistent_type_list(buf, ptr, *index, path_to_load, pointers)
             }
             LIST_OF_STRUCTURED_DICTS_FLAG => {
-                todo!() // TODO:
+                let list_length = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
+                let dict_length = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
+                if *index >= list_length {
+                    return Err(format!(index_out_of_range_template!(), index, list_length)
+                        .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
+                }
+                if !path_to_load.is_empty() {
+                    let next_indexer = &path_to_load[0];
+                    path_to_load = &path_to_load[1..];
+                    match next_indexer {
+                        PathPart::Index(_) => {
+                            Err("Invalid path, expected `list` but found `dict`"
+                                .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
+                        }
+                        PathPart::Key(next_indexer) => {
+                            let mut checking_keys = true;
+                            let mut key_index = None;
+                            for i in 0..dict_length {
+                                if !checking_keys {
+                                    skip_object(buf, ptr, pointers)?; // skip key
+                                    skip_object(buf, ptr, pointers)?; // skip value
+                                    continue;
+                                }
+                                let key = deserialize_object(
+                                    buf,
+                                    ptr,
+                                    pointers,
+                                    use_tuples,
+                                    custom_types,
+                                )?;
+                                if compare_objects(key, *next_indexer) {
+                                    if *index == 0 {
+                                        return lazy_deserialize(
+                                            buf,
+                                            ptr,
+                                            pointers,
+                                            use_tuples,
+                                            custom_types,
+                                            dont_load,
+                                            path_to_load,
+                                        );
+                                    }
+                                    key_index = Some(i);
+                                    checking_keys = false; // no more need to deserialize the keys for comparing them
+                                }
+                                skip_object(buf, ptr, pointers)?;
+                            }
+
+                            match key_index {
+                                Some(key_index) => {
+                                    for _ in 0..((*index - 1) * dict_length + key_index) {
+                                        skip_object(buf, ptr, pointers)?;
+                                    }
+                                    lazy_deserialize(buf, ptr, pointers, use_tuples, custom_types, dont_load, path_to_load)
+                                }
+                                None => {
+                                    Err(format!(
+                                        key_not_in_dict_template!(),
+                                        py_str_to_rust_str(&to_py_str(*next_indexer)?.as_ptr())?,
+                                        pretty_type(*next_indexer)
+                                    )
+                                        .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if dont_load { return Ok(decode_true()); }
+                    if *index == 0 {
+                        let dict = safe_new_py_dict!();
+                        for _ in 0..dict_length {
+                            let key = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
+                            let value = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
+                            unsafe {
+                                PyDict_SetItem(dict, key.as_ptr(), value.as_ptr());
+                            }
+                        }
+                        return Ok(dict)
+                    }
+                    let mut keys = Vec::with_capacity(dict_length);
+                    for _ in 0..dict_length {
+                        let key = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
+                        skip_object(buf, ptr, pointers)?;
+                        keys.push(key);
+                    }
+                    for _ in 0..(*index - 1) * dict_length {
+                        skip_object(buf, ptr, pointers)?;
+                    }
+                    let dict = safe_new_py_dict!();
+                    for key in keys {
+                        let value = PyPointer::new(deserialize_object(buf, ptr, pointers, use_tuples, custom_types)?);
+                        unsafe {
+                            PyDict_SetItem(dict, key.as_ptr(), value.as_ptr());
+                        }
+                    }
+                    Ok(dict)
+                }
             }
             _ => Err(format!(
                 "Invalid path, expected `list` but found `{}`",
@@ -112,7 +204,7 @@ pub fn lazy_deserialize(
                             use_tuples,
                             custom_types,
                         )?);
-                        if unsafe { PyObject_RichCompareBool(dict_key.as_ptr(), *key, Py_EQ) } == 1 {
+                        if compare_objects(*key, dict_key.as_ptr()) {
                             return lazy_deserialize(
                                 buf,
                                 ptr,
@@ -138,7 +230,7 @@ pub fn lazy_deserialize(
                     for _ in 0..len {
                         // TODO: handle DECREF this and other places?
                         let dict_key = PyPointer::new(deserialize_dict_key(buf, ptr, pointers)?);
-                        if unsafe { PyObject_RichCompareBool(dict_key.as_ptr(), *key, Py_EQ) } == 1 {
+                        if compare_objects(dict_key.as_ptr(), *key) {
                             return lazy_deserialize(
                                 buf,
                                 ptr,
@@ -327,16 +419,20 @@ fn lazy_deserialize_consistent_type_list(
     *ptr += 1;
     let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
     if index >= len {
-        return Err(format!(index_out_of_range_template!(), index, len).to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
+        return Err(format!(index_out_of_range_template!(), index, len)
+            .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
     }
     if !path_to_load.is_empty() {
         let got_type = flag_to_type_name(typ_flag)?;
-        return Err(
-            format!(
-                "Invalid path, expected `{}` but found `{got_type}`",
-                if let PathPart::Index(_) = path_to_load[0] { "list" } else { "dict" }
-        ).to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
-
+        return Err(format!(
+            "Invalid path, expected `{}` but found `{got_type}`",
+            if let PathPart::Index(_) = path_to_load[0] {
+                "list"
+            } else {
+                "dict"
+            }
+        )
+        .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
     }
     match typ_flag {
         NULL_FLAG => Ok(decode_null()),
@@ -344,7 +440,8 @@ fn lazy_deserialize_consistent_type_list(
         BYTES_FLAG => lazy_load_bytes_list(buf, ptr, index),
         STR_FLAG => lazy_load_str_list(buf, ptr, index, pointers),
         FLOAT_FLAG => lazy_load_float_list(buf, ptr, index),
-        _ => Err(format!("Unexpected type flag: {typ_flag}").to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
+        _ => Err(format!("Unexpected type flag: {typ_flag}")
+            .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE })),
     }
 }
 

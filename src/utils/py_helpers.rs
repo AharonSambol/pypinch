@@ -1,7 +1,7 @@
 use crate::utils::safe_py_pointer::PyPointer;
 use crate::utils::wrappers::tuple_set_item;
 use crate::{py_string_format, raise_mem_error_if_null};
-use pyo3_ffi::{PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_Str, PyObject_Type, PyTuple_New, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, Py_INCREF, Py_ssize_t};
+use pyo3_ffi::{PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_RichCompareBool, PyObject_Str, PyObject_Type, PyTuple_New, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, Py_EQ, Py_INCREF, Py_ssize_t};
 use std::ffi::{CStr, CString};
 use std::{ptr, slice};
 
@@ -19,6 +19,10 @@ pub fn py_str_to_rust_str(py_str: &*mut PyObject) -> Result<&str, *mut PyObject>
             size as usize,
         )))
     }
+}
+
+pub fn compare_objects(obj1: *mut PyObject, obj2: *mut PyObject) -> bool {
+    unsafe { PyObject_RichCompareBool(obj1, obj2, Py_EQ) == 1 }
 }
 
 pub fn convert_py_buffer_into_bytes_slice(buffer: &*mut PyObject) -> Result<&[u8], *mut PyObject> {

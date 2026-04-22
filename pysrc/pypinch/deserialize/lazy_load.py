@@ -154,7 +154,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
                     return True
                 if index == 0:
                     dct = {}
-                    for i in range(dict_length):
+                    for _ in range(dict_length):
                         k, pointer = deserialize_object(buffer, pointer, settings)
                         v, pointer = deserialize_object(buffer, pointer, settings)
                         dct[k] = v
@@ -170,7 +170,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
                         pointer = skip_object(buffer, pointer, settings)
 
                     dct = {}
-                    for i, key in enumerate(keys):
+                    for key in keys:
                         dct[key], pointer = deserialize_object(buffer, pointer, settings)
                     return dct
         else:
