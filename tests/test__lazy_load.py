@@ -17,7 +17,7 @@ SAME_TYPE_LISTS = pypinch.dump_bytes([
 ])
 
 MIX = pypinch.dump_bytes({
-    "a": 1,
+    "a": -1,
     "b": {"c": {"d": "d"}},
     "c": [1, False, b"sdfghfg", 6],
     1234: "d",
@@ -33,7 +33,7 @@ WITH_STRUCTURED_DICT_LIST = pypinch.dump_bytes([
 @pytest.mark.parametrize(
     ["data", "path", "expected"],
     [
-        (MIX, ["a"], 1),
+        (MIX, ["a"], -1),
         (MIX, ["b"], {"c": {"d": "d"}}),
         (MIX, ["b", "c"], {"d": "d"}),
         (MIX, ["b", "c", "d"], "d"),
