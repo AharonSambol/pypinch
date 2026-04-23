@@ -1,6 +1,6 @@
 use crate::raise_mem_error_if_null;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
-use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
+use crate::serializing::serializing_string_cache::Pointers;
 use crate::serializing::utils::{
     encode_number, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE,
 };
@@ -107,7 +107,7 @@ pub fn try_get_as_pointer(
     pointers: &mut Pointers,
 ) -> Result<Option<u128>, *mut PyObject> {
     let amount_of_pointers = pointers.len();
-    match pointers.entry(PyStringKey::new(str)) {
+    match pointers.entry(str) {
         Entry::Occupied(entry) => {
             return Ok(Some((*entry.get()) as u128));
         }

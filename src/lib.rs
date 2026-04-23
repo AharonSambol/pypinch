@@ -12,6 +12,7 @@ use crate::deserializing::pointer_holders::vec_pointer_holder::VecPointerHolder;
 use crate::deserializing::primitives::decode_false;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
+use crate::serializing::serializing_string_cache::Pointers;
 use crate::serializing::settings::Settings;
 use crate::serializing::utils::{CUSTOM_TYPE_CLASS, EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, IDX_CLASS, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::HEADER;
@@ -21,7 +22,6 @@ use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, 
 use crate::utils::wrappers::{gc_disable, gc_enabled, is_gc_enabled, tuple_get_item};
 use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use pyo3_ffi::*;
-use rustc_hash::FxHashMap;
 use utils::custom_type_loaders;
 
 mod deserializing;
@@ -187,7 +187,7 @@ pub unsafe extern "C" fn dump_bytes(
     };
 
     buf.extend_from_slice(b"<o>");
-    let mut pointers = FxHashMap::default();
+    let mut pointers = Pointers::new();
     let result = serialize(
         obj,
         &mut buf,

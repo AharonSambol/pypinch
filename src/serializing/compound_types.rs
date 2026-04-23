@@ -1,7 +1,7 @@
 use crate::serializing::primitives::{serialize_str, try_get_as_pointer};
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize;
-use crate::serializing::serializing_string_cache::{Pointers, PyStringKey};
+use crate::serializing::serializing_string_cache::Pointers;
 use crate::serializing::settings::Settings;
 use crate::serializing::utils::{all_dict_keys_are_str, encode_number, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::{
@@ -18,7 +18,6 @@ use pyo3_ffi::{
     PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_GET_LENGTH, PyUnicode_Type, Py_None, Py_True,
     Py_ssize_t,
 };
-use rustc_hash::FxHashMap;
 use std::{ptr, slice};
 
 #[inline(always)]
@@ -161,13 +160,13 @@ fn get_dict_keys(dict: *mut PyObject) -> Option<Pointers> {
     let mut pos: Py_ssize_t = 0;
     let mut key: *mut PyObject = ptr::null_mut();
     let mut value: *mut PyObject = ptr::null_mut();
-    let mut keys = FxHashMap::default();
+    let mut keys = Pointers::new();
 
     while unsafe { PyDict_Next(dict, &mut pos, &mut key, &mut value) } != 0 {
         if unsafe { (*key).ob_type != &mut PyUnicode_Type } {
             return None;
         }
-        keys.insert(PyStringKey::new(key), pos as usize - 1);
+        keys.insert(key, pos as usize - 1);
     }
     Some(keys)
 }
@@ -180,7 +179,7 @@ fn compare_dict_keys(dict: *mut PyObject, expected_keys: &Pointers) -> bool {
         return false;
     }
     while unsafe { PyDict_Next(dict, &mut pos, &mut key, &mut value) } != 0 {
-        if !expected_keys.contains_key(&PyStringKey::new(key)) {
+        if !expected_keys.contains_key(key) {
             return false;
         }
     }
@@ -241,7 +240,7 @@ fn encode_structured_list(
         let mut key: *mut PyObject = ptr::null_mut();
         let mut val: *mut PyObject = ptr::null_mut();
         while unsafe { PyDict_Next(inner_dict, &mut pos, &mut key, &mut val) } != 0 {
-            values[first_dict_keys[&PyStringKey::new(key)]] = val;
+            values[*first_dict_keys.index(key)] = val;
         }
 
         for val in &values {

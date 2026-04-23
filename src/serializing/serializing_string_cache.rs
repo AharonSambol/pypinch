@@ -1,6 +1,8 @@
 use pyo3_ffi::{PyASCIIObject, PyObject, PyObject_Hash, PyUnicode_Compare};
-use rustc_hash::FxHashMap;
-use std::hash::{Hash, Hasher};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hash, Hasher};
+use std::ops::Index;
 
 #[derive(Copy, Clone)]
 pub struct PyStringKey(*mut PyObject);
@@ -30,4 +32,43 @@ impl PartialEq for PyStringKey {
 
 impl Eq for PyStringKey {}
 
-pub type Pointers = FxHashMap<PyStringKey, usize>;
+
+#[derive(Default)]
+pub struct PassThroughHasher(u64);
+
+impl Hasher for PassThroughHasher {
+    fn finish(&self) -> u64 { self.0 }
+    fn write(&mut self, _bytes: &[u8]) { unreachable!() }
+    fn write_isize(&mut self, i: isize) { self.0 = i as u64; }
+}
+
+pub struct Pointers {
+    map: HashMap<PyStringKey, usize, BuildHasherDefault<PassThroughHasher>>,
+}
+
+impl Pointers {
+    pub fn new() -> Self {
+        Pointers {
+            map: HashMap::default(),
+        }
+    }
+    pub fn entry(&mut self, obj: *mut PyObject) -> Entry<'_, PyStringKey, usize> {
+        self.map.entry(PyStringKey::new(obj))
+    }
+
+    pub fn insert(&mut self, obj: *mut PyObject, new_id: usize) -> Option<usize> {
+        self.map.insert(PyStringKey::new(obj), new_id)
+    }
+
+    pub fn contains_key(&self, obj: *mut PyObject) -> bool {
+        self.map.contains_key(&PyStringKey(obj))
+    }
+
+    pub fn index(&self, obj: *mut PyObject) -> &usize {
+        self.map.index(&PyStringKey::new(obj))
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+}
