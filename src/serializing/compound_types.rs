@@ -167,7 +167,7 @@ fn get_dict_keys(dict: *mut PyObject) -> Option<Pointers> {
         if unsafe { (*key).ob_type != &mut PyUnicode_Type } {
             return None;
         }
-        keys.insert(PyStringKey(key), pos as usize - 1);
+        keys.insert(PyStringKey::new(key), pos as usize - 1);
     }
     Some(keys)
 }
@@ -180,7 +180,7 @@ fn compare_dict_keys(dict: *mut PyObject, expected_keys: &Pointers) -> bool {
         return false;
     }
     while unsafe { PyDict_Next(dict, &mut pos, &mut key, &mut value) } != 0 {
-        if !expected_keys.contains_key(&PyStringKey(key)) {
+        if !expected_keys.contains_key(&PyStringKey::new(key)) {
             return false;
         }
     }
@@ -241,7 +241,7 @@ fn encode_structured_list(
         let mut key: *mut PyObject = ptr::null_mut();
         let mut val: *mut PyObject = ptr::null_mut();
         while unsafe { PyDict_Next(inner_dict, &mut pos, &mut key, &mut val) } != 0 {
-            values[first_dict_keys[&PyStringKey(key)]] = val;
+            values[first_dict_keys[&PyStringKey::new(key)]] = val;
         }
 
         for val in &values {

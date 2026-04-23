@@ -107,7 +107,7 @@ pub fn try_get_as_pointer(
     pointers: &mut Pointers,
 ) -> Result<Option<u128>, *mut PyObject> {
     let amount_of_pointers = pointers.len();
-    match pointers.entry(PyStringKey(str)) {
+    match pointers.entry(PyStringKey::new(str)) {
         Entry::Occupied(entry) => {
             return Ok(Some((*entry.get()) as u128));
         }
