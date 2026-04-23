@@ -9,11 +9,13 @@ use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::lazy_deserialize::lazy_deserialize;
 use crate::deserializing::pointer_holders::position_pointer_holder::PositionPointerHolder;
 use crate::deserializing::pointer_holders::vec_pointer_holder::VecPointerHolder;
+use crate::deserializing::primitives::decode_false;
 use crate::serializing::py_bytes_buffer::PyBytesBuffer;
 use crate::serializing::serialize::serialize;
 use crate::serializing::settings::Settings;
 use crate::serializing::utils::{CUSTOM_TYPE_CLASS, EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, IDX_CLASS, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::HEADER;
+use crate::utils::custom_type_loaders::parse_loads_custom_types_dict;
 use crate::utils::path_to_load_loaders::parse_path_to_load;
 use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::{gc_disable, gc_enabled, is_gc_enabled, tuple_get_item};
@@ -40,7 +42,7 @@ static mut MODULE_DEF: PyModuleDef = PyModuleDef {
     m_free: None,
 };
 
-static mut METHODS: [PyMethodDef; 4] = [
+static mut METHODS: [PyMethodDef; 5] = [
     PyMethodDef {
         ml_name: "dump_bytes\0".as_ptr().cast::<c_char>(),
         ml_meth: PyMethodDefPointer {
@@ -61,6 +63,14 @@ static mut METHODS: [PyMethodDef; 4] = [
         ml_name: "lazy_load_bytes\0".as_ptr().cast::<c_char>(),
         ml_meth: PyMethodDefPointer {
             PyCFunctionFastWithKeywords: lazy_load_bytes,
+        },
+        ml_flags: METH_FASTCALL | METH_KEYWORDS,
+        ml_doc: "lazily deserializes pinch\0".as_ptr().cast::<c_char>(),
+    },
+    PyMethodDef {
+        ml_name: "bytes_check_if_contains\0".as_ptr().cast::<c_char>(),
+        ml_meth: PyMethodDefPointer {
+            PyCFunctionFastWithKeywords: bytes_check_if_contains,
         },
         ml_flags: METH_FASTCALL | METH_KEYWORDS,
         ml_doc: "lazily deserializes pinch\0".as_ptr().cast::<c_char>(),
@@ -308,10 +318,36 @@ pub unsafe extern "C" fn load_bytes(
 
 pub unsafe extern "C" fn lazy_load_bytes(
     _self: *mut PyObject,
-    mut args: *const *mut PyObject,
+    args: *const *mut PyObject,
     nargs: Py_ssize_t,
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
+    call_lazy_load(_self, args, nargs, kwnames, false).unwrap_or_else(|err| err)
+}
+
+pub unsafe extern "C" fn bytes_check_if_contains(
+    _self: *mut PyObject,
+    args: *const *mut PyObject,
+    nargs: Py_ssize_t,
+    kwnames: *mut PyObject,
+) -> *mut PyObject {
+    call_lazy_load(_self, args, nargs, kwnames, true).unwrap_or_else(|err| {
+        if PyErr_ExceptionMatches(DESERIALIZATION_ERROR_TYPE) == 1 {
+            PyErr_Clear();
+            decode_false()
+        } else {
+            err
+        }
+    })
+}
+
+unsafe fn call_lazy_load(
+    _self: *mut PyObject,
+    mut args: *const *mut PyObject,
+    nargs: Py_ssize_t,
+    kwnames: *mut PyObject,
+    dont_load: bool,
+) -> Result<*mut PyObject, *mut PyObject> {
     let mut buffer = None;
     let mut custom_types = None;
     let mut path_to_load = None;
@@ -328,22 +364,17 @@ pub unsafe extern "C" fn lazy_load_bytes(
                 path_to_load = Some(*args.offset(nargs + i));
             } else if compare_str(key, b"custom_types\0") {
                 let value = *args.offset(nargs + i);
-
-                let custom_types_dict = match custom_type_loaders::parse_loads_custom_types_dict(value) {
-                    Ok(value) => value,
-                    Err(value) => return value,
-                };
-                custom_types = Some(custom_types_dict);
+                custom_types = Some(parse_loads_custom_types_dict(value)?);
             } else {
                 let rust_str = py_str_to_rust_str(&key);
-                return if let Ok(rust_str) = rust_str {
+                return Err(if let Ok(rust_str) = rust_str {
                     format!(
                         "lazy_load_bytes() got an unexpected keyword argument '{}'",
                         rust_str
                     ).to_py_error(PyExc_TypeError)
                 } else {
                     PyErr_NoMemory()
-                }
+                })
             }
         }
     }
@@ -353,17 +384,14 @@ pub unsafe extern "C" fn lazy_load_bytes(
 
     let buffer = if let Some(buffer) = buffer {
         if num_args != 0 {
-            return "lazy_load_bytes() got multiple values for argument 'buffer'"
-                .to_py_error(PyExc_TypeError);
+            return Err("lazy_load_bytes() got multiple values for argument 'buffer'"
+                .to_py_error(PyExc_TypeError));
         }
         buffer
     } else {
-        // if num_args != 1 {
-        //     return format!(
-        //         "lazy_load_bytes() expected exactly 2 positional argument, but {num_args} were provided"
-        //     )
-        //     .to_py_error(PyExc_TypeError);
-        // }
+        if num_args == 0 {
+            return Err("lazy_load_bytes() missing 1 required positional argument: 'buffer'".to_py_error(PyExc_TypeError));
+        }
         let buffer = *args;
         args = args.add(1);
         num_args -= 1;
@@ -371,40 +399,32 @@ pub unsafe extern "C" fn lazy_load_bytes(
     };
     let path_to_load = if let Some(path_to_load) = path_to_load {
         if num_args != 0 {
-            return "lazy_load_bytes() got multiple values for argument 'path_to_load'"
-                .to_py_error(PyExc_TypeError);
+            return Err("lazy_load_bytes() got multiple values for argument 'path_to_load'"
+                .to_py_error(PyExc_TypeError));
         }
         path_to_load
     } else {
         if num_args != 1 {
-            return format!(
+            return Err(format!(
                 "lazy_load_bytes() expected exactly 2 positional argument, but {original_num_args} were provided"
             )
-            .to_py_error(PyExc_TypeError);
+            .to_py_error(PyExc_TypeError));
         }
         *args
     };
-    let path_to_load = match parse_path_to_load(path_to_load) {
-        Ok(path_to_load) => path_to_load,
-        Err(err) => return err,
-    };
+    let path_to_load = parse_path_to_load(path_to_load)?;
 
-    let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
-        Ok(slice) => slice,
-        Err(err) => return err,
-    };
+    let slice = convert_py_buffer_into_bytes_slice(&buffer)?;
     let mut pointers = PositionPointerHolder::new(slice);
 
     let mut pointer = HEADER.len();
-    let result = lazy_deserialize(
+    lazy_deserialize(
         slice,
         &mut pointer,
         &mut pointers,
         false,
         &custom_types,
-        false,
+        dont_load,
         &path_to_load
-    );
-    result.unwrap_or_else(|err| err)
+    )
 }
-// TODO: lazy_exists

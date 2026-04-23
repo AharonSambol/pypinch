@@ -1,6 +1,6 @@
 import os
 
-from .deserialize.lazy_load import bytes_check_if_contains, Idx
+from .deserialize.lazy_load import Idx
 
 FORCE_PYTHON = os.environ.get("PYPINCH_FORCE_PYTHON")
 
@@ -17,11 +17,12 @@ if _pypinch is not None:
     dump_bytes = _pypinch.dump_bytes
     load_bytes = _pypinch.load_bytes
     lazy_load_bytes = _pypinch.lazy_load_bytes
+    bytes_check_if_contains = _pypinch.bytes_check_if_contains
 else:
     _BACKEND = "python"
     from .serialize.serialize import dump_bytes
     from .deserialize.deserialize import load_bytes
-    from .deserialize.lazy_load import lazy_load_bytes
+    from .deserialize.lazy_load import lazy_load_bytes, bytes_check_if_contains
 
 lazy_unpinch = lazy_load_bytes
 pinch = dump_bytes
