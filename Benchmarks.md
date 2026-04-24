@@ -1,5 +1,3 @@
-If you prefer: [Textual data](./BenchmarksTextual.md)
-
 https://conda.anaconda.org/conda-forge/noarch/repodata.json
 ![repodata.png](assets/benchmark_results/repodata.png)
 
