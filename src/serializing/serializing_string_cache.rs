@@ -27,28 +27,7 @@ impl Hash for PyStringKey {
 
 impl PartialEq for PyStringKey {
     fn eq(&self, other: &Self) -> bool {
-        if self.0 == other.0 { return true; }
-
-        unsafe {
-            let a = self.0 as *mut PyASCIIObject;
-            let b = other.0 as *mut PyASCIIObject;
-
-            if (*a).hash != (*b).hash || (*a).length != (*b).length {
-                return false;
-            }
-
-            // If both are 1-byte strings, use raw memory comparison (SIMD optimized)
-            if (*a).kind() == 1 && (*b).kind() == 1 {
-                let len = (*a).length as usize;
-                let a_data = a.add(1) as *const u8;
-                let b_data = b.add(1) as *const u8;
-
-                return std::slice::from_raw_parts(a_data, len) ==
-                    std::slice::from_raw_parts(b_data, len);
-            }
-
-            PyUnicode_Compare(self.0, other.0) == 0
-        }
+        self.0 == other.0 || unsafe { PyUnicode_Compare(self.0, other.0) == 0 }
     }
 }
 
