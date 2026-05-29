@@ -1,4 +1,5 @@
 import ast
+import base64
 import os
 import pickle
 import subprocess
@@ -138,20 +139,25 @@ def profile(functions_to_profile: List[Tuple[str, str, str]], input_file: Path, 
 
             with open(input_file) as f:
                 data_as_python = orjson.loads(f.read())
+                if "binary" in input_file.name:
+                    data_as_python["data"] = base64.b64decode(data_as_python["data"])
                 pickle_file.write(pickle.dumps(data_as_python))
                 pickle_file.flush()
 
             results = []
             for name, dump_process, dump_start_file, load_process, load_start_file, dumped_file in processes:
                 print(name)
-                with open(dump_start_file, "w"):
-                    output, err = dump_process.communicate()
-                    print(err)
-                    dump_mem_mib, dump_time_ms, end_len = ast.literal_eval(output.decode())
-                with open(load_start_file, "w"):
-                    output, err = load_process.communicate()
-                    print(err)
-                    mem_mib, time_ms = ast.literal_eval(output.decode())
+                try:
+                    with open(dump_start_file, "w"):
+                        output, err = dump_process.communicate()
+                        print(err)
+                        dump_mem_mib, dump_time_ms, end_len = ast.literal_eval(output.decode())
+                    with open(load_start_file, "w"):
+                        output, err = load_process.communicate()
+                        print(err)
+                        mem_mib, time_ms = ast.literal_eval(output.decode())
+                except SyntaxError:
+                    continue
                 os.remove(dump_start_file)
                 os.remove(load_start_file)
                 os.remove(dumped_file.name)
