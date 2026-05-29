@@ -181,12 +181,11 @@ pub unsafe extern "C" fn dump_bytes(
         }
         *args
     };
-    let mut buf = match PyBytesBuffer::with_capacity(8) {
+    let mut buf = match PyBytesBuffer::new(8, b"<o>") {
         Ok(buf) => buf,
         Err(err) => return err,
     };
 
-    buf.extend_from_slice(b"<o>");
     let mut pointers = Pointers::new();
     let result = serialize(
         obj,

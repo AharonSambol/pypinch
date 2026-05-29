@@ -26,6 +26,24 @@ impl PyBytesBuffer {
         })
     }
 
+    pub fn new(cap: usize, slice: &[u8]) -> Result<Self, *mut PyObject> {
+        debug_assert!(slice.len() <= cap);
+        let obj = raise_mem_error_if_null!(unsafe {
+            PyBytes_FromStringAndSize(ptr::null(), cap as isize)
+        });
+
+        unsafe {
+            let data_ptr = PyBytes_AS_STRING(obj) as *mut u8;
+            ptr::copy_nonoverlapping(slice.as_ptr(), data_ptr, slice.len());
+            Ok(Self {
+                obj,
+                data_ptr,
+                len: slice.len(),
+                cap,
+            })
+        }
+    }
+
     #[inline]
     fn ensure_capacity(&mut self, additional: usize) -> bool {
         let required = self.len + additional;
