@@ -13,41 +13,53 @@ import numpy as np
 import orjson
 
 
-def generate_profiling_graph(results: List, output_file: Path) -> None:
+def generate_profiling_graph(results: List, output_file: Path, display_size: bool = True) -> None:
     names = [r["name"] for r in results]
 
     load_mem = [r["mem_kib"] / 1024 for r in results]
     elapsed_ms = [r["elapsed"] for r in results]
     dump_mem = [r["dump_mem_kib"] / 1024 for r in results]
     dump_elapsed = [r["dump_elapsed"] for r in results]
-
+    size = [r["size"] / 1024 for r in results if "size" in r]
     x = np.arange(len(names))
     width = 0.35
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    if display_size:
+        fig, ax1 = plt.subplots(1, 1, figsize=(7, 6))
 
-    # Plot 1: Memory Usage
-    ax1.bar(x - width / 2, load_mem, width, label='Load Mem', color='#3498db')
-    ax1.bar(x + width / 2, dump_mem, width, label='Dump Mem', color='#2980b9')
-    ax1.set_ylabel('Memory (MiB)')
-    ax1.set_title('Memory Consumption')
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(names, rotation=15)
-    ax1.legend()
-    ax1.grid(axis='y', linestyle='--', alpha=0.7)
+        # Plot 3: Size (bytes)
+        ax1.bar(x, size, width * 2, color='#f0e078')
+        ax1.set_ylabel('size (KiB)')
+        ax1.set_title('Serialized Size')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(names, rotation=15)
+        ax1.legend()
+        ax1.grid(axis='y', linestyle='--', alpha=0.7)
+    else:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
-    # Plot 2: Elapsed Time (ms)
-    ax2.bar(x - width / 2, elapsed_ms, width, label='Load Time', color='#e67e22')
-    ax2.bar(x + width / 2, dump_elapsed, width, label='Dump Time', color='#d35400')
-    ax2.set_ylabel('Time (ms)')
-    ax2.set_title('Execution Time')
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(names, rotation=15)
-    ax2.legend()
-    ax2.grid(axis='y', linestyle='--', alpha=0.7)
+        # Plot 1: Memory Usage
+        ax1.bar(x - width / 2, load_mem, width, label='Load Mem', color='#3498db')
+        ax1.bar(x + width / 2, dump_mem, width, label='Dump Mem', color='#2980b9')
+        ax1.set_ylabel('Memory (MiB)')
+        ax1.set_title('Memory Consumption')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(names, rotation=20)
+        ax1.legend()
+        ax1.grid(axis='y', linestyle='--', alpha=0.7)
+
+        # Plot 2: Elapsed Time (ms)
+        ax2.bar(x - width / 2, elapsed_ms, width, label='Load Time', color='#e67e22')
+        ax2.bar(x + width / 2, dump_elapsed, width, label='Dump Time', color='#d35400')
+        ax2.set_ylabel('Time (ms)')
+        ax2.set_title('Execution Time')
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(names, rotation=15)
+        ax2.legend()
+        ax2.grid(axis='y', linestyle='--', alpha=0.7)
 
     plt.tight_layout()
-    output_filename = str(output_file).split(".")[0] + ".png"
+    output_filename = str(output_file).split(".")[0] + ("-size" if display_size else "") + ".png"
     plt.savefig(output_filename)
     print(f"Graph saved as {output_filename}")
 
@@ -161,7 +173,7 @@ def profile(functions_to_profile: List[Tuple[str, str, str]], input_file: Path, 
                 os.remove(dump_start_file)
                 os.remove(load_start_file)
                 os.remove(dumped_file.name)
-                results.append({"name": name, "end_len": end_len, "mem_kib": mem_kib, "elapsed": time_ms, "dump_mem_kib": dump_mem_kib, "dump_elapsed": dump_time_ms})
+                results.append({"name": name, "size": end_len, "mem_kib": mem_kib, "elapsed": time_ms, "dump_mem_kib": dump_mem_kib, "dump_elapsed": dump_time_ms})
         finally:
             for name, dump_process, dump_start_file, load_process, load_start_file, dumped_file in processes:
                 try:
@@ -196,11 +208,11 @@ if __name__ == '__main__':
             "from pypinch._pypinch import load_bytes\ndecode=load_bytes",
             "from pypinch._pypinch import dump_bytes\nencode=dump_bytes",
         ),
-        (
-            "pypinch w file",
-            "from pypinch._pypinch import load_bytes\ndecode=lambda x: []",
-            "from pypinch._pypinch import dump_bytes\nff=open('output-temp', 'wb')\nencode=lambda x: dump_bytes(x, writer=ff,direct_write_threshold=1*1024*1024) or b''",
-        ),
+        # (
+        #     "pypinch w file",
+        #     "from pypinch._pypinch import load_bytes\ndecode=lambda x: []",
+        #     "from pypinch._pypinch import dump_bytes\nff=open('output-temp', 'wb')\nencode=lambda x: dump_bytes(x, writer=ff,direct_write_threshold=1*1024*1024) or b''",
+        # ),
         (
             "msgspec",
             "import msgspec\ndecode=msgspec.msgpack.decode",
