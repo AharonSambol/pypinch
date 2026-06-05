@@ -7,9 +7,9 @@ use crate::utils::consts::CUSTOM_TYPE_FLAG;
 use crate::utils::py_helpers::{temporary_tuple_of, ToPyErr};
 use pyo3_ffi::{PyObject, PyObject_CallObject};
 
-pub fn serialize_custom_type(
+pub fn serialize_custom_type<Buffer: PyBytesBuffer>(
     obj: *mut PyObject,
-    buffer: &mut PyBytesBuffer,
+    buffer: &mut Buffer,
     pointers: &mut Pointers,
     settings: &Settings,
     custom_type: &CustomType,

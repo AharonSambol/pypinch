@@ -21,9 +21,9 @@ use pyo3_ffi::{
 use std::{ptr, slice};
 
 #[inline(always)]
-pub fn serialize_dict(
+pub fn serialize_dict<Buffer: PyBytesBuffer>(
     obj: *mut PyObject,
-    buffer: &mut PyBytesBuffer,
+    buffer: &mut Buffer,
     pointers: &mut Pointers,
     settings: &Settings,
 ) -> Result<(), *mut PyObject> {
@@ -33,7 +33,7 @@ pub fn serialize_dict(
     }
     if all_dict_keys_are_str(obj) {
         buffer.push(STR_KEY_DICT_FLAG)?;
-        encode_number::<NUMBER_BASE>(buffer, size as u128)?;
+        encode_number::<NUMBER_BASE, Buffer>(buffer, size as u128)?;
 
         let mut pos = 0;
         let mut key: *mut PyObject = ptr::null_mut();
@@ -48,7 +48,7 @@ pub fn serialize_dict(
     }
 
     buffer.push(DICT_FLAG)?;
-    encode_number::<NUMBER_BASE>(buffer, size as u128)?;
+    encode_number::<NUMBER_BASE, Buffer>(buffer, size as u128)?;
 
     let mut pos = 0;
     let mut key: *mut PyObject = ptr::null_mut();
@@ -68,8 +68,8 @@ pub fn serialize_dict(
 }
 
 #[inline(always)]
-fn encode_dict_key(
-    buffer: &mut PyBytesBuffer,
+fn encode_dict_key<Buffer: PyBytesBuffer>(
+    buffer: &mut Buffer,
     pointers: &mut Pointers,
     key: *mut PyObject,
 ) -> Result<(), *mut PyObject> {
@@ -84,15 +84,15 @@ fn encode_dict_key(
 
     if let Some(pointer) = try_get_as_pointer(key, pointers)? {
         buffer.push(NUMBER_BASE as u8 - 1)?;
-        encode_number::<NUMBER_BASE>(buffer, pointer)?;
+        encode_number::<NUMBER_BASE, Buffer>(buffer, pointer)?;
         return Ok(());
     }
 
     if is_compact_ascii {
-        encode_number::<{ NUMBER_BASE - 1 }>(buffer, 1 + len as u128)?;
+        encode_number::<{ NUMBER_BASE - 1 }, Buffer>(buffer, 1 + len as u128)?;
         buffer.push(INVALID_UTF_8_START_BYTE_COMPACT_ASCII)?;
     } else {
-        encode_number::<{ NUMBER_BASE - 1 }>(buffer, len as u128)?;
+        encode_number::<{ NUMBER_BASE - 1 }, Buffer>(buffer, len as u128)?;
     }
     unsafe { buffer.extend_from_slice(slice::from_raw_parts(data, len as usize)) }
 }
@@ -114,9 +114,9 @@ fn is_consistent_type_list(obj: *mut PyObject, is_list: bool, len: Py_ssize_t) -
     })
 }
 
-pub fn encode_list(
+pub fn encode_list<Buffer: PyBytesBuffer>(
     obj: *mut PyObject,
-    buffer: &mut PyBytesBuffer,
+    buffer: &mut Buffer,
     pointers: &mut Pointers,
     typ: *mut PyTypeObject,
     settings: &Settings,
@@ -139,7 +139,7 @@ pub fn encode_list(
         };
         if first_item == unsafe { Py_None() } {
             buffer.extend_from_slice(&[CONSISTENT_TYPE_LIST_FLAG, NULL_FLAG])?;
-            return encode_number::<NUMBER_BASE>(buffer, len as u128);
+            return encode_number::<NUMBER_BASE, Buffer>(buffer, len as u128);
         }
         let first_type = unsafe { (*first_item).ob_type };
         if unsafe { first_type == &mut PyBool_Type } {
@@ -186,9 +186,9 @@ fn compare_dict_keys(dict: *mut PyObject, expected_keys: &Pointers) -> bool {
     true
 }
 
-fn encode_structured_list(
+fn encode_structured_list<Buffer: PyBytesBuffer>(
     obj: *mut PyObject,
-    buffer: &mut PyBytesBuffer,
+    buffer: &mut Buffer,
     pointers: &mut Pointers,
     is_list: bool,
     len: isize,
@@ -213,8 +213,8 @@ fn encode_structured_list(
         return Ok(false);
     }
     buffer.push(LIST_OF_STRUCTURED_DICTS_FLAG)?;
-    encode_number::<NUMBER_BASE>(buffer, len as u128)?;
-    encode_number::<NUMBER_BASE>(buffer, first_dict_keys.len() as u128)?;
+    encode_number::<NUMBER_BASE, Buffer>(buffer, len as u128)?;
+    encode_number::<NUMBER_BASE, Buffer>(buffer, first_dict_keys.len() as u128)?;
 
     // first dict - normal (for structure)
     let mut pos = 0;
@@ -251,14 +251,14 @@ fn encode_structured_list(
 }
 
 #[inline(always)]
-fn encode_bool_list(
+fn encode_bool_list<Buffer: PyBytesBuffer>(
     obj: *mut PyObject,
-    buffer: &mut PyBytesBuffer,
+    buffer: &mut Buffer,
     is_list: bool,
     len: isize,
 ) -> Result<(), *mut PyObject> {
     buffer.extend_from_slice(&[CONSISTENT_TYPE_LIST_FLAG, BOOL_FLAG])?;
-    encode_number::<NUMBER_BASE>(buffer, len as u128)?;
+    encode_number::<NUMBER_BASE, Buffer>(buffer, len as u128)?;
 
     let mut byte: u8 = 0;
     let mut number_of_bits: u8 = 0;
@@ -287,16 +287,16 @@ fn encode_bool_list(
 }
 
 #[inline(always)]
-fn serialize_normal_list(
+fn serialize_normal_list<Buffer: PyBytesBuffer>(
     obj: *mut PyObject,
-    buf: &mut PyBytesBuffer,
+    buf: &mut Buffer,
     pointers: &mut Pointers,
     is_list: bool,
     len: Py_ssize_t,
     settings: &Settings,
 ) -> Result<(), *mut PyObject> {
     buf.push(LIST_FLAG)?;
-    encode_number::<NUMBER_BASE>(buf, len as u128)?;
+    encode_number::<NUMBER_BASE, Buffer>(buf, len as u128)?;
     for i in 0..len {
         let item = if is_list {
             list_get_item(obj, i)

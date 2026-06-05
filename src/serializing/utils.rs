@@ -14,8 +14,8 @@ pub static mut ISO_FORMAT_FUNC: *mut PyObject = ptr::null_mut();
 
 
 #[inline(always)]
-pub fn encode_number<const BASE: u128>(
-    buf: &mut PyBytesBuffer,
+pub fn encode_number<const BASE: u128, Buffer: PyBytesBuffer>(
+    buf: &mut Buffer,
     mut number: u128,
 ) -> Result<(), *mut PyObject> {
     if number < BASE {

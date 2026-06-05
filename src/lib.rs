@@ -1,32 +1,35 @@
 #![allow(static_mut_refs)]
 #![allow(unused_unsafe)]
 
-use std::ffi::CString;
-use std::os::raw::c_char;
-use std::ptr;
-
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::lazy_deserialize::lazy_deserialize;
 use crate::deserializing::pointer_holders::position_pointer_holder::PositionPointerHolder;
 use crate::deserializing::pointer_holders::vec_pointer_holder::VecPointerHolder;
 use crate::deserializing::primitives::decode_false;
-use crate::serializing::py_bytes_buffer::PyBytesBuffer;
+use crate::serializing::py_bytes_buffer::{FilePyBytesBuffer, MemoryPyBytesBuffer, PyBytesBuffer};
 use crate::serializing::serialize::serialize;
 use crate::serializing::serializing_string_cache::Pointers;
-use crate::serializing::settings::Settings;
+use crate::serializing::settings::{CustomType, Settings};
 use crate::serializing::utils::{CUSTOM_TYPE_CLASS, EMPTY_BYTES, EMPTY_STRING, EMPTY_TUPLE, IDX_CLASS, ISO_FORMAT_FUNC, SERIALIZATION_ERROR_TYPE};
 use crate::utils::consts::HEADER;
 use crate::utils::custom_type_loaders::parse_loads_custom_types_dict;
 use crate::utils::path_to_load_loaders::parse_path_to_load;
-use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, py_str_to_rust_str, ToPyErr};
+use crate::utils::py_helpers::{compare_str, convert_py_buffer_into_bytes_slice, import_object_from_python, pretty_type, py_str_to_rust_str, ToPyErr};
 use crate::utils::wrappers::{gc_disable, gc_enabled, is_gc_enabled, tuple_get_item};
 use deserializing::utils::DESERIALIZATION_ERROR_TYPE;
 use pyo3_ffi::*;
+use std::collections::HashMap;
+use std::ffi::CString;
+use std::os::raw::c_char;
+use std::ptr;
 use utils::custom_type_loaders;
 
 mod deserializing;
 mod serializing;
 mod utils;
+
+const MEBIBYTE: usize = 1024 * 1024;
+
 
 static mut MODULE_DEF: PyModuleDef = PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
@@ -129,6 +132,9 @@ pub unsafe extern "C" fn dump_bytes(
     let mut custom_types = None;
     // TODO:
     let mut allow_non_string_keys: bool = true;
+    let mut writer = None;
+    let mut flush_threshold = 10 * MEBIBYTE;
+    let mut direct_write_threshold = 5 * MEBIBYTE;
 
     if !kwnames.is_null() {
         let nkw = PyTuple_Size(kwnames);
@@ -143,6 +149,43 @@ pub unsafe extern "C" fn dump_bytes(
             } else if compare_str(key, b"serialize_dates\0") {
                 let value = *args.offset(nargs + i);
                 serialize_dates = PyObject_IsTrue(value) == 1;
+            } else if compare_str(key, b"writer\0") {
+                let value = *args.offset(nargs + i);
+                writer = Some(value);
+            } else if compare_str(key, b"flush_threshold\0") {
+                let value = *args.offset(nargs + i);
+                if PyNumber_Check(value) != 1 {
+                    return format!(
+                        "expected flush_threshold to be of type `int` but got `{}`",
+                        pretty_type(value)
+                    ).to_py_error(PyExc_TypeError)
+                }
+
+                flush_threshold = unsafe { PyLong_AsSize_t(value) } as usize;
+                if flush_threshold == usize::MAX && !PyErr_Occurred().is_null() {
+                    return format!(
+                            "expected flush_threshold to be a positive integer smaller than 2**{} (max: {})",
+                        usize::BITS,
+                        usize::MAX,
+                    ).to_py_error(PyExc_TypeError);
+                }
+
+            } else if compare_str(key, b"direct_write_threshold\0") {
+                let value = *args.offset(nargs + i);
+                if PyNumber_Check(value) != 1 {
+                    return format!(
+                        "expected direct_write_threshold to be of type `int` but got `{}`",
+                        pretty_type(value)
+                    ).to_py_error(PyExc_TypeError)
+                }
+                direct_write_threshold = unsafe { PyLong_AsSize_t(value) } as usize;
+                if direct_write_threshold == usize::MAX && !PyErr_Occurred().is_null() {
+                    return format!(
+                        "expected direct_write_threshold to be a positive integer smaller than 2**{} (max: {})",
+                        usize::BITS,
+                        usize::MAX,
+                    ).to_py_error(PyExc_TypeError);
+                }
             } else if compare_str(key, b"custom_types\0") {
                 let value = *args.offset(nargs + i);
 
@@ -181,12 +224,30 @@ pub unsafe extern "C" fn dump_bytes(
         }
         *args
     };
-    let mut buf = match PyBytesBuffer::new(8, b"<o>") {
-        Ok(buf) => buf,
-        Err(err) => return err,
-    };
-
     let mut pointers = Pointers::new();
+
+    match writer {
+        Some(writer) => match FilePyBytesBuffer::with_writer(8, writer, flush_threshold, direct_write_threshold) {
+            Ok(buf) => call_serialize(serialize_dates, custom_types, obj, pointers, buf),
+            Err(err) => err,
+        }
+        None => match MemoryPyBytesBuffer::with_capacity(8) {
+            Ok(buf) => call_serialize(serialize_dates, custom_types, obj, pointers, buf),
+            Err(err) => err,
+        } 
+    }
+}
+
+#[inline(always)]
+fn call_serialize<Buffer: PyBytesBuffer>(
+    serialize_dates: bool,
+    custom_types: Option<HashMap<*mut PyTypeObject, CustomType>>, 
+    obj: *mut PyObject, 
+    mut pointers: Pointers, 
+    mut buf: Buffer
+) -> *mut PyObject {
+    _ = buf.extend_from_slice(b"<o>");
+
     let result = serialize(
         obj,
         &mut buf,

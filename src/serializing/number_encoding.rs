@@ -10,9 +10,9 @@ use pyo3_ffi::{
 };
 use std::ffi::c_long;
 
-pub fn encode_python_int<const BASE: u128>(
+pub fn encode_python_int<const BASE: u128, Buffer: PyBytesBuffer>(
     obj: *mut PyObject,
-    buffer: &mut PyBytesBuffer,
+    buffer: &mut Buffer,
 ) -> Result<(), *mut PyObject> {
     let mut overflow = 0;
     let longlong = unsafe { PyLong_AsLongLongAndOverflow(obj, &mut overflow) };
@@ -24,20 +24,20 @@ pub fn encode_python_int<const BASE: u128>(
             } else {
                 buffer.push(POSITIVE_INT_FLAG)?;
                 // TODO: could technically subtract (NUMBER_BASE - AMOUNT_OF_USED_FLAGS) or serialize the number differently
-                encode_number::<BASE>(buffer, longlong as u128)
+                encode_number::<BASE, Buffer>(buffer, longlong as u128)
             }
         } else {
             buffer.push(NEGATIVE_INT_FLAG)?;
-            encode_number::<BASE>(buffer, -longlong as u128)
+            encode_number::<BASE, Buffer>(buffer, -longlong as u128)
         };
     }
 
-    encode_pylong_big::<BASE>(buffer, obj)
+    encode_pylong_big::<BASE, Buffer>(buffer, obj)
 }
 
 #[inline(always)]
-fn encode_pylong_big<const BASE: u128>(
-    buf: &mut PyBytesBuffer,
+fn encode_pylong_big<const BASE: u128, Buffer: PyBytesBuffer>(
+    buf: &mut Buffer,
     obj: *mut PyObject,
 ) -> Result<(), *mut PyObject> {
     unsafe {
@@ -82,7 +82,7 @@ fn encode_pylong_big<const BASE: u128>(
             twos_complement_inplace(&mut bytes);
         }
 
-        encode_base_from_bytes::<BASE>(buf, &bytes)
+        encode_base_from_bytes::<BASE, Buffer>(buf, &bytes)
     }
 }
 
@@ -104,8 +104,8 @@ fn twos_complement_inplace(bytes: &mut [u8]) {
 }
 
 #[inline(always)]
-fn encode_base_from_bytes<const BASE: u128>(
-    buf: &mut PyBytesBuffer,
+fn encode_base_from_bytes<const BASE: u128, Buffer: PyBytesBuffer>(
+    buf: &mut Buffer,
     bytes: &[u8],
 ) -> Result<(), *mut PyObject> {
     // Working copy (big-endian base-256 number)

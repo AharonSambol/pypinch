@@ -13,9 +13,9 @@ use pyo3_ffi::{
 };
 // todo: all_str_keys=False - if true store at the start a flag and then store all dicts without key types
 #[inline(always)]
-pub fn serialize(
+pub fn serialize<Buffer: PyBytesBuffer>(
     obj: *mut PyObject,
-    buffer: &mut PyBytesBuffer,
+    buffer: &mut Buffer,
     pointers: &mut Pointers,
     settings: &Settings,
 ) -> Result<(), *mut PyObject> {
@@ -27,7 +27,7 @@ pub fn serialize(
         } else if typ == &mut PyBool_Type {
             buffer.push(FALSE_FLAG - (obj == Py_True()) as u8)
         } else if typ == &mut PyLong_Type {
-            encode_python_int::<NUMBER_BASE>(obj, buffer)
+            encode_python_int::<NUMBER_BASE, Buffer>(obj, buffer)
         } else if typ == &mut PyList_Type || typ == &mut PyTuple_Type {
             compound_types::encode_list(obj, buffer, pointers, typ, settings)
         } else if typ == &mut PyDict_Type {
