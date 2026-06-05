@@ -41,7 +41,7 @@ def display_benchmark(
         return
 
     # console = Console()
-    console = Console(force_terminal=True, color_system="truecolor")
+    console = Console(force_terminal=True, color_system="truecolor", width=140)
 
     # Auto infer metrics if not supplied
     if metrics is None:
@@ -88,15 +88,15 @@ def display_benchmark(
         )
 
     # Build table
-    table = Table(header_style="bold")
-    table.add_column(name_key.capitalize(), style="bold")
+    table = Table(header_style="bold", expand=True)
+    table.add_column(name_key.capitalize(), style="bold", no_wrap=True)
 
     for metric, cfg in metrics.items():
-        table.add_column(cfg.get("label", metric), justify="right")
+        table.add_column(cfg.get("label", metric), justify="right", no_wrap=True)
 
     # Populate rows
     for r in results:
-        row = [str(r[name_key])]
+        row = [Text(r[name_key])]
 
         for metric, cfg in metrics.items():
             value = r[metric]
