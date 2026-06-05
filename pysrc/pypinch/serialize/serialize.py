@@ -1,6 +1,6 @@
 import struct
 from datetime import datetime
-from typing import Union, List, Tuple, Dict, Type
+from typing import Union, List, Tuple, Dict, Type, Optional, IO
 
 from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, TRUE_FLAG, NULL_FLAG, BYTES_FLAG, \
     LIST_FLAG, \
@@ -11,10 +11,12 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, FALSE_FLAG, 
     ASCII_STR_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LIST_OF_STRUCTURED_DICTS_FLAG, POINTER_FLAG_1BYTE, \
     POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, CUSTOM_TYPE_FLAG
 from pypinch.exceptions import SerializationError
+from pypinch.serialize.file_buffer import FileBuffer
 from pypinch.serialize.settings import Settings, CustomType
 from pypinch.serialize.utils import encode_number
 
 _pack_double = struct.Struct(BIG_ENDIAN_DOUBLE_FORMAT).pack
+MEBIBYTE: int = 1024 * 1024
 
 
 def dump_bytes(
@@ -22,8 +24,11 @@ def dump_bytes(
     *,
     allow_non_string_keys: bool = True,
     serialize_dates: bool = False,
-    custom_types: Dict[Type, CustomType] = None
-) -> bytes:
+    custom_types: Dict[Type, CustomType] = None,
+    writer: Optional[IO[bytes]] = None,
+    flush_threshold: int = 10 * MEBIBYTE,
+    direct_write_threshold: int = 5 * MEBIBYTE,
+) -> Optional[bytes]:
     try:
         settings = Settings(
             allow_non_string_keys=allow_non_string_keys,
@@ -32,6 +37,11 @@ def dump_bytes(
             str_count=0,
             custom_types=custom_types,
         )
+        if writer is not None:
+            buffer = FileBuffer(HEADER, writer, flush_threshold, direct_write_threshold)
+            serialize_object(buffer, obj, settings)
+            buffer.flush()
+            return None
         buffer = bytearray(HEADER)
         serialize_object(buffer, obj, settings)
         return bytes(buffer)
