@@ -16,9 +16,9 @@ import orjson
 def generate_profiling_graph(results: List, output_file: Path) -> None:
     names = [r["name"] for r in results]
 
-    mem_mib = [r["mem_mib"] for r in results]
+    load_mem = [r["mem_kib"] / 1024 for r in results]
     elapsed_ms = [r["elapsed"] for r in results]
-    dump_mem = [r["dump_mem_mib"] for r in results]
+    dump_mem = [r["dump_mem_kib"] / 1024 for r in results]
     dump_elapsed = [r["dump_elapsed"] for r in results]
 
     x = np.arange(len(names))
@@ -27,9 +27,9 @@ def generate_profiling_graph(results: List, output_file: Path) -> None:
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
     # Plot 1: Memory Usage
-    ax1.bar(x - width / 2, mem_mib, width, label='Load Mem', color='#3498db')
+    ax1.bar(x - width / 2, load_mem, width, label='Load Mem', color='#3498db')
     ax1.bar(x + width / 2, dump_mem, width, label='Dump Mem', color='#2980b9')
-    ax1.set_ylabel('Memory (KiB)')
+    ax1.set_ylabel('Memory (MiB)')
     ax1.set_title('Memory Consumption')
     ax1.set_xticks(x)
     ax1.set_xticklabels(names, rotation=15)
@@ -83,9 +83,9 @@ with open({output_path!r}, "wb") as f:
         res = res.encode()
     f.write(res)
 
-mem_mib = (max_rss - initial_rss)
+mem_kib = (max_rss - initial_rss)
 time_ms = (stop - start) * 1000
-print([mem_mib, time_ms, len(res)])
+print([mem_kib, time_ms, len(res)])
 """
 
 LOAD_TEMPLATE = """
@@ -114,9 +114,9 @@ decode(data)
 stop = time.perf_counter()
 
 max_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-mem_mib = (max_rss - initial_rss)
+mem_kib = (max_rss - initial_rss)
 time_ms = (stop - start) * 1000
-print([mem_mib, time_ms])
+print([mem_kib, time_ms])
 """
 
 
@@ -151,17 +151,17 @@ def profile(functions_to_profile: List[Tuple[str, str, str]], input_file: Path, 
                     with open(dump_start_file, "w"):
                         output, err = dump_process.communicate()
                         print(err)
-                        dump_mem_mib, dump_time_ms, end_len = ast.literal_eval(output.decode())
+                        dump_mem_kib, dump_time_ms, end_len = ast.literal_eval(output.decode())
                     with open(load_start_file, "w"):
                         output, err = load_process.communicate()
                         print(err)
-                        mem_mib, time_ms = ast.literal_eval(output.decode())
+                        mem_kib, time_ms = ast.literal_eval(output.decode())
                 except SyntaxError:
                     continue
                 os.remove(dump_start_file)
                 os.remove(load_start_file)
                 os.remove(dumped_file.name)
-                results.append({"name": name, "end_len": end_len, "mem_mib": mem_mib, "elapsed": time_ms, "dump_mem_mib": dump_mem_mib, "dump_elapsed": dump_time_ms})
+                results.append({"name": name, "end_len": end_len, "mem_kib": mem_kib, "elapsed": time_ms, "dump_mem_kib": dump_mem_kib, "dump_elapsed": dump_time_ms})
         finally:
             for name, dump_process, dump_start_file, load_process, load_start_file, dumped_file in processes:
                 try:
@@ -195,6 +195,11 @@ if __name__ == '__main__':
             "pypinch",
             "from pypinch._pypinch import load_bytes\ndecode=load_bytes",
             "from pypinch._pypinch import dump_bytes\nencode=dump_bytes",
+        ),
+        (
+            "pypinch w file",
+            "from pypinch._pypinch import load_bytes\ndecode=lambda x: []",
+            "from pypinch._pypinch import dump_bytes\nff=open('output-temp', 'wb')\nencode=lambda x: dump_bytes(x, writer=ff,direct_write_threshold=1*1024*1024) or b''",
         ),
         (
             "msgspec",
