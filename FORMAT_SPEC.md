@@ -11,9 +11,8 @@
 - Null
 
 ## Basic Format
-The basic idea is rather simple. Have a byte which represents what type the next object is, then sometimes a number 
+The basic idea is rather simple. Each pinch object starts with the header `<o>`. Next follows a byte which represents what type the next object is, then sometimes a number 
 representing the length of the object (depending on the type). And finally, the data of the serialized object.
-Additionaly each pinch object starts with te header `<o>`.
 
 For example, if I wanted to serialize `[1, "hello"]` it would look like this:
 ```
