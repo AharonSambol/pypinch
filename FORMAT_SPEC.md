@@ -1,11 +1,6 @@
 # Pinch
 
-## Limitations
-- Dictionary keys can't be lists or tuples.
-
-Yup, that's it :)
-
-## Supported Types
+## Basic Supported Types
 - List
 - Dictionary (HashMap/Objects/...)
 - Integer (up to infinit sizes)
@@ -221,3 +216,8 @@ This is used to store a list of dictionaries, where all the dictionaries have th
 First, [the length of the dict is stored](#Non-Integers) (base 255). Then the first dict is stored normally, but each 
 consecutive dict is stored without its length or its keys, just the values, one after the other.
 
+
+## Limitations
+- Dictionary keys can't be lists or tuples. (Just like in most programming languages, dict keys must be hashable)
+
+Yup, that's it :)

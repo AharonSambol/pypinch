@@ -3,11 +3,11 @@
 
 [Pinch](./FORMAT_SPEC.md) is a binary serialization format, aimed to be both **fast** and **memory efficient**, while being as dynamic as possible.
 * No schema needed
-* Out of the box support for all JSON types (+ binary!)
+* Out-of-the-box support for all JSON types (+ binary!)
 * Support for custom types
 * No limitations:
   * ints can be indefinitely large (or small) - no limit at all
-  * strings, bytes, lists and dicts can be indefinitely long
+  * strings, bytes, lists, and dicts can be indefinitely long
 * Extremely compact serialization, which leads to lower memory usage, easy storage, and less network traffic
 * Consumes little memory while serializing\deserializing
 * Supports lazy loading
@@ -34,7 +34,7 @@ Even with its great flexibility, Pinch performs on-par and often better than oth
 
 ![repodata.png](assets/benchmark_results/repodata.png)
 
-<img src="assets/benchmark_results/twitter-size.png" width="350">
+<img src="assets/benchmark_results/twitter-size.png" width="50%">
 
 [Full list of  Benchmarks](Benchmarks.md)
 
@@ -43,12 +43,12 @@ Even with its great flexibility, Pinch performs on-par and often better than oth
 * Protobuf / FlatBuffers / Cap'n Proto / Avro
   * You need a Schema, so if you have one go for it, but often this just isn't plausible or not worth the effort
 * BSON
-  * Limits the size of numbers, lists, dicts, strings and binary
+  * Limits the size of numbers, lists, dicts, strings, and binary
   * Limits the size of the document itself
   * Preforms rather poorly in the benchmarks
 * MessagePack
   * A great option, but: 
-    * Limits the size of numbers, lists, dicts, strings and binary
+    * Limits the size of numbers, lists, dicts, strings, and binary
     * In many cases Pinch outperforms MessagePack both in speed and in peak memory usage
 * Orjson
   * High memory overhead
@@ -116,7 +116,7 @@ Note: If you want the deserialization to result in a datetime object you're bett
 ### Custom types
 For each custom type, you need to give some type of identifier. An identifier can be any default supported type.
 
-When serializing you need to provide a function that serializes your data into a [supported type](FORMAT_SPEC.md/#supported-types). 
+When serializing you need to provide a function that serializes your data into a [supported type](FORMAT_SPEC.md/#basic-supported-types). 
 </br>
 When deserializing you need to provide a function which gets your serialized item (the output of the function you provided in the serialization phase)
 and returns a deserialized object
