@@ -205,6 +205,15 @@ If you really care about speed, you can disable the GC while the deserialization
 pinch.load_bytes(..., stop_gc=True)
 ```
 
+### Backends
+When possible, Pinch uses a backend written in Rust.
+But it also has a fallback implementation in Python, for cases where the Rust implementation is not available.
+
+If you'de like to use the Python implementation, you can do so by setting this environment variable:
+```bash
+export PYPINCH_FORCE_PYTHON="true"
+```
+
 ### Exceptions
 If the data is corrupted or incorrect, Pinch will raise `pinch.DeserializationError` or `pinch.SerializationError`
 
