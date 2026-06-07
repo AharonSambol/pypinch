@@ -29,7 +29,7 @@ pub unsafe fn parse_path_to_load(
                 pyo3_ffi::Py_LT,
             ) == 1;
             if is_negative {
-                return Err("index must not be negative".to_py_error(PyExc_TypeError));
+                return Err("Index must not be negative".to_py_error(PyExc_TypeError));
             }
             let rust_index = unsafe { PyLong_AsUnsignedLongLong(index.as_ptr()) } as usize;
             path_to_load.push(PathPart::Index(rust_index));

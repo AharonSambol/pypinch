@@ -159,7 +159,7 @@ pub unsafe extern "C" fn dump_bytes(
                 let value = *args.offset(nargs + i);
                 if PyNumber_Check(value) != 1 {
                     return format!(
-                        "expected flush_threshold to be of type `int` but got `{}`",
+                        "Expected flush_threshold to be of type `int` but got `{}`",
                         pretty_type(value)
                     )
                     .to_py_error(PyExc_TypeError);
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn dump_bytes(
                 flush_threshold = unsafe { PyLong_AsSize_t(value) } as usize;
                 if flush_threshold == usize::MAX && !PyErr_Occurred().is_null() {
                     return format!(
-                            "expected flush_threshold to be a positive integer smaller than 2**{} (max: {})",
+                            "Expected flush_threshold to be a positive integer smaller than 2**{} (max: {})",
                         usize::BITS,
                         usize::MAX,
                     ).to_py_error(PyExc_TypeError);
@@ -177,7 +177,7 @@ pub unsafe extern "C" fn dump_bytes(
                 let value = *args.offset(nargs + i);
                 if PyNumber_Check(value) != 1 {
                     return format!(
-                        "expected direct_write_threshold to be of type `int` but got `{}`",
+                        "Expected direct_write_threshold to be of type `int` but got `{}`",
                         pretty_type(value)
                     )
                     .to_py_error(PyExc_TypeError);
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn dump_bytes(
                 direct_write_threshold = unsafe { PyLong_AsSize_t(value) } as usize;
                 if direct_write_threshold == usize::MAX && !PyErr_Occurred().is_null() {
                     return format!(
-                        "expected direct_write_threshold to be a positive integer smaller than 2**{} (max: {})",
+                        "Expected direct_write_threshold to be a positive integer smaller than 2**{} (max: {})",
                         usize::BITS,
                         usize::MAX,
                     ).to_py_error(PyExc_TypeError);

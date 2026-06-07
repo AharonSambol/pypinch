@@ -352,8 +352,7 @@ fn skip_object(
             skip_object(buf, ptr, pointers)
         }
         _ if flag < AMOUNT_OF_USED_FLAGS => {
-            // TODO: make capitalization consistent (w python as well)
-            Err("unexpected flag".to_py_error(unsafe { PyExc_TypeError }))
+            Err("Unexpected flag".to_py_error(unsafe { PyExc_TypeError }))
         }
         _ => Ok(()),
     }
@@ -388,8 +387,7 @@ fn skip_consistent_type_list(
             }
         }
         _ => {
-            // TODO: change error to "Unexpected type flag:" in all places
-            return Err("Unexpected consistent list type".to_py_error(unsafe { PyExc_TypeError }));
+            return Err(format!("Unexpected type flag: {typ}").to_py_error(unsafe { PyExc_TypeError }));
         }
     }
     Ok(())
@@ -500,7 +498,7 @@ fn lazy_load_bool_list(
             byte <<= 1;
         }
     }
-    Err("this should be unreachable".to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
+    Err("This should be unreachable".to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
 }
 
 fn flag_to_type_name(flag: u8) -> Result<&'static str, *mut PyObject> {

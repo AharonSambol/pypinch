@@ -188,10 +188,10 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
             deserialized_obj = type_converter(encoded_obj)
             return deserialized_obj, pointer
         raise DeserializationError(
-            f"unknown custom type. please provide the correct mapping when deserializing. identifier: `{typ}` (type: `{type(typ)}`)"
+            f"Unknown custom type. please provide the correct mapping when deserializing. identifier: `{typ}` (type: `{type(typ)}`)"
         )
     else:
-        raise DeserializationError("unexpected flag")
+        raise DeserializationError("Unexpected flag")
 
 
 def deserialize_str(buffer: bytes, pointer: int, settings: Settings, base: int = NUMBER_BASE) -> Tuple[str, int]:

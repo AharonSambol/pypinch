@@ -288,7 +288,7 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
         pointer = skip_object(buffer, pointer, settings)
         return pointer
     elif flag < AMOUNT_OF_USED_FLAGS:
-        raise DeserializationError("unexpected flag")
+        raise DeserializationError("Unexpected flag")
     else:
         return pointer
 
@@ -375,7 +375,7 @@ def lazy_load_bool_list(buffer: bytes, index: int, pointer: int, length: int) ->
                 return (byte & LEFTMOST_BIT_MASK) == LEFTMOST_BIT_MASK
             byte <<= 1
     # TODO: unless data is malformed? (also in rust err)
-    raise DeserializationError("this should be unreachable")
+    raise DeserializationError("This should be unreachable")
 
 
 def lazy_load_bytes_list(buffer: bytes, index: int, pointer: int) -> bytes:

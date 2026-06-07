@@ -37,7 +37,7 @@ pub fn deserialize_custom_type<P: PointerHolder>(
             let rust_str_representation = py_str_to_rust_str(&str_representation.as_ptr())?.to_string();
             Err(
                 format!(
-                    "unknown custom type. please provide the correct mapping when deserializing. identifier: `{}` (type: `{}`)",
+                    "Unknown custom type. please provide the correct mapping when deserializing. identifier: `{}` (type: `{}`)",
                     rust_str_representation,
                     pretty_type(type_identifier.as_ptr())
                 ).to_py_error(DESERIALIZATION_ERROR_TYPE)
