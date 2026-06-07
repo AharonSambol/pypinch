@@ -374,7 +374,6 @@ def lazy_load_bool_list(buffer: bytes, index: int, pointer: int, length: int) ->
             if i * NUMBER_OF_BITS_IN_BYTE + j == index:
                 return (byte & LEFTMOST_BIT_MASK) == LEFTMOST_BIT_MASK
             byte <<= 1
-    # TODO: unless data is malformed? (also in rust err)
     raise DeserializationError("This should be unreachable")
 
 

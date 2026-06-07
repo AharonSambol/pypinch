@@ -472,7 +472,6 @@ fn lazy_load_str_list(
     for _ in 0..index {
         skip_string(buf, ptr, pointers, NUMBER_BASE as u8)?;
     }
-    // TODO: MIGHT_BE_ASCII?
     decode_string::<MIGHT_BE_ASCII, NUMBER_BASE, PositionPointerHolder>(buf, ptr, pointers)
 }
 
