@@ -11,6 +11,7 @@ use crate::deserializing::utils::{
     decode_large_number, decode_number_py_ssize_t, decode_number_usize,
 };
 use crate::raise_mem_error_if_null;
+use crate::serializing::utils::EMPTY_STRING;
 use crate::utils::consts::{
     IsAscii, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, MIGHT_BE_ASCII, NOT_ASCII,
     NUMBER_BASE, UNEXPECTED_END_OF_INPUT, YES_ASCII,
@@ -21,6 +22,9 @@ use crate::utils::safe_py_pointer::PyPointer;
 #[inline(always)]
 pub fn decode_bytes(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
     let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
+    if len as usize + *ptr > buf.len() {
+        return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
+    }
     let bytes = unsafe {
         raise_mem_error_if_null!(PyBytes_FromStringAndSize(
             buf.as_ptr().add(*ptr) as *const c_char,
@@ -138,7 +142,12 @@ pub fn decode_string_without_inserting_pointer<'a, const IS_ASCII: IsAscii, cons
         YES_ASCII => create_string::<true>(&buf[start..end]),
         NOT_ASCII => create_string::<false>(&buf[start..end]),
         MIGHT_BE_ASCII => {
-            if unsafe { *buf.get_unchecked(start) } == INVALID_UTF_8_START_BYTE_COMPACT_ASCII {
+            if len == 0 {   // avoid get_unchecked out of bounds for this case
+                unsafe {
+                    Py_INCREF(EMPTY_STRING);
+                    Ok(EMPTY_STRING)
+                }
+            } else if unsafe { *buf.get_unchecked(start) } == INVALID_UTF_8_START_BYTE_COMPACT_ASCII {
                 create_string::<true>(&buf[start + 1..end])
             } else {
                 create_string::<false>(&buf[start..end])
@@ -152,6 +161,9 @@ pub fn decode_f64(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyO
     unsafe {
         let float_pointer = buf.as_ptr().add(*ptr) as *const u64;
         *ptr += 8;
+        if *ptr > buf.len() {
+            return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
+        }
         let float = f64::from_bits(u64::from_be(std::ptr::read_unaligned(float_pointer)));
         let py_float = raise_mem_error_if_null!(PyFloat_FromDouble(float));
         Ok(py_float)

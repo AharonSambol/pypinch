@@ -22,4 +22,4 @@ codegen-units = 1
 rustc-hash = "2.1.1"
 
 [build-dependencies]
-pyo3-build-config = "*"
+pyo3-build-config = "0.28.3"

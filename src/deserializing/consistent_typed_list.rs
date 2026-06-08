@@ -7,11 +7,8 @@ use pyo3_ffi::{
 
 use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::deserializing::primitives::{decode_f64, decode_string};
-use crate::deserializing::utils::decode_number_py_ssize_t;
-use crate::utils::consts::{
-    BOOL_FLAG, BYTES_FLAG, FLOAT_FLAG, LEFTMOST_BIT_MASK, MIGHT_BE_ASCII, NULL_FLAG, NUMBER_BASE,
-    STR_FLAG,
-};
+use crate::deserializing::utils::{decode_number_py_ssize_t, DESERIALIZATION_ERROR_TYPE};
+use crate::utils::consts::{BOOL_FLAG, BYTES_FLAG, FLOAT_FLAG, LEFTMOST_BIT_MASK, MIGHT_BE_ASCII, NULL_FLAG, NUMBER_BASE, STR_FLAG, UNEXPECTED_END_OF_INPUT};
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::wrappers::{list_set_item, tuple_set_item};
 use crate::{raise_mem_error_if_null, safe_get, safe_new_py_list};
@@ -88,6 +85,9 @@ fn decode_bytes_list(
     for i in 0..len {
         let bytes_len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
         let bytes = unsafe {
+            if bytes_len as usize + *ptr > buf.len() {
+                return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
+            }
             raise_mem_error_if_null!(PyBytes_FromStringAndSize(
                 buf.as_ptr().add(*ptr) as *const c_char,
                 bytes_len,

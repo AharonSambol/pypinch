@@ -1,7 +1,6 @@
 use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::pointer_holders::pointer_holder::PointerHolder;
 use crate::deserializing::utils::DESERIALIZATION_ERROR_TYPE;
-use crate::serializing::utils::SERIALIZATION_ERROR_TYPE;
 use crate::utils::py_dict_key::{PyHashMap, PyKey};
 use crate::utils::py_helpers::{pretty_type, py_str_to_rust_str, temporary_tuple_of, ToPyErr};
 use crate::utils::safe_py_pointer::PyPointer;
@@ -27,7 +26,7 @@ pub fn deserialize_custom_type<P: PointerHolder>(
         let args = temporary_tuple_of(serialized_object.as_ptr())?;
         let converted_object = unsafe { PyObject_CallObject(*converter, args.as_ptr()) };
         if converted_object.is_null() {
-            Err(FAILED_TO_DESERIALIZE_MESSAGE.to_py_error(unsafe { SERIALIZATION_ERROR_TYPE }))
+            Err(FAILED_TO_DESERIALIZE_MESSAGE.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
         } else {
             Ok(converted_object)
         }
