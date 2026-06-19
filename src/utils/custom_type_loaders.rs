@@ -22,6 +22,8 @@ pub unsafe fn parse_dumps_custom_types_dict(
         PyPointer::new_w_null_check(PyUnicode_FromString(b"converter\0".as_ptr() as _))?;
     let include_subclasses_name =
         PyPointer::new_w_null_check(PyUnicode_FromString(b"include_subclasses\0".as_ptr() as _))?;
+    let one_way_name =
+        PyPointer::new_w_null_check(PyUnicode_FromString(b"one_way\0".as_ptr() as _))?;
 
     let mut custom_types_dict = HashMap::new();
     let mut pos = 0;
@@ -44,14 +46,19 @@ pub unsafe fn parse_dumps_custom_types_dict(
         let include_subclasses_pointer = PyPointer::new_w_null_check(
             PyObject_GetAttr(value, include_subclasses_name.as_ptr())
         )?;
+        let one_way_pointer = PyPointer::new_w_null_check(
+            PyObject_GetAttr(value, one_way_name.as_ptr())
+        )?;
         let include_subclasses = Py_IsTrue(include_subclasses_pointer.as_ptr()) != 0;
+        let one_way = Py_IsTrue(one_way_pointer.as_ptr()) != 0;
 
         custom_types_dict.insert(
             key as *mut PyTypeObject,
             CustomType {
                 identifier,
                 converter,
-                include_subclasses
+                include_subclasses,
+                one_way,
             },
         );
     }

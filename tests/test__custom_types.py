@@ -88,3 +88,12 @@ def test__dont_serialize_inheriting_custom_type():
         serialized = pypinch.dump_bytes(InheritingCustomClass(1, "2", "3"), custom_types={
             CustomClass: CustomType(identifier="hello?", converter=lambda x: x.serialize())
         })
+
+def test__one_way():
+    # Act
+    serialized = pypinch.dump_bytes(CustomClass(1, "2", "3"), custom_types={
+        CustomClass: CustomType(identifier="hello?", converter=lambda x: x.__dict__, one_way=True)
+    })
+
+    # Assert
+    assert pypinch.load_bytes(serialized) == {"a": 1, "b": "2", "c": "3"}

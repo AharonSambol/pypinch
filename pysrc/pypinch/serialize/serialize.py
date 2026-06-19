@@ -207,8 +207,9 @@ def serialize_object(buffer: bytearray, obj: ObjType, settings: Settings) -> Non
         if settings.custom_types:
             for typ_key, custom_type in settings.custom_types.items():
                 if typ == typ_key or (custom_type.include_subclasses and issubclass(typ, typ_key)):
-                    buffer.append(CUSTOM_TYPE_FLAG)
-                    serialize_object(buffer, custom_type.identifier, settings)
+                    if not custom_type.one_way:
+                        buffer.append(CUSTOM_TYPE_FLAG)
+                        serialize_object(buffer, custom_type.identifier, settings)
                     serialize_object(buffer, custom_type.converter(obj), settings)
                     return
         if typ is datetime and not settings.serialize_dates:

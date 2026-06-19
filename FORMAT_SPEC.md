@@ -106,6 +106,7 @@ Note that when an object can be serialized by one of multiple flags, there is no
 * [pointer flag 2 byte](#pointer-flag-2-byte): `0x15`
 * [pointer flag 3 byte](#pointer-flag-3-byte): `0x16`
 * [pointer flag 4 byte](#pointer-flag-4-byte): `0x17`
+* [custom types](#custom-types): `0x18`
 
 ### Empty String Flag
 As it sounds, it represents an empty string.
@@ -199,12 +200,10 @@ Same as the pointer flag except that the number is stored a bit different.
 The number is stored in 2 bytes, big-endian, in base 255.
 
 ### Pointer Flag 3 Byte
-Same as the pointer flag except that the number is stored a bit different.
-The number is stored in 3 bytes, big-endian, in base 255.
+Same as the pointer-flag-2-byte, but stored in 3 bytes instead of two.
 
 ### Pointer Flag 4 Byte
-Same as the pointer flag except that the number is stored a bit different.
-The number is stored in 4 bytes, big-endian, in base 255.
+Same as the pointer-flag-2-byte, but stored in 4 bytes instead of two.
 
 ### ASCII Str Flag
 Same as [str flag](#str-flag), but indicates that the string is plain ASCII, and not the normal UTF-8. (This is used as an optimization)
@@ -215,6 +214,11 @@ This is used to store a list of dictionaries, where all the dictionaries have th
 First, [the length of the dict is stored](#Non-Integers) (base 255). Then the first dict is stored normally, but each 
 consecutive dict is stored without its length or its keys, just the values, one after the other.
 
+### Custom Types
+This is used for user specified types. First the identifier is stored (serialized normally), 
+then the converted object (using the users converter) is stored.
+<br/>
+Note that for one way conversions the serialized object isn't stored as a custom type but as whatever it was converted into.
 
 ## Limitations
 - Dictionary keys can't be lists or tuples. (Just like in most programming languages, dict keys must be hashable)

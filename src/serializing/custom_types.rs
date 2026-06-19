@@ -14,13 +14,15 @@ pub fn serialize_custom_type<Buffer: PyBytesBuffer>(
     settings: &Settings,
     custom_type: &CustomType,
 ) -> Result<(), *mut PyObject> {
-    buffer.push(CUSTOM_TYPE_FLAG)?;
-    serialize::serialize(
-        custom_type.identifier.as_ptr(),
-        buffer,
-        pointers,
-        settings,
-    )?;
+    if !custom_type.one_way {
+        buffer.push(CUSTOM_TYPE_FLAG)?;
+        serialize::serialize(
+            custom_type.identifier.as_ptr(),
+            buffer,
+            pointers,
+            settings,
+        )?;
+    }
 
     let args = temporary_tuple_of(obj)?;
     let converted_object = unsafe { PyObject_CallObject(custom_type.converter.as_ptr(), args.as_ptr()) };

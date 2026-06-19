@@ -11,4 +11,5 @@ pub struct CustomType {
     pub identifier: PyPointer,
     pub converter: PyPointer,
     pub include_subclasses: bool,
+    pub one_way: bool,
 }

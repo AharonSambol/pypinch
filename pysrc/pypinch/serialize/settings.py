@@ -7,6 +7,7 @@ class CustomType:
     identifier: Any
     converter: Callable[[Any], Any]
     include_subclasses: bool = False
+    one_way: bool = False
 
 
 @dataclass

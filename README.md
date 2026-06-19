@@ -149,6 +149,38 @@ deserialized = pinch.load_bytes(serialized, custom_types=DESERIALIZATION_MAPPING
 # Confirm it worked
 assert deserialized == object_with_unsupported_types
 ```
+One way conversions are also possible using the `one_way` flag.
+</br> 
+This allows you to convert an object during serialization into a supported type, without the intention of converting it 
+back into the custom type.
+</br>
+In these cases, you can pass None to the identifier.
+</br>
+For example:
+```python
+import pypinch as pinch
+from dataclasses import dataclass
+
+@dataclass
+class DictLike:
+    name: str
+    age: int
+
+dict_like = DictLike("Bob", 21)
+
+# Create a mapping for each type how should it be serialized
+SERIALIZATION_MAPPING = {
+  DictLike: pinch.CustomType(identifier=None, converter=lambda x: x.__dict__, one_way=True),
+}
+
+serialized = pinch.dump_bytes(dict_like, custom_types=SERIALIZATION_MAPPING)
+
+# No need for a deserialization mapping
+deserialized = pinch.load_bytes(serialized)
+
+# deserialized != the original object
+assert deserialized == {"name": "Bob", "age": 21}
+```
 
 ### Dates
 Dates aren't a type which is supported by default, 
