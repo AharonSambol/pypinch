@@ -11,7 +11,7 @@ from pypinch.consts import NUMBER_BASE, ObjType, POSITIVE_INT_FLAG, NULL_FLAG, B
     ASCII_STR_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, EMPTY_STR_FLAG, \
     EMPTY_BYTES_FLAG, TRUE_FLAG, FALSE_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, POINTER_FLAG_1BYTE, \
     POINTER_FLAG_4BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_2BYTE, CUSTOM_TYPE_FLAG
-from pypinch.deserialize.deserialize import deserialize_object, deserialize_str
+from pypinch.deserialize.deserialize import deserialize_object, deserialize_str, deserialize_custom_type
 from pypinch.deserialize.settings import Settings
 from pypinch.deserialize.utils import decode_number, skip_number
 from pypinch.exceptions import DeserializationError
@@ -37,10 +37,10 @@ class PointersHolder:
         pointer = self.str_posses[item]
         length, pointer = decode_number(self.buffer, pointer >> 1, base=NUMBER_BASE - (pointer & 1))
         return self.buffer[
-            #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
-            pointer + (self.buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
-            :pointer + length
-        ].decode()
+               #          Skip 1 char if buffer starts with INVALID_UTF_8_START_BYTE_COMPACT_ASCII
+               pointer + (self.buffer[pointer] == INVALID_UTF_8_START_BYTE_COMPACT_ASCII)
+               :pointer + length
+               ].decode()
 
     def append(self, string: str) -> None:
         self.str_posses.append(string)
@@ -60,7 +60,8 @@ def lazy_load_bytes(
             len(HEADER),
             path_to_load,
             Settings(use_tuples=False, pointers=PointersHolder(buffer), custom_types=custom_types),
-            dont_load=False
+            dont_load=False,
+            include_falsy=True,
         )
     except DeserializationError:
         raise
@@ -75,6 +76,7 @@ def bytes_check_if_contains(
         path_to_load: List[Union[Any, Idx]],
         *,
         custom_types: Dict[Any, Callable[[bytes], Any]] = None,
+        include_falsy: bool = True,
         # stop_gc: bool = False,
 ) -> ObjType:
     try:
@@ -83,7 +85,8 @@ def bytes_check_if_contains(
             len(HEADER),
             path_to_load,
             Settings(use_tuples=False, pointers=PointersHolder(buffer), custom_types=custom_types),
-            dont_load=True
+            dont_load=True,
+            include_falsy=include_falsy
         )
     except DeserializationError:
         return False
@@ -94,8 +97,10 @@ def bytes_check_if_contains(
 
 
 def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any], settings: Settings,
-                            dont_load: bool) -> ObjType:
+                            dont_load: bool, include_falsy: bool) -> ObjType:
     if not path_to_load:
+        if not include_falsy and is_falsy(buffer, pointer, settings):
+            return False
         if dont_load:
             return True
         return deserialize_object(buffer, pointer, settings)[0]
@@ -113,16 +118,17 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
                 raise DeserializationError(INDEX_OUT_OF_RANGE_TEMPLATE.format(index, length))
             for _ in range(index):
                 pointer = skip_object(buffer, pointer, settings)
-            return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load=dont_load)
+            return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load, include_falsy)
         elif flag == CONSISTENT_TYPE_LIST_FLAG:
-            return lazy_deserialize_consistent_type_list(buffer, index, path_to_load, pointer, settings)
+            return lazy_deserialize_consistent_type_list(buffer, index, path_to_load, pointer, settings, dont_load,
+                                                         include_falsy)
         elif flag == LIST_OF_STRUCTURED_DICTS_FLAG:
             list_length, pointer = decode_number(buffer, pointer)
             dict_length, pointer = decode_number(buffer, pointer)
             if index not in range(list_length):
                 raise DeserializationError(INDEX_OUT_OF_RANGE_TEMPLATE.format(index, list_length))
 
-            if path_to_load:    # in this case we don't need to load the whole dict, only the specific value
+            if path_to_load:  # in this case we don't need to load the whole dict, only the specific value
                 next_indexer, path_to_load = path_to_load[0], path_to_load[1:]
                 if isinstance(next_indexer, Idx):
                     raise DeserializationError(f"Invalid path, expected `list` but found `dict`")
@@ -131,15 +137,16 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
                 checking_keys = True
                 for i in range(dict_length):
                     if not checking_keys:
-                        pointer = skip_object(buffer, pointer, settings)    # skip key
-                        pointer = skip_object(buffer, pointer, settings)    # skip value
+                        pointer = skip_object(buffer, pointer, settings)  # skip key
+                        pointer = skip_object(buffer, pointer, settings)  # skip value
                         continue
                     key, pointer = deserialize_object(buffer, pointer, settings)
                     if key == next_indexer:
                         if index == 0:
-                            return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load=dont_load)
+                            return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load,
+                                                           include_falsy)
                         key_index = i
-                        checking_keys = False   # no more need to deserialize the keys for comparing them
+                        checking_keys = False  # no more need to deserialize the keys for comparing them
                     pointer = skip_object(buffer, pointer, settings)
 
                 if key_index is None:
@@ -148,7 +155,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
                 for _ in range((index - 1) * dict_length + key_index):
                     pointer = skip_object(buffer, pointer, settings)
 
-                return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load=dont_load)
+                return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load, include_falsy)
             else:
                 if dont_load:
                     return True
@@ -184,7 +191,7 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
                 # TODO: check char char if it matches indexer and the moment it doesnt skip all the rest of the chars
                 key, pointer = deserialize_object(buffer, pointer, settings)
                 if key == indexer:
-                    return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load=dont_load)
+                    return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load, include_falsy)
                 pointer = skip_object(buffer, pointer, settings)
             raise DeserializationError(KEY_NOT_IN_DICT_TEMPLATE.format(indexer, type(indexer)))
         elif flag == STR_KEY_DICT_FLAG:
@@ -196,11 +203,27 @@ def lazy_deserialize_object(buffer: bytes, pointer: int, path_to_load: List[Any]
                 else:
                     key, pointer = deserialize_str(buffer, pointer, settings, base=NUMBER_BASE - 1)
                 if key == indexer:
-                    return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load=dont_load)
+                    return lazy_deserialize_object(buffer, pointer, path_to_load, settings, dont_load, include_falsy)
                 pointer = skip_object(buffer, pointer, settings)
             raise DeserializationError(KEY_NOT_IN_DICT_TEMPLATE.format(indexer, type(indexer)))
         else:
             raise DeserializationError(f"Invalid path, expected `dict` but found `{flag_to_type_name(flag)}`")
+
+
+def is_falsy(buffer: bytes, pointer: int, settings: Settings) -> bool:
+    flag = buffer[pointer]
+    pointer += 1
+    if flag in [EMPTY_STR_FLAG, EMPTY_LIST_FLAG, FALSE_FLAG, NULL_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG]:
+        return True
+    if flag == AMOUNT_OF_USED_FLAGS:  # zero
+        return True
+    if flag == FLOAT_FLAG:
+        return struct.unpack(BIG_ENDIAN_DOUBLE_FORMAT, buffer[pointer:pointer + BYTES_IN_DOUBLE])[0] == 0
+    if flag == CUSTOM_TYPE_FLAG:
+        obj, pointer = deserialize_custom_type(buffer, pointer, settings)
+        return not obj
+    else:
+        return False
 
 
 def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
@@ -294,7 +317,7 @@ def skip_object(buffer: bytes, pointer: int, settings: Settings) -> int:
 
 
 def lazy_deserialize_consistent_type_list(buffer: bytes, index: int, path_to_load: List[Any], pointer: int,
-                                          settings: Settings) -> Any:
+                                          settings: Settings, dont_load: bool, include_falsy: bool) -> Any:
     typ_flag = buffer[pointer]
     length, pointer = decode_number(buffer, pointer + 1)
     if index not in range(length):
@@ -305,6 +328,22 @@ def lazy_deserialize_consistent_type_list(buffer: bytes, index: int, path_to_loa
         raise DeserializationError(
             f"Invalid path, expected `{'list' if isinstance(path_to_load[0], Idx) else 'dict'}` but found `{got_type}`"
         )
+
+    if dont_load:
+        if not include_falsy:
+            if typ_flag == NULL_FLAG:
+                return False
+            elif typ_flag == BOOL_FLAG:
+                return lazy_load_bool_list(buffer, index, pointer, length)
+            elif typ_flag == BYTES_FLAG:
+                return lazy_load_bytes_list(buffer, index, pointer, include_falsy=False)
+            elif typ_flag == STR_FLAG:
+                return lazy_load_str_list(buffer, index, pointer, settings, include_falsy=False)
+            elif typ_flag == FLOAT_FLAG:
+                return bool(lazy_load_float_list(buffer, index, pointer))
+            else:
+                raise DeserializationError(f"Unexpected type flag: {typ_flag}")
+        return True
 
     if typ_flag == NULL_FLAG:
         return None
@@ -377,18 +416,25 @@ def lazy_load_bool_list(buffer: bytes, index: int, pointer: int, length: int) ->
     raise DeserializationError("This should be unreachable")
 
 
-def lazy_load_bytes_list(buffer: bytes, index: int, pointer: int) -> bytes:
+def lazy_load_bytes_list(buffer: bytes, index: int, pointer: int, include_falsy: bool = True) -> Union[bytes, bool]:
     for _ in range(index):
         bytes_length, pointer = decode_number(buffer, pointer)
         pointer += bytes_length
 
     bytes_length, pointer = decode_number(buffer, pointer)
+    if not include_falsy:
+        return bytes_length != 0
     return buffer[pointer:pointer + bytes_length]
 
 
-def lazy_load_str_list(buffer: bytes, index: int, pointer: int, settings: Settings) -> str:
+def lazy_load_str_list(
+        buffer: bytes, index: int, pointer: int, settings: Settings, include_falsy: bool = True
+) -> Union[str, bool]:
     for _ in range(index):
         pointer = skip_string(buffer, pointer, settings)
+    if not include_falsy:
+        length, pointer = decode_number(buffer, pointer)
+        return length != 0
     res, _ = deserialize_str(buffer, pointer, settings)
     return res
 

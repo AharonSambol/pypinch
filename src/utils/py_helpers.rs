@@ -1,3 +1,4 @@
+use crate::deserializing::primitives::{decode_false, decode_true};
 use crate::utils::safe_py_pointer::PyPointer;
 use crate::utils::wrappers::tuple_set_item;
 use crate::{py_string_format, raise_mem_error_if_null};
@@ -109,5 +110,13 @@ impl ToPyErr<String> for String {
 impl ToPyErr<&str> for &str {
     fn to_py_error(&self, typ: *mut PyObject) -> *mut PyObject {
         self.to_string().to_py_error(typ)
+    }
+}
+
+pub fn rust_bool_to_py_bool(b: bool) -> *mut PyObject{
+    if b {
+        decode_true()
+    } else {
+        decode_false()
     }
 }

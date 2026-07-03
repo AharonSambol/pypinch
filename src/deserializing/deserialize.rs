@@ -80,7 +80,7 @@ pub fn deserialize_object<P: PointerHolder>(
         LIST_OF_STRUCTURED_DICTS_FLAG => {
             decode_list_of_structured_dicts(buf, ptr, pointers, use_tuples, custom_types)
         }
-        CUSTOM_TYPE_FLAG => deserialize_custom_type(buf, ptr, pointers, use_tuples, custom_types),
+        CUSTOM_TYPE_FLAG => Ok(deserialize_custom_type(buf, ptr, pointers, use_tuples, custom_types)?.release()),
         _ => unsafe {
             Ok(raise_mem_error_if_null!(PyLong_FromLong(
                 (flag - AMOUNT_OF_USED_FLAGS) as c_long

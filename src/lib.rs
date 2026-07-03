@@ -144,19 +144,16 @@ pub unsafe extern "C" fn dump_bytes(
 
         for i in 0..nkw {
             let key = tuple_get_item(kwnames, i);
+            let value = *args.offset(nargs + i);
             if compare_str(key, b"obj\0") {
-                obj = Some(*args.offset(nargs + i));
+                obj = Some(value);
             } else if compare_str(key, b"allow_non_string_keys\0") {
-                let value = *args.offset(nargs + i);
                 allow_non_string_keys = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"serialize_dates\0") {
-                let value = *args.offset(nargs + i);
                 serialize_dates = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"writer\0") {
-                let value = *args.offset(nargs + i);
                 writer = Some(value);
             } else if compare_str(key, b"flush_threshold\0") {
-                let value = *args.offset(nargs + i);
                 if PyNumber_Check(value) != 1 {
                     return format!(
                         "Expected flush_threshold to be of type `int` but got `{}`",
@@ -174,7 +171,6 @@ pub unsafe extern "C" fn dump_bytes(
                     ).to_py_error(PyExc_TypeError);
                 }
             } else if compare_str(key, b"direct_write_threshold\0") {
-                let value = *args.offset(nargs + i);
                 if PyNumber_Check(value) != 1 {
                     return format!(
                         "Expected direct_write_threshold to be of type `int` but got `{}`",
@@ -191,8 +187,6 @@ pub unsafe extern "C" fn dump_bytes(
                     ).to_py_error(PyExc_TypeError);
                 }
             } else if compare_str(key, b"custom_types\0") {
-                let value = *args.offset(nargs + i);
-
                 let custom_types_dict =
                     match custom_type_loaders::parse_dumps_custom_types_dict(value) {
                         Ok(value) => value,
@@ -290,8 +284,8 @@ pub unsafe extern "C" fn load_bytes(
 
         for i in 0..nkw {
             let key = tuple_get_item(kwnames, i);
+            let value = *args.offset(nargs + i);
             if compare_str(key, b"buffer\0") {
-                let value = *args.offset(nargs + i);
                 if PyBytes_Check(value) != 1 && PyByteArray_Check(value) != 1 {
                     return format!(
                         "buffer must be of type `bytes` or `bytearray` but got `{}`",
@@ -301,17 +295,12 @@ pub unsafe extern "C" fn load_bytes(
                 }
                 buffer = Some(value);
             } else if compare_str(key, b"use_tuples\0") {
-                let value = *args.offset(nargs + i);
                 use_tuples = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"stop_gc\0") {
-                let value = *args.offset(nargs + i);
                 stop_gc = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"ignore_extra_data\0") {
-                let value = *args.offset(nargs + i);
                 ignore_extra_data = PyObject_IsTrue(value) == 1;
             } else if compare_str(key, b"custom_types\0") {
-                let value = *args.offset(nargs + i);
-
                 let custom_types_dict = match parse_loads_custom_types_dict(value) {
                     Ok(value) => value,
                     Err(value) => return value,
@@ -436,6 +425,7 @@ unsafe fn call_lazy_load(
     let mut buffer = None;
     let mut custom_types = None;
     let mut path_to_load = None;
+    let mut include_falsy = true;
     // let mut use_tuples: bool = false;
     // let mut stop_gc: bool = false;
     if !kwnames.is_null() {
@@ -443,8 +433,8 @@ unsafe fn call_lazy_load(
 
         for i in 0..nkw {
             let key = tuple_get_item(kwnames, i);
+            let value = *args.offset(nargs + i);
             if compare_str(key, b"buffer\0") {
-                let value = *args.offset(nargs + i);
                 if PyBytes_Check(value) != 1 && PyByteArray_Check(value) != 1 {
                     return Err(format!(
                         "buffer must be of type `bytes` or `bytearray` but got `{}`",
@@ -453,10 +443,11 @@ unsafe fn call_lazy_load(
                     .to_py_error(PyExc_TypeError));
                 }
                 buffer = Some(value);
-            } else if compare_str(key, b"path_to_load\0") {
-                path_to_load = Some(*args.offset(nargs + i));
+            } else if compare_str(key, b"include_falsy\0") {
+                include_falsy = PyObject_IsTrue(value) == 1;
+            }  else if compare_str(key, b"path_to_load\0") {
+                path_to_load = Some(value);
             } else if compare_str(key, b"custom_types\0") {
-                let value = *args.offset(nargs + i);
                 custom_types = Some(parse_loads_custom_types_dict(value)?);
             } else {
                 let rust_str = py_str_to_rust_str(&key);
@@ -533,6 +524,7 @@ unsafe fn call_lazy_load(
         false,
         &custom_types,
         dont_load,
+        include_falsy,
         &path_to_load,
     )
 }

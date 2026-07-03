@@ -233,6 +233,20 @@ exists = pinch.bytes_check_if_contains(serialized_obj, ["people", pinch.Idx(1)])
 assert exists == True
 ```
 
+And if you'd like you can ignore falsy values using the `include_falsy` flag
+```python
+import pypinch as pinch
+
+# Setup
+obj = {"name": "", "age": 37}
+serialized_obj = pinch.dump_bytes(obj)
+
+exists = pinch.bytes_check_if_contains(serialized_obj, ["name"], include_falsy=False)
+
+# Since name is empty, it will return that it doesn't exist
+assert exists == False
+```
+
 ### Writing to a file (or other buffer)
 In order to save memory usage, or if this is your desired outcome anyway, you can dump straight to a file (or anything else which has a `write(bytes)` method).
 

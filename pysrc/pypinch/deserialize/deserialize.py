@@ -182,16 +182,20 @@ def deserialize_object(buffer: bytes, pointer: int, settings: Settings) -> Tuple
     elif flag == STR_FLAG:
         return deserialize_str(buffer, pointer, settings)
     elif flag == CUSTOM_TYPE_FLAG:
-        typ, pointer = deserialize_object(buffer, pointer, settings)
-        encoded_obj, pointer = deserialize_object(buffer, pointer, settings)
-        if settings.custom_types and (type_converter := settings.custom_types.get(typ)):
-            deserialized_obj = type_converter(encoded_obj)
-            return deserialized_obj, pointer
-        raise DeserializationError(
-            f"Unknown custom type. please provide the correct mapping when deserializing. identifier: `{typ}` (type: `{type(typ)}`)"
-        )
+        return deserialize_custom_type(buffer, pointer, settings)
     else:
         raise DeserializationError("Unexpected flag")
+
+
+def deserialize_custom_type(buffer: bytes, pointer: int, settings: Settings) -> Tuple[Any, int]:
+    typ, pointer = deserialize_object(buffer, pointer, settings)
+    encoded_obj, pointer = deserialize_object(buffer, pointer, settings)
+    if settings.custom_types and (type_converter := settings.custom_types.get(typ)):
+        deserialized_obj = type_converter(encoded_obj)
+        return deserialized_obj, pointer
+    raise DeserializationError(
+        f"Unknown custom type. please provide the correct mapping when deserializing. identifier: `{typ}` (type: `{type(typ)}`)"
+    )
 
 
 def deserialize_str(buffer: bytes, pointer: int, settings: Settings, base: int = NUMBER_BASE) -> Tuple[str, int]:

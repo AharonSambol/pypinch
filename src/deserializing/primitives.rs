@@ -157,14 +157,19 @@ pub fn decode_string_without_inserting_pointer<'a, const IS_ASCII: IsAscii, cons
     }
 }
 
-pub fn decode_f64(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
+pub fn decode_f64_rust(buf: &[u8], ptr: &mut usize) -> Result<f64, *mut PyObject> {
     unsafe {
         let float_pointer = buf.as_ptr().add(*ptr) as *const u64;
         *ptr += 8;
         if *ptr > buf.len() {
             return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
         }
-        let float = f64::from_bits(u64::from_be(std::ptr::read_unaligned(float_pointer)));
+        Ok(f64::from_bits(u64::from_be(std::ptr::read_unaligned(float_pointer))))
+    }
+}
+pub fn decode_f64(buf: &[u8], ptr: &mut usize) -> Result<*mut PyObject, *mut PyObject> {
+    unsafe {
+        let float = decode_f64_rust(buf, ptr)?;
         let py_float = raise_mem_error_if_null!(PyFloat_FromDouble(float));
         Ok(py_float)
     }
