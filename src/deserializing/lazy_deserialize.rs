@@ -17,9 +17,7 @@ use crate::utils::py_dict_key::PyHashMap;
 use crate::utils::py_helpers::{compare_objects, pretty_type, py_str_to_rust_str, rust_bool_to_py_bool, to_py_str, ToPyErr};
 use crate::utils::safe_py_pointer::PyPointer;
 use crate::{safe_get, safe_new_py_dict};
-use pyo3_ffi::{
-    PyDict_SetItem, PyExc_TypeError, PyObject, PyObject_IsTrue, Py_False, Py_True,
-};
+use pyo3_ffi::{PyDict_SetItem, PyExc_TypeError, PyObject, PyObject_IsTrue, Py_False, Py_True};
 
 pub enum PathPart {
     Index(usize),
@@ -101,14 +99,11 @@ pub fn lazy_deserialize(
                         PathPart::Index(_) => Err("Invalid path, expected `list` but found `dict`"
                             .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE })),
                         PathPart::Key(next_indexer) => {
-                            let mut checking_keys = true;
                             let mut key_index = None;
+                            // let identifier_is_str = unsafe { PyUnicode_Check(*next_indexer) } != 0;
                             for i in 0..dict_length {
-                                if !checking_keys {
-                                    skip_object(buf, ptr, pointers)?; // skip key
-                                    skip_object(buf, ptr, pointers)?; // skip value
-                                    continue;
-                                }
+                                // if identifier_is_str && the flag is one of (str, empty str, ascii str, pointer...)
+                                //    then only check the length of the string. If it's different, skip_object & continue
                                 let key = PyPointer::new(deserialize_object(
                                     buf,
                                     ptr,
@@ -130,7 +125,13 @@ pub fn lazy_deserialize(
                                         );
                                     }
                                     key_index = Some(i);
-                                    checking_keys = false; // no more need to deserialize the keys for comparing them
+
+                                    skip_object(buf, ptr, pointers)?; // skip value
+                                    for _ in i+1..dict_length {
+                                        skip_object(buf, ptr, pointers)?; // skip key
+                                        skip_object(buf, ptr, pointers)?; // skip value
+                                    }
+                                    break
                                 }
                                 skip_object(buf, ptr, pointers)?;
                             }
