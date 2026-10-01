@@ -1,11 +1,11 @@
 use crate::deserializing::primitives::{decode_f64_rust, get_sized_pointer_pos};
 use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize, DESERIALIZATION_ERROR_TYPE};
+use crate::safe_get;
 use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ASCII_STR_FLAG, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, CORRUPTED_DATA, CUSTOM_TYPE_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LEFTMOST_BIT_MASK, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG, UNEXPECTED_END_OF_INPUT};
 use crate::utils::py_dict_key::PyHashMap;
 use crate::utils::py_helpers::ToPyErr;
-use crate::safe_get;
 use num_bigint::BigUint;
-use pyo3_ffi::{PyErr_NoMemory, PyObject};
+use pyo3_ffi::PyObject;
 use seq_macro::seq;
 use std::fmt::Write;
 
@@ -224,10 +224,8 @@ pub fn convert_to_json(
         CUSTOM_TYPE_FLAG => todo!(),
         _ => {
             let numbers = numbers_to_strings!(256);
-            match write!(str_buf, "{}", numbers[(flag - AMOUNT_OF_USED_FLAGS) as usize]) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(unsafe { PyErr_NoMemory() })
-            }
+            write!(str_buf, "{}", numbers[(flag - AMOUNT_OF_USED_FLAGS) as usize]).unwrap();
+            Ok(())
         },
     }
 }
@@ -298,10 +296,7 @@ pub fn decode_large_number_to_string<const BASE: u128>(
 
     res += BASE;
     *ptr = end_ptr + 1;
-    // TODO: check that this works
-    if let Err(_) = write!(str_buf, "{res}") {
-        return Err(unsafe { PyErr_NoMemory() });
-    }
+    write!(str_buf, "{res}").unwrap();
     Ok(())
 }
 
@@ -412,16 +407,10 @@ fn inner_write_string_escaped(str_buf: &mut String, bytes: &[u8]) -> Result<(), 
                 Ok(s) => s,
                 Err(_) => return Err(CORRUPTED_DATA.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
             };
-            match write!(str_buf, "{string_run}") {
-                Ok(_) => {},
-                Err(_) => return Err(unsafe { PyErr_NoMemory() })
-            }
+            write!(str_buf, "{string_run}").unwrap();
         }
 
-        match write!(str_buf, "{escape}") {
-            Ok(_) => {},
-            Err(_) => return Err(unsafe { PyErr_NoMemory() })   // TODO: is a memory error here possible or should i just `.unwrap()` ?
-        }
+        write!(str_buf, "{escape}").unwrap();
         start = i + 1;
     }
     if start == bytes.len() {
@@ -432,7 +421,8 @@ fn inner_write_string_escaped(str_buf: &mut String, bytes: &[u8]) -> Result<(), 
         Ok(s) => s,
         Err(_) => return Err(CORRUPTED_DATA.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
     };
-    write!(str_buf, "{string_run}").map_err(|_| unsafe { PyErr_NoMemory() })
+    write!(str_buf, "{string_run}").unwrap();
+    Ok(())
 }
 
 
