@@ -53,7 +53,16 @@ pub fn decode_sized_pointer<const SIZE: usize, P: PointerHolder>(
     if *ptr + SIZE > buf.len() {
         return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
     }
-    let pos = unsafe {
+    let pos = get_sized_pointer_pos::<SIZE>(buf, ptr);
+    pointers.safe_get(pos)
+}
+
+#[inline(always)]
+pub fn get_sized_pointer_pos<const SIZE: usize>(
+    buf: &[u8],
+    ptr: &mut usize,
+) -> usize {
+    unsafe {
         match SIZE {
             1 => {
                 let pos = *buf.get_unchecked(*ptr) as usize;
@@ -79,8 +88,7 @@ pub fn decode_sized_pointer<const SIZE: usize, P: PointerHolder>(
             }
             _ => unreachable!(),
         }
-    };
-    pointers.safe_get(pos)
+    }
 }
 
 #[inline(always)]

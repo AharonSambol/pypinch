@@ -1,7 +1,7 @@
 use std::ffi::c_char;
 
 use pyo3_ffi::{
-    PyBytes_FromStringAndSize, PyExc_TypeError, PyObject, Py_False, Py_INCREF, Py_None, Py_True,
+    PyBytes_FromStringAndSize, PyObject, Py_False, Py_INCREF, Py_None, Py_True,
     Py_ssize_t,
 };
 
@@ -30,7 +30,7 @@ pub fn decode_consistent_type_list<'a, P: PointerHolder>(
         BYTES_FLAG => decode_bytes_list(use_tuples, buf, ptr, len),
         STR_FLAG => decode_str_list(use_tuples, buf, ptr, pointers, len),
         FLOAT_FLAG => decode_floats_list(use_tuples, buf, ptr, len),
-        _ => Err("Unexpected consistent list type".to_py_error(unsafe { PyExc_TypeError })),
+        _ => Err("Unexpected consistent list type".to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE })),
     }
 }
 

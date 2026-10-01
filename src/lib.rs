@@ -50,7 +50,7 @@ static mut MODULE_DEF: PyModuleDef = PyModuleDef {
     m_free: None,
 };
 
-static mut METHODS: [PyMethodDef; 5] = [
+static mut METHODS: [PyMethodDef; 6] = [
     PyMethodDef {
         ml_name: "dump_bytes\0".as_ptr().cast::<c_char>(),
         ml_meth: PyMethodDefPointer {
@@ -82,6 +82,14 @@ static mut METHODS: [PyMethodDef; 5] = [
         },
         ml_flags: METH_FASTCALL | METH_KEYWORDS,
         ml_doc: "lazily deserializes pinch\0".as_ptr().cast::<c_char>(),
+    },
+    PyMethodDef {
+        ml_name: "convert_to_json\0".as_ptr().cast::<c_char>(),
+        ml_meth: PyMethodDefPointer {
+            PyCFunctionFastWithKeywords: convert_to_json,
+        },
+        ml_flags: METH_FASTCALL | METH_KEYWORDS,
+        ml_doc: "convert pinch to json\0".as_ptr().cast::<c_char>(),
     },
     // A zeroed PyMethodDef to mark the end of the array.
     PyMethodDef::zeroed(),
@@ -385,6 +393,111 @@ pub unsafe extern "C" fn load_bytes(
                 ).to_py_error(DESERIALIZATION_ERROR_TYPE);
             }
             result_object
+        }
+        Err(err) => err,
+    }
+}
+
+pub unsafe extern "C" fn convert_to_json(
+    _self: *mut PyObject,
+    args: *const *mut PyObject,
+    nargs: Py_ssize_t,
+    kwnames: *mut PyObject,
+) -> *mut PyObject {
+    let mut buffer = None;
+    let mut custom_types = None;
+    let mut ignore_extra_data: bool = false;
+
+    if !kwnames.is_null() {
+        let nkw = PyTuple_Size(kwnames);
+
+        for i in 0..nkw {
+            let key = tuple_get_item(kwnames, i);
+            let value = *args.offset(nargs + i);
+            if compare_str(key, b"buffer\0") {
+                if PyBytes_Check(value) != 1 && PyByteArray_Check(value) != 1 {
+                    return format!(
+                        "buffer must be of type `bytes` or `bytearray` but got `{}`",
+                        pretty_type(value)
+                    )
+                    .to_py_error(PyExc_TypeError);
+                }
+                buffer = Some(value);
+            } else if compare_str(key, b"ignore_extra_data\0") {
+                ignore_extra_data = PyObject_IsTrue(value) == 1;
+            } else if compare_str(key, b"custom_types\0") {
+                let custom_types_dict = match parse_loads_custom_types_dict(value) {
+                    Ok(value) => value,
+                    Err(value) => return value,
+                };
+                custom_types = Some(custom_types_dict);
+            } else {
+                let rust_str = py_str_to_rust_str(&key);
+                return if let Ok(rust_str) = rust_str {
+                    format!(
+                        "convert_to_json() got an unexpected keyword argument '{}'",
+                        rust_str
+                    )
+                    .to_py_error(PyExc_TypeError)
+                } else {
+                    PyErr_NoMemory()
+                };
+            }
+        }
+    }
+
+    let num_args = PyVectorcall_NARGS(nargs as usize);
+    let buffer = if let Some(buffer) = buffer {
+        if num_args != 0 {
+            return "convert_to_json() got multiple values for argument 'buffer'"
+                .to_py_error(PyExc_TypeError);
+        }
+        buffer
+    } else {
+        if num_args != 1 {
+            return format!(
+                "convert_to_json() expected exactly 1 positional argument, but {num_args} were provided"
+            )
+            .to_py_error(PyExc_TypeError);
+        }
+        *args
+    };
+
+    let mut pointers = Vec::new();
+    let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
+        Ok(slice) => slice,
+        Err(err) => {
+            return err;
+        }
+    };
+
+    if !slice.starts_with(HEADER) {
+        return format!(
+            "{CORRUPTED_DATA}: missing starting marker `{}`",
+            std::str::from_utf8(HEADER).unwrap()
+        )
+            .to_py_error(DESERIALIZATION_ERROR_TYPE);
+    }
+    let mut pointer = HEADER.len();
+    let mut str_buf = String::new();
+    let result = deserializing::deserialize_to_json::convert_to_json(
+        &mut str_buf,
+        slice,
+        &mut pointer,
+        &mut pointers,
+        &custom_types,
+    );
+    match result {
+        Ok(_) => {
+            if !ignore_extra_data && pointer != slice.len() {
+                return format!(
+                    "Unexpected extra data, from position {pointer}. If you want to ignore it use the flag `ignore_extra_data`"
+                ).to_py_error(DESERIALIZATION_ERROR_TYPE);
+            }
+            PyUnicode_FromStringAndSize(
+                str_buf.as_ptr() as *const c_char,
+                str_buf.len() as Py_ssize_t,
+            )
         }
         Err(err) => err,
     }

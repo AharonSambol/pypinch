@@ -97,6 +97,7 @@ pub fn decode_large_number<const BASE: u128>(
     let bytes_in_c_ulonglong = c_ulonglong::BITS / 8;
     if num_length <= bytes_in_c_ulonglong {
         *ptr -= 1;
+        // TODO: this can be optimized to not have any bound checks (we already confirmed that in the earlier loop)
         let res = decode_number_c_ulonglong::<BASE>(buf, ptr)?;
         unsafe {
             return Ok(raise_mem_error_if_null!(PyLong_FromUnsignedLongLong(res)));

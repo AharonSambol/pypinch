@@ -72,9 +72,11 @@ First subtract the base from the number. We know to add this back because if it 
 been stored in the previous method. And in order to distinguish between the methods, in this method we will add a `0xff`
 at the start.
 <br/>
-Next, encode the number into the base. E.g. if the base is 255 and the number is 257, it will be `0x01 0x02` 
+Next, encode the number into the base. E.g. if the base is 255 and the number is 510, it will be `0x00 0x01` 
 <br/>
 Add a `0xff` so that we know where the number ends (Sort of like `\0`)
+<br/>
+Which gives us `0xff 0x00 0x01 0xff`
 
 The reason it is done like this is that it allows us to store small numbers extremely compactly, while still allowing 
 us to store numbers up to any size with no limitations.

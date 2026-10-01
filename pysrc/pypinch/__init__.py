@@ -20,12 +20,14 @@ if _pypinch is not None:
     load_bytes = _pypinch.load_bytes
     lazy_load_bytes = _pypinch.lazy_load_bytes
     bytes_check_if_contains = _pypinch.bytes_check_if_contains
+    convert_to_json = _pypinch.convert_to_json
 else:
     _BACKEND = "python"
     from .serialize.serialize import dump_bytes
     from .deserialize.deserialize import load_bytes
     from .deserialize.lazy_load import lazy_load_bytes, bytes_check_if_contains
-
+    # TODO: convert_to_json
+    
 lazy_unpinch = lazy_load_bytes
 pinch = dump_bytes
 unpinch = load_bytes
