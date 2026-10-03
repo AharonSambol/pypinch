@@ -5,7 +5,7 @@ use crate::safe_get;
 use crate::utils::consts::{MIGHT_BE_ASCII, NUMBER_BASE};
 use pyo3_ffi::{PyObject, Py_DECREF, Py_INCREF};
 
-enum Pointer {
+pub enum Pointer {
     Str(*mut PyObject),
     Position {
         pos: usize,
@@ -23,6 +23,14 @@ impl<'a> PositionPointerHolder<'a> {
         PositionPointerHolder {
             buf, str_posses: Vec::new(),
         }
+    }
+
+    pub unsafe fn change_buf(&mut self, new_buf: &'a [u8]) {
+        self.buf = new_buf;
+    } 
+    
+    pub fn unsafe_get(&self, position: usize)  -> Result<&Pointer, *mut PyObject> {
+        Ok(safe_get!(self.str_posses, position))
     }
 }
 

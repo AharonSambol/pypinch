@@ -405,7 +405,8 @@ pub unsafe extern "C" fn convert_to_json(
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
     let mut buffer = None;
-    let mut custom_types = None;
+    let mut deserializing_custom_types = None;
+    let mut serializing_custom_types = None;
     let mut ignore_extra_data: bool = false;
 
     if !kwnames.is_null() {
@@ -425,12 +426,19 @@ pub unsafe extern "C" fn convert_to_json(
                 buffer = Some(value);
             } else if compare_str(key, b"ignore_extra_data\0") {
                 ignore_extra_data = PyObject_IsTrue(value) == 1;
-            } else if compare_str(key, b"custom_types\0") {
+            } else if compare_str(key, b"deserializing_custom_types\0") {
                 let custom_types_dict = match parse_loads_custom_types_dict(value) {
                     Ok(value) => value,
                     Err(value) => return value,
                 };
-                custom_types = Some(custom_types_dict);
+                deserializing_custom_types = Some(custom_types_dict);
+            } else if compare_str(key, b"serializing_custom_types\0") {
+                let custom_types_dict =
+                    match parse_loads_custom_types_dict(value) {
+                        Ok(value) => value,
+                        Err(value) => return value,
+                    };
+                serializing_custom_types = Some(custom_types_dict);
             } else {
                 let rust_str = py_str_to_rust_str(&key);
                 return if let Ok(rust_str) = rust_str {
@@ -463,7 +471,7 @@ pub unsafe extern "C" fn convert_to_json(
         *args
     };
 
-    let mut pointers = Vec::new();
+    let mut pointers = PositionPointerHolder::new(&[]);
     let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
         Ok(slice) => slice,
         Err(err) => {
@@ -488,7 +496,8 @@ pub unsafe extern "C" fn convert_to_json(
         slice,
         &mut pointer,
         &mut pointers,
-        &custom_types,
+        &deserializing_custom_types,
+        &serializing_custom_types,
     );
     match result {
         Ok(_) => {

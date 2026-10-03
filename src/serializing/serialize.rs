@@ -11,6 +11,7 @@ use pyo3_ffi::{
     PyBool_Type, PyBytes_Type, PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyObject,
     PyTuple_Type, PyUnicode_Type,
 };
+use std::collections::HashMap;
 // todo: all_str_keys=False - if true store at the start a flag and then store all dicts without key types
 #[inline(always)]
 pub fn serialize<Buffer: PyBytesBuffer>(
@@ -40,7 +41,7 @@ pub fn serialize<Buffer: PyBytesBuffer>(
             buffer.push(NULL_FLAG)
         } else if settings.serialize_dates && PyDateTime_Check(obj) != 0 {
             primitives::serialize_date(obj, buffer, pointers)
-        } else if let Some(custom_type) = get_custom_type_mapping(settings, &typ) {
+        } else if let Some(custom_type) = get_custom_type_mapping(&settings.custom_types, &typ) {
             custom_types::serialize_custom_type(obj, buffer, pointers, settings, custom_type)
         } else {
             if !settings.serialize_dates && PyDateTime_Check(obj) != 0 {
@@ -55,8 +56,8 @@ pub fn serialize<Buffer: PyBytesBuffer>(
     }
 }
 
-fn get_custom_type_mapping<'a>(settings: &'a Settings, typ: &*mut PyTypeObject) -> Option<&'a CustomType> {
-    if let Some(custom_types) = &settings.custom_types {
+pub fn get_custom_type_mapping<'a>(custom_types: &'a Option<HashMap<*mut PyTypeObject, CustomType>>, typ: &*mut PyTypeObject) -> Option<&'a CustomType> {
+    if let Some(custom_types) = &custom_types {
         for (key, custom_type) in custom_types {
             if typ == key || (custom_type.include_subclasses && unsafe { PyType_IsSubtype(*typ, *key) } != 0) {
                 return Some(custom_type);
