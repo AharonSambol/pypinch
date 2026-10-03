@@ -479,9 +479,12 @@ pub unsafe extern "C" fn convert_to_json(
             .to_py_error(DESERIALIZATION_ERROR_TYPE);
     }
     let mut pointer = HEADER.len();
-    let mut str_buf = String::new();
+    let mut buf = match MemoryPyBytesBuffer::with_capacity(slice.len()) {
+        Ok(buffer) => buffer,
+        Err(e) => return e,
+    };
     let result = deserializing::deserialize_to_json::convert_to_json(
-        &mut str_buf,
+        &mut buf,
         slice,
         &mut pointer,
         &mut pointers,
@@ -494,10 +497,7 @@ pub unsafe extern "C" fn convert_to_json(
                     "Unexpected extra data, from position {pointer}. If you want to ignore it use the flag `ignore_extra_data`"
                 ).to_py_error(DESERIALIZATION_ERROR_TYPE);
             }
-            PyUnicode_FromStringAndSize(
-                str_buf.as_ptr() as *const c_char,
-                str_buf.len() as Py_ssize_t,
-            )
+            buf.finish()
         }
         Err(err) => err,
     }

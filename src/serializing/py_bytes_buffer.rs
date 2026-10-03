@@ -29,6 +29,10 @@ pub struct RawBytesBuffer {
 }
 
 impl RawBytesBuffer {
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.len
+    }
     pub fn with_capacity(cap: usize) -> Result<Self, *mut PyObject> {
         let cap = cap.max(8);
 
@@ -92,12 +96,13 @@ impl RawBytesBuffer {
         self.len += slice.len();
     }
 
-
+    #[inline(always)]
     pub fn finish(mut self) -> *mut PyObject {
         unsafe { self.shrink_bytes(); }
         self.obj
     }
 
+    #[inline(always)]
     unsafe fn shrink_bytes(&mut self) {
         if self.len != self.cap {
             _PyBytes_Resize(&mut self.obj, self.len as isize);
@@ -105,11 +110,26 @@ impl RawBytesBuffer {
         }
     }
 
+    #[inline(always)]
     fn take_bytes(&mut self) -> *mut PyObject {
         unsafe { self.shrink_bytes(); }
         self.cap = self.len;
         self.len = 0;
         self.obj
+    }
+
+    #[inline(always)]
+    pub fn extend_from_own_slice(&mut self, start: usize, end: usize) -> Result<(), *mut PyObject> {
+        self.ensure_capacity(end - start)?;
+        unsafe {
+            ptr::copy_nonoverlapping(
+                self.data_ptr.add(start),
+                self.data_ptr.add(self.len),
+                end - start,
+            );
+            self.len += end - start;
+        }
+        Ok(())
     }
 }
 
@@ -119,12 +139,41 @@ pub struct MemoryPyBytesBuffer {
 }
 
 impl MemoryPyBytesBuffer {
+    #[inline(always)]
     pub fn with_capacity(
         cap: usize,
     ) -> Result<Self, *mut PyObject> {
         Ok(Self {
             inner: RawBytesBuffer::with_capacity(cap)?,
         })
+    }
+    
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    #[inline(always)]
+    pub fn ensure_capacity(&mut self, additional: usize) -> Result<(), *mut PyObject> {
+        self.inner.ensure_capacity(additional)
+    }
+
+    #[inline(always)]
+    pub fn push_unchecked(&mut self, byte: u8) {
+        self.inner.push_unchecked(byte);
+    }
+
+    #[inline(always)]
+    pub fn extend_from_slice_unchecked(
+        &mut self,
+        slice: &[u8],
+    ) {
+        self.inner.extend_from_slice_unchecked(slice);
+    }
+
+    #[inline(always)]
+    pub fn extend_from_own_slice(&mut self, start: usize, end: usize) -> Result<(), *mut PyObject> {
+        self.inner.extend_from_own_slice(start, end)
     }
 }
 
