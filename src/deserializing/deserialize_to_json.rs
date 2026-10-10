@@ -48,7 +48,7 @@ pub fn convert_to_json<'a>(
     output_buf: &mut MemoryPyBytesBuffer,
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut PositionPointerHolder<'a>, // todo make these special pointers that can also have reference to output_str
+    pointers: &mut PositionPointerHolder<'a>,
     bytes_converter: *mut PyObject,
     deserializing_custom_types: &Option<PyHashMap<*mut PyObject>>,
     serialization_custom_types: &Option<PyHashMap<*mut PyObject>>,
