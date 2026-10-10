@@ -408,6 +408,7 @@ pub unsafe extern "C" fn convert_to_json(
     let mut deserializing_custom_types = None;
     let mut serializing_custom_types = None;
     let mut ignore_extra_data: bool = false;
+    let mut bytes_converter = None;
 
     if !kwnames.is_null() {
         let nkw = PyTuple_Size(kwnames);
@@ -439,6 +440,11 @@ pub unsafe extern "C" fn convert_to_json(
                         Err(value) => return value,
                     };
                 serializing_custom_types = Some(custom_types_dict);
+            } else if compare_str(key, b"bytes_converter\0") {
+                if PyCallable_Check(value) == 0 {
+                    return "bytes_converter must be a callable".to_py_error(PyExc_TypeError);
+                }
+                bytes_converter = Some(value);
             } else {
                 let rust_str = py_str_to_rust_str(&key);
                 return if let Ok(rust_str) = rust_str {
@@ -471,6 +477,11 @@ pub unsafe extern "C" fn convert_to_json(
         *args
     };
 
+    let bytes_converter = match bytes_converter {
+        Some(x) => x,
+        None => return "convert_to_json() missing 1 required keyword argument: 'bytes_converter'".to_py_error(PyExc_TypeError),
+    };
+
     let mut pointers = PositionPointerHolder::new(&[]);
     let slice = match convert_py_buffer_into_bytes_slice(&buffer) {
         Ok(slice) => slice,
@@ -496,6 +507,7 @@ pub unsafe extern "C" fn convert_to_json(
         slice,
         &mut pointer,
         &mut pointers,
+        bytes_converter,
         &deserializing_custom_types,
         &serializing_custom_types,
     );

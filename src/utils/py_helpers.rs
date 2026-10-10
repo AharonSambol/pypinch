@@ -2,8 +2,8 @@ use crate::deserializing::primitives::{decode_false, decode_true};
 use crate::utils::safe_py_pointer::PyPointer;
 use crate::utils::wrappers::tuple_set_item;
 use crate::{py_string_format, raise_mem_error_if_null};
-use pyo3_ffi::{PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_SetString, PyImport_Import, PyObject, PyObject_GetAttrString, PyObject_Repr, PyObject_RichCompareBool, PyObject_Str, PyObject_Type, PyTuple_New, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, Py_EQ, Py_INCREF, Py_ssize_t};
-use std::ffi::{CStr, CString};
+use pyo3_ffi::{PyByteArray_AsString, PyByteArray_Size, PyByteArray_Type, PyBytes_AsString, PyBytes_Size, PyErr_Fetch, PyErr_Restore, PyErr_SetString, PyException_SetCause, PyException_SetTraceback, PyImport_Import, PyObject, PyObject_CallFunction, PyObject_GetAttrString, PyObject_Repr, PyObject_RichCompareBool, PyObject_Str, PyObject_Type, PyTuple_New, PyUnicode_AsUTF8, PyUnicode_AsUTF8AndSize, PyUnicode_CompareWithASCIIString, PyUnicode_FromString, Py_EQ, Py_INCREF, Py_XDECREF, Py_ssize_t};
+use std::ffi::{c_char, CStr, CString};
 use std::{ptr, slice};
 
 #[inline(always)]
@@ -118,5 +118,37 @@ pub fn rust_bool_to_py_bool(b: bool) -> *mut PyObject{
         decode_true()
     } else {
         decode_false()
+    }
+}
+
+pub fn raise_exception_with_cause(message: *const c_char, new_exc_type: *mut PyObject) {
+    // Get the current error
+    let mut err_type: *mut PyObject = ptr::null_mut();
+    let mut err_value: *mut PyObject = ptr::null_mut();
+    let mut err_tb: *mut PyObject = ptr::null_mut();
+    unsafe {
+        PyErr_Fetch(&mut err_type, &mut err_value, &mut err_tb);
+    }
+
+    // Create our new error
+    let new_exc = unsafe {
+        PyObject_CallFunction(new_exc_type, c"s".as_ptr(), message)
+    };
+
+    // Set the original error value as the cause of the new exception
+    if !err_value.is_null() {
+        unsafe {
+            // attach the traceback to the original error (so it keeps its traceback)
+            PyException_SetTraceback(err_value, err_tb);
+            // PyException_SetCause steals a reference to the cause object
+            PyException_SetCause(new_exc, err_value);
+        }
+    }
+
+    // Restore the new error back into Python's error indicator. This steals all the references
+    unsafe {
+        Py_INCREF(new_exc_type);
+        PyErr_Restore(new_exc_type, new_exc, ptr::null_mut());
+        Py_XDECREF(err_type);
     }
 }

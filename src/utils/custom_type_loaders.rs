@@ -3,10 +3,7 @@ use crate::serializing::utils::CUSTOM_TYPE_CLASS;
 use crate::utils::py_dict_key::{PyHashMap, PyKey};
 use crate::utils::py_helpers::ToPyErr;
 use crate::utils::safe_py_pointer::PyPointer;
-use pyo3_ffi::{
-    PyCallable_Check, PyDict_Check, PyDict_Next, PyExc_TypeError, PyObject, PyObject_GetAttr,
-    PyTypeObject, PyType_Check, PyUnicode_FromString, Py_IsTrue,
-};
+use pyo3_ffi::{PyCallable_Check, PyDict_Check, PyDict_Next, PyExc_TypeError, PyObject, PyObject_GetAttr, PyTypeObject, PyType_Check, PyUnicode_FromString, Py_IsTrue};
 use std::collections::HashMap;
 use std::ptr;
 

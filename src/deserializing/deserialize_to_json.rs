@@ -3,16 +3,33 @@ use crate::deserializing::deserialize::deserialize_object;
 use crate::deserializing::pointer_holders::position_pointer_holder::Pointer::{Position, Str};
 use crate::deserializing::pointer_holders::position_pointer_holder::PositionPointerHolder;
 use crate::deserializing::primitives::{decode_f64_rust, get_sized_pointer_pos};
-use crate::deserializing::utils::{decode_number_py_ssize_t, decode_number_usize, DESERIALIZATION_ERROR_TYPE};
+use crate::deserializing::utils::{
+    decode_number_py_ssize_t, decode_number_usize, DESERIALIZATION_ERROR_TYPE,
+};
 use crate::safe_get;
 use crate::serializing::py_bytes_buffer::{MemoryPyBytesBuffer, PyBytesBuffer};
-use crate::utils::consts::{AMOUNT_OF_USED_FLAGS, ASCII_STR_FLAG, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG, CUSTOM_TYPE_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG, EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII, LEFTMOST_BIT_MASK, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG, NUMBER_BASE, POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE, POINTER_FLAG_4BYTE, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG, UNEXPECTED_END_OF_INPUT};
+use crate::utils::consts::{
+    AMOUNT_OF_USED_FLAGS, ASCII_STR_FLAG, BOOL_FLAG, BYTES_FLAG, CONSISTENT_TYPE_LIST_FLAG,
+    CUSTOM_TYPE_FLAG, DICT_FLAG, EMPTY_BYTES_FLAG, EMPTY_DICT_FLAG, EMPTY_LIST_FLAG,
+    EMPTY_STR_FLAG, ENDING_FLAG, FALSE_FLAG, FLOAT_FLAG, INVALID_UTF_8_START_BYTE_COMPACT_ASCII,
+    LEFTMOST_BIT_MASK, LIST_FLAG, LIST_OF_STRUCTURED_DICTS_FLAG, NEGATIVE_INT_FLAG, NULL_FLAG,
+    NUMBER_BASE, POINTER_FLAG, POINTER_FLAG_1BYTE, POINTER_FLAG_2BYTE, POINTER_FLAG_3BYTE,
+    POINTER_FLAG_4BYTE, POSITIVE_INT_FLAG, STR_FLAG, STR_KEY_DICT_FLAG, TRUE_FLAG,
+    UNEXPECTED_END_OF_INPUT,
+};
 use crate::utils::py_dict_key::{PyHashMap, PyKey};
-use crate::utils::py_helpers::{pretty_type, py_str_to_rust_str, temporary_tuple_of, ToPyErr};
+use crate::utils::py_helpers::{
+    pretty_type, py_str_to_rust_str, raise_exception_with_cause, temporary_tuple_of, ToPyErr,
+};
 use crate::utils::safe_py_pointer::PyPointer;
 use num_bigint::BigUint;
-use pyo3_ffi::{PyBytes_Check, PyBytes_Size, PyObject, PyObject_CallObject, PyObject_Str, PyUnicode_AsUTF8AndSize};
+use pyo3_ffi::{
+    PyBytes_Check, PyBytes_FromStringAndSize, PyBytes_Size, PyObject, PyObject_CallObject,
+    PyObject_Str, PyUnicode_AsUTF8AndSize, Py_ssize_t,
+};
 use seq_macro::seq;
+use std::ffi::c_char;
+use std::ptr;
 
 #[macro_export]
 macro_rules! numbers_to_strings {
@@ -31,7 +48,8 @@ pub fn convert_to_json<'a>(
     output_buf: &mut MemoryPyBytesBuffer,
     buf: &'a [u8],
     ptr: &mut usize,
-    pointers: &mut PositionPointerHolder<'a>,
+    pointers: &mut PositionPointerHolder<'a>, // todo make these special pointers that can also have reference to output_str
+    bytes_converter: *mut PyObject,
     deserializing_custom_types: &Option<PyHashMap<*mut PyObject>>,
     serialization_custom_types: &Option<PyHashMap<*mut PyObject>>,
 ) -> Result<(), *mut PyObject> {
@@ -47,19 +65,19 @@ pub fn convert_to_json<'a>(
         FLOAT_FLAG => convert_float(output_buf, buf, ptr),
         // TODO: make sure both work
         STR_FLAG | ASCII_STR_FLAG => convert_string::<NUMBER_BASE>(output_buf, buf, ptr, pointers),
-        TRUE_FLAG => { output_buf.extend_from_slice(b"true") },
-        FALSE_FLAG => { output_buf.extend_from_slice(b"false") },
-        NULL_FLAG => { output_buf.extend_from_slice(b"null") },
+        TRUE_FLAG => output_buf.extend_from_slice(b"true"),
+        FALSE_FLAG => output_buf.extend_from_slice(b"false"),
+        NULL_FLAG => output_buf.extend_from_slice(b"null"),
         POINTER_FLAG => {
             let pos = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
             convert_from_pointer_position(output_buf, buf, pointers, pos)
-        },
+        }
         POINTER_FLAG_1BYTE => convert_sized_pointer::<1>(output_buf, buf, ptr, pointers),
         POINTER_FLAG_2BYTE => convert_sized_pointer::<2>(output_buf, buf, ptr, pointers),
         POINTER_FLAG_3BYTE => convert_sized_pointer::<3>(output_buf, buf, ptr, pointers),
         POINTER_FLAG_4BYTE => convert_sized_pointer::<4>(output_buf, buf, ptr, pointers),
-        BYTES_FLAG => todo!(),
-        EMPTY_BYTES_FLAG => todo!(),
+        BYTES_FLAG => convert_bytes(output_buf, buf, ptr, bytes_converter),
+        EMPTY_BYTES_FLAG => convert_bytes_slice(output_buf, &[], bytes_converter),
         CONSISTENT_TYPE_LIST_FLAG => {
             let typ = *safe_get!(buf, *ptr);
             *ptr += 1;
@@ -68,15 +86,15 @@ pub fn convert_to_json<'a>(
 
             match typ {
                 NULL_FLAG => {
-                    output_buf.ensure_capacity("null, ".len() * len - ", ".len())?;  // TODO: no need for space
-                    for _ in 0..len-1 {
-                        output_buf.extend_from_slice_unchecked(b"null, ");  // TODO: no need for space
-                    }
+                    output_buf.ensure_capacity(", null".len() * len - ", ".len())?; // TODO: no need for space
                     output_buf.extend_from_slice_unchecked(b"null");
-                },
+                    for _ in 1..len {
+                        output_buf.extend_from_slice_unchecked(b", null"); // TODO: no need for space
+                    }
+                }
                 BOOL_FLAG => {
                     // true is the shorter of the booleans, so this is a minimum
-                    output_buf.ensure_capacity("true, ".len() * len - ", ".len())?;  // TODO: no need for space
+                    output_buf.ensure_capacity("true, ".len() * len - ", ".len())?; // TODO: no need for space
 
                     let amount_of_bytes = (len + 7) >> 3;
 
@@ -88,7 +106,9 @@ pub fn convert_to_json<'a>(
                             if byte_index != 0 || bit_index != 0 {
                                 output_buf.extend_from_slice(b", ")?; // TODO: no need for space
                             }
-                            output_buf.extend_from_slice(table[((byte & LEFTMOST_BIT_MASK) == 0) as usize])?;
+                            output_buf.extend_from_slice(
+                                table[((byte & LEFTMOST_BIT_MASK) == 0) as usize],
+                            )?;
                             pos += 1;
                             if pos == len {
                                 break;
@@ -97,43 +117,82 @@ pub fn convert_to_json<'a>(
                         }
                     }
                     *ptr += amount_of_bytes;
-                },
-                BYTES_FLAG => todo!(),
+                }
+                BYTES_FLAG => {
+                    convert_bytes(output_buf, buf, ptr, bytes_converter)?;
+                    for _ in 1..len {
+                        output_buf.extend_from_slice(b", ")?; // TODO: no need for space
+                        convert_bytes(output_buf, buf, ptr, bytes_converter)?;
+                    }
+                }
                 STR_FLAG => {
-                    for i in 0..len {
-                        if i != 0 {
-                            output_buf.extend_from_slice(b", ")?; // TODO: no need for space
-                        }
+                    convert_string::<NUMBER_BASE>(output_buf, buf, ptr, pointers)?;
+                    for _ in 1..len {
+                        output_buf.extend_from_slice(b", ")?; // TODO: no need for space
                         convert_string::<NUMBER_BASE>(output_buf, buf, ptr, pointers)?;
                     }
-                },
+                }
                 FLOAT_FLAG => {
-                    for i in 0..len {
-                        if i != 0 {
-                            output_buf.extend_from_slice(b", ")?; // TODO: no need for space
-                        }
+                    convert_float(output_buf, buf, ptr)?;
+                    for _ in 1..len {
+                        output_buf.extend_from_slice(b", ")?; // TODO: no need for space
                         convert_float(output_buf, buf, ptr)?;
                     }
-                },
-                _ => return Err("Unexpected consistent list type".to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE })),
+                }
+                _ => {
+                    return Err("Unexpected consistent list type"
+                        .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
+                }
             }
             output_buf.push(']' as u8)
-        },
+        }
         DICT_FLAG => {
             output_buf.push('{' as u8)?;
             let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
             // we know it's not empty because if it was it would have been EMPTY_DICT_FLAG
-            convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+            convert_to_json(
+                output_buf,
+                buf,
+                ptr,
+                pointers,
+                bytes_converter,
+                deserializing_custom_types,
+                serialization_custom_types,
+            )?;
             output_buf.extend_from_slice(b": ")?; // TODO: no need for space
-            convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+            convert_to_json(
+                output_buf,
+                buf,
+                ptr,
+                pointers,
+                bytes_converter,
+                deserializing_custom_types,
+                serialization_custom_types,
+            )?;
             for _ in 1..len {
                 output_buf.extend_from_slice(b", ")?; // TODO: no need for space
-                convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+                convert_to_json(
+                    output_buf,
+                    buf,
+                    ptr,
+                    pointers,
+                    bytes_converter,
+                    deserializing_custom_types,
+                    serialization_custom_types,
+                )?;
                 output_buf.extend_from_slice(b": ")?; // TODO: no need for space
-                convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+                convert_to_json(
+                    output_buf,
+                    buf,
+                    ptr,
+                    pointers,
+                    bytes_converter,
+                    deserializing_custom_types,
+                    serialization_custom_types,
+                )?;
             }
             output_buf.push('}' as u8)
-        },
+        }
         STR_KEY_DICT_FLAG => {
             output_buf.push('{' as u8)?;
             let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
@@ -154,29 +213,62 @@ pub fn convert_to_json<'a>(
             }
             convert_dict_key(output_buf, buf, ptr, pointers)?;
             output_buf.extend_from_slice(b": ")?; // TODO: no need for space
-            convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+            convert_to_json(
+                output_buf,
+                buf,
+                ptr,
+                pointers,
+                bytes_converter,
+                deserializing_custom_types,
+                serialization_custom_types,
+            )?;
+
             for _ in 1..len {
                 output_buf.extend_from_slice(b", ")?; // TODO: no need for space
                 convert_dict_key(output_buf, buf, ptr, pointers)?;
                 output_buf.extend_from_slice(b": ")?; // TODO: no need for space
-                convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+                convert_to_json(
+                    output_buf,
+                    buf,
+                    ptr,
+                    pointers,
+                    bytes_converter,
+                    deserializing_custom_types,
+                    serialization_custom_types,
+                )?;
             }
             output_buf.push('}' as u8)
-        },
-        EMPTY_DICT_FLAG => { output_buf.extend_from_slice(b"{}") },
-        EMPTY_LIST_FLAG => { output_buf.extend_from_slice(b"[]") },
-        EMPTY_STR_FLAG => { output_buf.extend_from_slice(b"\"\"") },
+        }
+        EMPTY_DICT_FLAG => output_buf.extend_from_slice(b"{}"),
+        EMPTY_LIST_FLAG => output_buf.extend_from_slice(b"[]"),
+        EMPTY_STR_FLAG => output_buf.extend_from_slice(b"\"\""),
         LIST_FLAG => {
             output_buf.push('[' as u8)?;
             let len = decode_number_py_ssize_t::<NUMBER_BASE>(buf, ptr)?;
             // we know it's not empty because if it was it would have been EMPTY_LIST_FLAG
-            convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+            convert_to_json(
+                output_buf,
+                buf,
+                ptr,
+                pointers,
+                bytes_converter,
+                deserializing_custom_types,
+                serialization_custom_types,
+            )?;
             for _ in 1..len {
                 output_buf.extend_from_slice(b", ")?; // TODO: no need for space
-                convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+                convert_to_json(
+                    output_buf,
+                    buf,
+                    ptr,
+                    pointers,
+                    bytes_converter,
+                    deserializing_custom_types,
+                    serialization_custom_types,
+                )?;
             }
             output_buf.push(']' as u8)
-        },
+        }
         LIST_OF_STRUCTURED_DICTS_FLAG => {
             let list_len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
             output_buf.push('[' as u8)?;
@@ -190,10 +282,26 @@ pub fn convert_to_json<'a>(
                     output_buf.extend_from_slice(b", {")?;
                 }
                 let key_start = output_buf.len();
-                convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+                convert_to_json(
+                    output_buf,
+                    buf,
+                    ptr,
+                    pointers,
+                    bytes_converter,
+                    deserializing_custom_types,
+                    serialization_custom_types,
+                )?;
                 keys.push((key_start, output_buf.len()));
                 output_buf.extend_from_slice(b": ")?; // TODO: no need for space
-                convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+                convert_to_json(
+                    output_buf,
+                    buf,
+                    ptr,
+                    pointers,
+                    bytes_converter,
+                    deserializing_custom_types,
+                    serialization_custom_types,
+                )?;
                 output_buf.push('}' as u8)?;
             }
 
@@ -209,36 +317,68 @@ pub fn convert_to_json<'a>(
                     let end = keys[key_index].1 + 2; // +2 for `:` and the space after it  // TODO: no need for space
                     output_buf.extend_from_own_slice(start, end)?;
 
-                    convert_to_json(output_buf, buf, ptr, pointers, deserializing_custom_types, serialization_custom_types)?;
+                    convert_to_json(
+                        output_buf,
+                        buf,
+                        ptr,
+                        pointers,
+                        bytes_converter,
+                        deserializing_custom_types,
+                        serialization_custom_types,
+                    )?;
                     output_buf.push('}' as u8)?;
                 }
             }
             output_buf.push(']' as u8)
-        },
-        CUSTOM_TYPE_FLAG => {   // TODO: check
+        }
+        CUSTOM_TYPE_FLAG => {
             let mut fake_pointer = *ptr;
-            let type_identifier = PyPointer::new(deserialize_object(buf, &mut fake_pointer, pointers, false, deserializing_custom_types)?);
+            let type_identifier = PyPointer::new(deserialize_object(
+                buf,
+                &mut fake_pointer,
+                pointers,
+                false,
+                deserializing_custom_types,
+            )?);
             unsafe {
                 pointers.change_buf(buf);
             }
-            let deserialized_obj = deserialize_custom_type(
-                buf, ptr, pointers, false, deserializing_custom_types
-            )?;
+            let deserialized_obj =
+                deserialize_custom_type(buf, ptr, pointers, false, deserializing_custom_types)?;
             convert_custom_type(
                 output_buf,
                 deserialized_obj.as_ptr(),
                 serialization_custom_types,
-                type_identifier
+                type_identifier,
             )
-        },
+        }
         _ => {
             let numbers = numbers_to_strings!(256);
             output_buf.extend_from_slice(numbers[(flag - AMOUNT_OF_USED_FLAGS) as usize])
-        },
+        }
     }
 }
 
-fn convert_float<'a>(output_buf: &mut MemoryPyBytesBuffer, buf: &'a [u8], ptr: &mut usize) -> Result<(), *mut PyObject> {
+fn convert_bytes(
+    output_buf: &mut MemoryPyBytesBuffer,
+    buf: &[u8],
+    ptr: &mut usize,
+    bytes_converter: *mut PyObject,
+) -> Result<(), *mut PyObject> {
+    let len = decode_number_usize::<NUMBER_BASE>(buf, ptr)?;
+    if len + *ptr > buf.len() {
+        return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
+    }
+    let bytes = &buf[*ptr..*ptr + len];
+    *ptr += len;
+    convert_bytes_slice(output_buf, bytes, bytes_converter)
+}
+
+fn convert_float<'a>(
+    output_buf: &mut MemoryPyBytesBuffer,
+    buf: &'a [u8],
+    ptr: &mut usize,
+) -> Result<(), *mut PyObject> {
     let rust_float = decode_f64_rust(buf, ptr)?;
     let mut buffer = ryu::Buffer::new();
     output_buf.extend_from_slice(buffer.format(rust_float).as_bytes())
@@ -293,7 +433,6 @@ pub fn decode_large_number_to_string<'a, const BASE: u128>(
     output_buf.extend_from_slice(res.to_string().as_bytes())
 }
 
-
 #[inline(always)]
 pub fn convert_string<'a, const BASE: u128>(
     output_buf: &mut MemoryPyBytesBuffer,
@@ -305,8 +444,11 @@ pub fn convert_string<'a, const BASE: u128>(
     convert_string_without_inserting_pointer::<BASE>(output_buf, &buf, ptr)
 }
 
-
-pub fn convert_string_without_inserting_pointer<'a, const BASE: u128>(output_buf: &mut MemoryPyBytesBuffer, buf: &'a [u8], ptr: &mut usize) -> Result<(), *mut PyObject> {
+pub fn convert_string_without_inserting_pointer<'a, const BASE: u128>(
+    output_buf: &mut MemoryPyBytesBuffer,
+    buf: &'a [u8],
+    ptr: &mut usize,
+) -> Result<(), *mut PyObject> {
     let len = decode_number_usize::<BASE>(buf, ptr)?;
     if *ptr + len > buf.len() {
         return Err(UNEXPECTED_END_OF_INPUT.to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }));
@@ -314,23 +456,31 @@ pub fn convert_string_without_inserting_pointer<'a, const BASE: u128>(output_buf
     let start = *ptr;
     *ptr += len;
 
-    if len == 0 {   // avoid get_unchecked out of bounds for this case
+    if len == 0 {
+        // avoid get_unchecked out of bounds for this case
         return Ok(());
     }
-    let starts_with_ascii_flag = unsafe { *buf.get_unchecked(start) } == INVALID_UTF_8_START_BYTE_COMPACT_ASCII;
+    let starts_with_ascii_flag =
+        unsafe { *buf.get_unchecked(start) } == INVALID_UTF_8_START_BYTE_COMPACT_ASCII;
     let str = &buf[start + (starts_with_ascii_flag as usize)..*ptr];
 
     write_string_escaped(output_buf, str)
 }
 
-fn write_string_escaped(output_buf: &mut MemoryPyBytesBuffer, bytes: &[u8]) -> Result<(), *mut PyObject> {
+fn write_string_escaped(
+    output_buf: &mut MemoryPyBytesBuffer,
+    bytes: &[u8],
+) -> Result<(), *mut PyObject> {
     output_buf.ensure_capacity(2 + bytes.len())?;
     output_buf.push_unchecked('"' as u8);
     inner_write_string_escaped(output_buf, bytes)?; // we don't now the exact length because some chars might need to be escaped
     output_buf.push('"' as u8)
 }
 
-fn inner_write_string_escaped(output_buf: &mut MemoryPyBytesBuffer, bytes: &[u8]) -> Result<(), *mut PyObject> {
+fn inner_write_string_escaped(
+    output_buf: &mut MemoryPyBytesBuffer,
+    bytes: &[u8],
+) -> Result<(), *mut PyObject> {
     const BB: &[u8] = r"\b".as_bytes();
     const TT: &[u8] = r"\t".as_bytes();
     const NN: &[u8] = r"\n".as_bytes();
@@ -415,7 +565,6 @@ fn inner_write_string_escaped(output_buf: &mut MemoryPyBytesBuffer, bytes: &[u8]
     output_buf.extend_from_slice(last_substring)
 }
 
-
 // TODO: change pointers to point at positions in str (like in structured dict list) instead of pointers to buf
 pub fn convert_sized_pointer<'a, const SIZE: usize>(
     output_buf: &mut MemoryPyBytesBuffer,
@@ -430,7 +579,12 @@ pub fn convert_sized_pointer<'a, const SIZE: usize>(
     convert_from_pointer_position(output_buf, buf, pointers, pos)
 }
 
-fn convert_from_pointer_position<'a>(output_buf: &mut MemoryPyBytesBuffer, buf: &'a [u8], pointers: &mut PositionPointerHolder<'a>, position: usize) -> Result<(), *mut PyObject> {
+fn convert_from_pointer_position<'a>(
+    output_buf: &mut MemoryPyBytesBuffer,
+    buf: &'a [u8],
+    pointers: &mut PositionPointerHolder<'a>,
+    position: usize,
+) -> Result<(), *mut PyObject> {
     unsafe {
         pointers.change_buf(buf);
     }
@@ -442,28 +596,22 @@ fn convert_from_pointer_position<'a>(output_buf: &mut MemoryPyBytesBuffer, buf: 
             } else {
                 convert_string_without_inserting_pointer::<NUMBER_BASE>(output_buf, buf, &mut pos)
             }
-        },
+        }
         Str(str) => {
             let mut len = 0;
             let data = unsafe { PyUnicode_AsUTF8AndSize(*str, &mut len) };
-            write_string_escaped(
-                output_buf,
-                unsafe {
-                    std::slice::from_raw_parts(data as *const u8, len as usize)
-                }
-            )
+            write_string_escaped(output_buf, unsafe {
+                std::slice::from_raw_parts(data as *const u8, len as usize)
+            })
         }
     }
 }
-
-
-
 
 pub fn convert_custom_type(
     output_buf: &mut MemoryPyBytesBuffer,
     object: *mut PyObject,
     serialization_custom_types: &Option<PyHashMap<*mut PyObject>>,
-    type_identifier: PyPointer
+    type_identifier: PyPointer,
 ) -> Result<(), *mut PyObject> {
     let custom_types = if let Some(custom_types) = serialization_custom_types {
         custom_types
@@ -473,24 +621,29 @@ pub fn convert_custom_type(
 
     if let Some(converter) = custom_types.get(&PyKey(type_identifier.as_ptr())) {
         let args = temporary_tuple_of(object)?;
-        let converted_object = unsafe { 
-            PyObject_CallObject(*converter, args.as_ptr())
-        };
+        let converted_object = unsafe { PyObject_CallObject(*converter, args.as_ptr()) };
         if converted_object.is_null() {
-            Err("Failed to deserialize custom type".to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }))
-        } else if unsafe { PyBytes_Check(converted_object) } == 0 {
+            raise_exception_with_cause(c"Failed to deserialize custom type".as_ptr(), unsafe {
+                DESERIALIZATION_ERROR_TYPE
+            });
+            return Err(ptr::null_mut());
+        }
+        let converted_object = PyPointer::new(converted_object);
+        if unsafe { PyBytes_Check(converted_object.as_ptr()) } == 0 {
             Err(
                 "Custom type serialization must return a bytes representation of a valid json object"
                     .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE })
             )
         } else {
-            let size = unsafe { PyBytes_Size(converted_object) };
-            output_buf.extend_from_bytes(size as usize, converted_object)
+            let size = unsafe { PyBytes_Size(converted_object.as_ptr()) };
+            output_buf.extend_from_bytes(size as usize, converted_object.as_ptr())
         }
     } else {
         unsafe {
-            let str_representation = PyPointer::new_w_null_check(PyObject_Str(type_identifier.as_ptr()))?;
-            let rust_str_representation = py_str_to_rust_str(&str_representation.as_ptr())?.to_string();
+            let str_representation =
+                PyPointer::new_w_null_check(PyObject_Str(type_identifier.as_ptr()))?;
+            let rust_str_representation =
+                py_str_to_rust_str(&str_representation.as_ptr())?.to_string();
             Err(
                 format!(
                     "Unknown custom type. please make sure the mapping exists in both the serializing and deserializing custom types. identifier: `{}` (type: `{}`)",
@@ -499,5 +652,34 @@ pub fn convert_custom_type(
                 ).to_py_error(DESERIALIZATION_ERROR_TYPE)
             )
         }
+    }
+}
+
+fn convert_bytes_slice(
+    output_buf: &mut MemoryPyBytesBuffer,
+    bytes: &[u8],
+    bytes_converter: *mut PyObject,
+) -> Result<(), *mut PyObject> {
+    let python_bytes = PyPointer::new_w_null_check(unsafe {
+        PyBytes_FromStringAndSize(bytes.as_ptr() as *const c_char, bytes.len() as Py_ssize_t)
+    })?;
+
+    let args = temporary_tuple_of(python_bytes.as_ptr())?;
+    let converted_bytes = unsafe { PyObject_CallObject(bytes_converter, args.as_ptr()) };
+    if converted_bytes.is_null() {
+        raise_exception_with_cause(c"Failed to convert bytes".as_ptr(), unsafe {
+            DESERIALIZATION_ERROR_TYPE
+        });
+        return Err(ptr::null_mut());
+    }
+    let converted_bytes = PyPointer::new(converted_bytes);
+    if unsafe { PyBytes_Check(converted_bytes.as_ptr()) } == 0 {
+        Err(
+            "Bytes converter must return a bytes representation of a valid json object"
+                .to_py_error(unsafe { DESERIALIZATION_ERROR_TYPE }),
+        )
+    } else {
+        let size = unsafe { PyBytes_Size(converted_bytes.as_ptr()) };
+        output_buf.extend_from_bytes(size as usize, converted_bytes.as_ptr())
     }
 }
