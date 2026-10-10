@@ -24,10 +24,6 @@ impl<'a> PositionPointerHolder<'a> {
             buf, str_posses: Vec::new(),
         }
     }
-
-    pub unsafe fn change_buf(&mut self, new_buf: &'a [u8]) {
-        self.buf = new_buf;
-    } 
     
     pub fn unsafe_get(&self, position: usize)  -> Result<&Pointer, *mut PyObject> {
         Ok(safe_get!(self.str_posses, position))

@@ -340,9 +340,6 @@ pub fn convert_to_json<'a>(
                 false,
                 deserializing_custom_types,
             )?);
-            unsafe {
-                pointers.change_buf(buf);
-            }
             let deserialized_obj =
                 deserialize_custom_type(buf, ptr, pointers, false, deserializing_custom_types)?;
             convert_custom_type(
@@ -585,9 +582,6 @@ fn convert_from_pointer_position<'a>(
     pointers: &mut PositionPointerHolder<'a>,
     position: usize,
 ) -> Result<(), *mut PyObject> {
-    unsafe {
-        pointers.change_buf(buf);
-    }
     match pointers.unsafe_get(position)? {
         Position { pos, is_base_254 } => {
             let mut pos = *pos;
